@@ -1,0 +1,32 @@
+{
+  "name": "@ai-qa/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "平台 API：鉴权、项目、环境、用例、报告接口（阶段 0：登录 + 项目权限基础）",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:seed": "tsx prisma/seed.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ai-qa/contracts": "workspace:*",
+    "@fastify/cookie": "^11.0.0",
+    "@fastify/formbody": "^8.0.2",
+    "@prisma/client": "^6.3.0",
+    "fastify": "^5.2.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "prisma": "^6.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "ai-qa-platform",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AI 测试人员平台 —— 需求驱动的独立测试验收系统（开发阶段 0 基线）",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev:demo": "pnpm --filter @ai-qa/demo-app dev",
+    "dev:api": "pnpm --filter @ai-qa/api dev",
+    "build": "pnpm -r --filter './packages/*' --filter './apps/*' build",
+    "test": "pnpm -r test",
+    "test:contracts": "pnpm --filter @ai-qa/contracts test",
+    "test:golden": "pnpm --filter @ai-qa/demo-app test:golden",
+    "db:migrate": "pnpm --filter @ai-qa/api db:migrate",
+    "db:seed": "pnpm --filter @ai-qa/api db:seed",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

@@ -1,0 +1,27 @@
+node_modules/
+dist/
+build/
+.next/
+coverage/
+*.log
+.env
+.env.local
+.env.*.local
+
+# 本地数据库与证据
+data/
+*.sqlite
+*.sqlite-journal
+*.db
+artifacts/
+playwright-report/
+test-results/
+
+# Prisma
+apps/api/prisma/*.db
+
+# 系统文件
+.DS_Store
+
+# Claude 本地会话配置
+.claude/

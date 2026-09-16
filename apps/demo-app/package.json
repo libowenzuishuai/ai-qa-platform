@@ -1,0 +1,27 @@
+{
+  "name": "@ai-qa/demo-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "独立待测审批系统（演示业务：采购单申请/审批/付款待办）。与测试平台完全独立。",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start:dist": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "test:golden": "node scripts/run-golden.mjs",
+    "test:golden:playwright": "playwright test"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.0",
+    "@fastify/formbody": "^8.0.2",
+    "fastify": "^5.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

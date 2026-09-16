@@ -1,0 +1,22 @@
+{
+  "name": "@ai-qa/worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "执行 worker（阶段 0 骨架：健康检查与就绪声明；执行器在阶段 1 实现）",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start:dist": "node dist/server.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "fastify": "^5.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
