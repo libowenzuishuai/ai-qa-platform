@@ -145,3 +145,48 @@ schema 层两道防线：正则拒绝控制字符（URL 解析器会去除 TAB/C
 归一化跳站）+ 计划级 superRefine 用哨兵 origin 做 URL 解析复核。执行器
 接入后仍必须在导航与每次重定向后用 url-policy 校验最终 origin——正则
 校验不是完整导航隔离。
+
+
+## 阶段 1
+
+## D21 固定资产种子：真实观察 + 项目前缀 ID + 先算哈希后建行
+
+种子用真实浏览器观察候选定位（testId 唯一命中 + 截图 Artifact 作 evidenceId），
+不预置假证据。观察顺序依赖页面状态（submit-button 仅草稿态、approve-button 仅
+待审批态）。ID 一律 `${projectId}-fx-*` 防跨项目冲突；acceptanceHash 在建行前
+计算（APPROVED 行创建即冻结，不可回填）。
+
+## D22 运行一致性：认领幂等 + RunEvent 出站 + 对账兜底
+
+创建运行先落库（QUEUED + run.created 事件）再入队；入队失败不回滚，由 worker
+对账循环重投超时 QUEUED（等价出站箱）。消费认领 = 原子 QUEUED→PREPARING，
+重复投递直接返回；attempt 由 (runId, caseVersionId, attemptNo) 唯一约束兜底，
+重复消息不会重复执行业务。终态迁移先读数据库当前状态，取消请求不被
+FINALIZING 覆盖。
+
+## D23 执行器安全与判定边界
+
+导航/子资源/重定向/弹窗在请求发出前按 origin 白名单拦截（context.route + 弹窗
+关闭）；goto 双保险（schema 同源哨兵 + 执行前 checkDestination + 导航后复核）。
+WRITE 点击前置可见性检查后超时视为提交结果未知 → UNCERTAIN_SIDE_EFFECT，不重试。
+waitFor 超时归类 TIME_BUDGET（技术等待，不构成业务违规）。登录失败启发式：
+目标缺失且页面呈现密码输入 → AUTH。
+
+## D24 证据链与降级
+
+断言即时截图（NORMAL）为 PASS 必需证据；trace 每 attempt 归档（RESTRICTED_RAW，
+需 LEAD+ 下载）。报告生成时复核证据文件存在性：缺失则 PASS→REVIEW +
+evidenceDowngraded，严格验收随之 INCOMPLETE；下载 404 不伪造。
+
+## D25 页面选型：零依赖 SSR + 同源代理
+
+apps/web 用 Fastify 服务端渲染（无客户端框架），记录为常规选型：阶段 1 只需
+最小运行页面，Next.js 完整工作台留给阶段 5。SSE 与证据经 web 同源代理，
+浏览器不直连 API/数据库，不接触凭据。
+
+## D26 demo 夹具的命名空间化（评测能力，非被测语义）
+
+demo_ns Cookie 由执行器注入（测试数据标记，非凭据）；订单/列表按命名空间过滤
+与计数（orders-count/payments-count），夹具接口 ns/reset、ns/state 令牌保护。
+黄金验收（无 Cookie）行为不变。故障注入 DEMO_FAULTS=submit-commit-hang 与缺陷
+模式相互独立，均不暴露给运行时智能体。

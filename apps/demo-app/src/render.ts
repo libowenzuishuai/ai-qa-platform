@@ -104,6 +104,7 @@ export function ordersPage(
     "采购单",
     user,
     `<h1>采购单列表</h1>
+    <p>当前范围采购单数量：<span data-testid="orders-count">${orders.length}</span></p>
     <table data-testid="orders-table">
       <thead><tr><th>单号</th><th>标题</th><th>金额</th><th>状态</th><th>创建时间</th></tr></thead>
       <tbody>${rows || "<tr><td colspan='5'>暂无采购单</td></tr>"}</tbody>
@@ -191,6 +192,7 @@ export function paymentsPage(
     "付款待办",
     user,
     `<h1>付款待办</h1>
+    <p>当前范围付款待办数量：<span data-testid="payments-count">${orders.length}</span></p>
     <table data-testid="payments-table">
       <thead><tr><th>单号</th><th>标题</th><th>金额</th><th>进入待办时间</th></tr></thead>
       <tbody>${rows || "<tr><td colspan='4'>暂无付款待办</td></tr>"}</tbody>

@@ -1,0 +1,26 @@
+{
+  "name": "@ai-qa/evaluation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "确定性结果聚合：用例 verdict、运行指标与严格验收状态（PRD §5.2 / FR-10）",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ai-qa/contracts": "workspace:*",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

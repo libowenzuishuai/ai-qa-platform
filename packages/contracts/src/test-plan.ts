@@ -153,7 +153,21 @@ export const PlanAction = z.discriminatedUnion("type", [
     path: z
       .string()
       .regex(/^\/(?!\/)[^\\]*$/, "path 必须是以单个 / 开头、不含反斜杠的同站相对路径")
-      .regex(/^[^\x00-\x1f\x7f]*$/, "path 不允许包含控制字符"),
+      .regex(/^[^\x00-\x1f\x7f]*$/, "path 不允许包含控制字符")
+      .optional(),
+    /**
+     * 带占位符的导航模板（阶段 1）：`/orders/{orderId}`，占位符只能是
+     * 先前 captureValue 保存的变量名。禁止任意表达式；模板骨架仍受
+     * 同源约束（用哨兵值代入后校验）。与 path 二选一（计划级校验）。
+     */
+    pathTemplate: z
+      .string()
+      .regex(
+        /^\/(?!\/)(?:[^\\{}]|\{[a-zA-Z][a-zA-Z0-9_]*\})*$/,
+        "pathTemplate 只允许 {变量} 占位符，且必须是以单个 / 开头的同站相对路径",
+      )
+      .regex(/^[^\x00-\x1f\x7f]*$/, "pathTemplate 不允许包含控制字符")
+      .optional(),
   }),
   ActionBase.extend({
     type: z.literal("fill"),
@@ -347,14 +361,37 @@ export const TestPlanV1 = z
     });
 
     // —— goto 路径必须始终解析在同源内（评审 F5：控制字符/归一化跳站） ——
+    // pathTemplate 的占位符必须由此前无条件 captureValue 定义（数据流校验），
+    // 且模板骨架（哨兵值代入后）也必须同源。
     plan.actions.forEach((a, i) => {
-      if (a.type !== "goto" && !("path" in a)) return;
       if (a.type !== "goto") return;
-      if (!resolvesSameOrigin(a.path))
-        issue(
-          ["actions", i, "path"],
-          `goto path 经 URL 解析后离开目标站点（协议相对/反斜杠/控制字符归一化）`,
+      if (a.path !== undefined && a.pathTemplate !== undefined) {
+        issue(["actions", i, "pathTemplate"], "goto 的 path 与 pathTemplate 二选一");
+        return;
+      }
+      if (a.path !== undefined) {
+        if (!resolvesSameOrigin(a.path))
+          issue(
+            ["actions", i, "path"],
+            `goto path 经 URL 解析后离开目标站点（协议相对/反斜杠/控制字符归一化）`,
+          );
+        return;
+      }
+      if (a.pathTemplate !== undefined) {
+        const placeholders = [...a.pathTemplate.matchAll(/\{([a-zA-Z][a-zA-Z0-9_]*)\}/g)].map(
+          (m) => m[1]!,
         );
+        for (const name of placeholders) {
+          if (!definedVars.has(name))
+            issue(["actions", i, "pathTemplate"], `占位符 {${name}} 未由此前的 captureValue 定义`);
+        }
+        // 骨架同源：占位符代入哨兵值后不得离开目标站点。
+        const skeleton = a.pathTemplate.replace(/\{[a-zA-Z][a-zA-Z0-9_]*\}/g, "x");
+        if (!resolvesSameOrigin(skeleton))
+          issue(["actions", i, "pathTemplate"], "goto pathTemplate 骨架经 URL 解析后离开目标站点");
+      } else {
+        issue(["actions", i, "path"], "goto 必须提供 path 或 pathTemplate");
+      }
     });
 
     // —— 检查动作与断言双向闭合 ——

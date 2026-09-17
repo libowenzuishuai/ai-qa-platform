@@ -1,0 +1,27 @@
+{
+  "name": "@ai-qa/test-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "description": "受限 TestPlan 执行器：七种动作、角色隔离、导航策略、程序化断言与证据采集",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ai-qa/artifact-store": "workspace:*",
+    "@ai-qa/contracts": "workspace:*",
+    "playwright": "^1.63.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

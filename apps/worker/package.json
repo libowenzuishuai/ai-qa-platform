@@ -1,8 +1,8 @@
 {
   "name": "@ai-qa/worker",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "执行 worker（阶段 0 骨架：健康检查与就绪声明；执行器在阶段 1 实现）",
+  "description": "执行 worker：BullMQ 消费、真实浏览器执行、证据落盘、对账与租约",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
@@ -12,7 +12,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "fastify": "^5.2.0"
+    "@ai-qa/artifact-store": "workspace:*",
+    "@ai-qa/contracts": "workspace:*",
+    "@ai-qa/evaluation": "workspace:*",
+    "@ai-qa/test-runtime": "workspace:*",
+    "@prisma/client": "^6.3.0",
+    "bullmq": "^5.34.0",
+    "fastify": "^5.2.0",
+    "playwright": "^1.63.0",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

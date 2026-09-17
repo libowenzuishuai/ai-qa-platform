@@ -10,10 +10,15 @@
   "scripts": {
     "dev:demo": "pnpm --filter @ai-qa/demo-app dev",
     "dev:api": "pnpm --filter @ai-qa/api dev",
+    "dev:worker": "pnpm --filter @ai-qa/worker dev",
+    "dev:web": "pnpm --filter @ai-qa/web dev",
+    "build:apps": "pnpm --filter @ai-qa/demo-app --filter @ai-qa/worker --filter @ai-qa/web build",
+    "test:phase1": "node tools/phase1-acceptance/run.mjs",
     "build": "pnpm -r --filter './packages/*' --filter './apps/*' build",
     "test": "pnpm -r test",
     "test:contracts": "pnpm --filter @ai-qa/contracts test",
     "test:golden": "pnpm --filter @ai-qa/demo-app test:golden",
+    "test:runtime": "pnpm --filter @ai-qa/test-runtime test",
     "db:migrate": "pnpm --filter @ai-qa/api db:migrate",
     "db:seed": "pnpm --filter @ai-qa/api db:seed",
     "typecheck": "pnpm -r typecheck"

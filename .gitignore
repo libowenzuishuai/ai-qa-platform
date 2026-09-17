@@ -25,3 +25,7 @@ apps/api/prisma/*.db
 
 # Claude 本地会话配置
 .claude/
+
+# 阶段 1 验收 harness 输出
+tools/phase1-acceptance/last-run.json
+tools/phase1-acceptance/ui-report.png

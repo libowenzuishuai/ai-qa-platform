@@ -266,3 +266,58 @@ M3 单事务对脏数据：exit=3，violates foreign key constraint
 - Kimi/Moonshot 模型业务接入（阶段 2）：本轮只确认 .env 配置形态，
   未由本会话发起任何模型调用，未验证工具调用往返。
 - 迁移 3 未在真正含生产规模数据的库上演练（仅探针库演示回填路径）。
+
+
+---
+
+# 阶段 1 验证记录（真实浏览器执行闭环）
+
+日期：2026-09-17 · harness：tools/phase1-acceptance/run.mjs（16 轮迭代后全绿）
+
+## 13. 回归与单元
+
+```
+$ pnpm test:contracts           # 81/81（新增 goto.pathTemplate 6 项）
+$ pnpm --filter @ai-qa/api test # 13/13
+$ pnpm test:runtime             # 10/10（真实 Chromium：七动作/越界拦截/AUTH/
+                                 #   取消/预算/写不确定/登录页启发式）
+$ pnpm --filter @ai-qa/evaluation --filter @ai-qa/artifact-store test  # 14/14、4/4
+$ pnpm test:golden              # healthy/B1/B2/B3/B4 全 PASS（10 项，demo 扩展兼容）
+$ pnpm typecheck                # 0 错误
+```
+
+## 14. 集成验收（53/53，经平台 API/队列/worker/真实页面）
+
+运行方式：`pnpm test:phase1`（自动起 6 个 demo 实例与 api/worker/web，
+场景覆盖验收矩阵全表；结果存 tools/phase1-acceptance/last-run.json）。
+
+| 场景组 | 结果 |
+|---|---|
+| 健康（5000.01 全流程 / 边界 5000.00 / 持久化） | 3 用例 PASS、运行 FINISHED、严格验收 PASS、执行率/通过率 100.0%、expected/actual 真实值、PNG 证据 200、trace RESTRICTED_RAW、buildVerified=true |
+| 版本未验证 | 无 buildId 运行：用例 PASS 但严格验收 INCOMPLETE、buildVerified=false |
+| B1 / B3 / B4 | 对应断言 FAIL/BUSINESS_MISMATCH；B1 actual=待审批、B3 actual=已审批/待办 0、B4 orders-count=0；运行严格验收 FAIL/INCOMPLETE |
+| 错误账号 | BLOCKED/AUTH；4/4 断言 NOT_EVALUATED；INCOMPLETE |
+| 幂等/重复投递 | 同键同请求返回原 run（200 existed）；同键异体 409；命名空间订单峰值 1（一次因窗口错过以平台断言 a-orders-count=1 佐证，见 harness 注记） |
+| 篡改计划 | DB 直改计划 expected → 创建运行 422（哈希不符）；恢复后 202 |
+| URL 越界 | 前缀拼接域名登记 422（userinfo/端口在既有 13 项单测覆盖） |
+| 证据异常 | 删除证据文件 → PASS 用例降级 REVIEW + evidenceDowngraded；下载 404；跨项目用户 403/404；VIEWER 对 trace 403、管理员 200 |
+| 权限/空集合 | VIEWER 启动 403；caseVersionIds=[] → 422 |
+| 取消 | 两次取消均 200（幂等）；终态 CANCELLED；取消中用例不 PASS；严格验收 INCOMPLETE |
+| WRITE 中断 | 提交落库后响应挂起 → BLOCKED/UNCERTAIN_SIDE_EFFECT；命名空间峰值 1（无重复订单）；INCOMPLETE |
+| 隔离 | 三个 attempt 命名空间互不相同；两运行数据互不影响（各自 ns 计数断言=1） |
+| SSE | 单连接 seq 有序无重复且从 1 连续；Last-Event-ID 续传不回吐旧事件 |
+| 真实页面 | 登录 → 选环境/用例启动 → SSE 终态 → 刷新恢复 → 报告截图 naturalWidth>0（截图见 docs/evidence/phase1-ui-report.png） |
+
+过程修复（全部有 harness 复现记录）：观察时机依赖页面状态（submit-button 仅
+DRAFT 渲染）；APPROVED 冻结行不可回填哈希（改为先算后建）；固定资产 ID 跨项目
+冲突（项目前缀）；终态 FINALIZING 覆盖 CANCEL_REQUESTED（先读库再迁移）；
+环境下拉按 createdAt 倒序导致 harness 选错环境（按值选择）；WRITE 点击超时
+分类为 UNCERTAIN（前置可见性检查后超时=导航挂起）。
+
+## 15. 阶段 1 未执行项
+
+- compose 容器化 api/web 未在本环境验证（无 registry；本地三进程路径已验证，
+  compose 定义已同步 worker 凭据注入与共享 artifacts 卷）。
+- worker 租约超时 → ERROR 的对账路径为代码审查 + 单元语义验证，未在集成中
+  杀进程注入（注入成本高；取消/幂等路径已覆盖并发写入安全）。
+- 断言失败后的自动重试（attemptNo>1）未实现（阶段 4：unstable 语义）。

@@ -8,22 +8,25 @@
 - 开发提示词：[docs/ai-qa/03-GLM开发提示词.md](docs/ai-qa/03-GLM开发提示词.md)
 - 实施状态：[docs/implementation-status.md](docs/implementation-status.md)
 
-> 当前处于**阶段 0.2（工程基线与两轮评审修复）**，适合研究、协作开发和运行演示。
-> 浏览器测试执行器、管理台和 AI 自动生成测试尚未实现；执行器在阶段 1、
-> 运行时模型接入在阶段 2 起。当前版本不应作为生产测试平台部署。
+> 当前处于**阶段 1（固定用例的真实浏览器执行闭环）**：登录平台 → 选择环境与
+> 固定用例 → 真实浏览器执行 → 持久化进度/断言/截图/trace → 报告与复验。
+> AI 自动生成测试（资料解析、模型规划）在阶段 2 起；本阶段用例为人工种子
+> （origin=manual），执行 mode=real。不应作为生产测试平台部署。
 
 ## 目录结构
 
 ```text
-apps/api                 平台 API（Fastify + Prisma）：登录、项目权限、环境登记
-apps/worker              执行 worker（阶段 0 骨架；容器只挂载 dist 与依赖，不含仓库源码）
+apps/api                 平台 API：登录/项目权限/环境登记/运行/SSE/报告/证据下载/种子
+apps/worker              执行 worker：BullMQ 消费、七动作浏览器执行器、证据、对账租约
 apps/demo-app            独立待测审批系统（采购单申请/审批/付款待办，SQLite）
-apps/web                 管理台前端（占位，后续阶段）
-packages/contracts       领域契约：状态机、TestPlan v1、API 错误（Zod 运行时校验）
+apps/web                 最小运行页面：登录、启动、实时进度、取消、报告与证据（SSR + SSE 代理）
+packages/contracts       领域契约：状态机、TestPlan v1、断言语义、acceptanceHash（Zod）
+packages/artifact-store  证据存储：受控目录、checksum、防目录穿越
+packages/test-runtime    Playwright 执行器：七动作、导航策略、程序化断言、证据采集
+packages/evaluation      确定性聚合：case verdict、运行指标、严格验收（FR-10）
 packages/model-adapters  模型适配器（占位，阶段 2）
 packages/doc-ingestion   文档解析（占位，阶段 2）
-packages/test-runtime    执行运行时（占位，阶段 1）
-packages/evaluation      聚合与覆盖（占位，阶段 1）
+tools/phase1-acceptance  阶段 1 集成验收 harness（评测器专用，53 项场景）
 docs/ai-qa               产品规格资料包
 docs                     实施状态、决策记录、验证记录
 ```
@@ -47,10 +50,18 @@ docker compose up -d postgres redis
 pnpm db:migrate
 SEED_ADMIN_PASSWORD='你的密码' pnpm db:seed
 
-# 5. 启动服务
+# 5. 启动服务（各开一个终端）
 pnpm dev:api                  # http://127.0.0.1:7300
+pnpm dev:worker               # http://127.0.0.1:7200（需 DEMO_* 账号环境变量）
+pnpm dev:web                  # http://127.0.0.1:7100（平台页面）
 pnpm dev:demo                 # http://127.0.0.1:7400（待测系统）
-pnpm --filter @ai-qa/worker start   # http://127.0.0.1:7200（骨架）
+```
+
+worker 需要待测系统测试账号（经环境变量注入，不入库）：
+
+```bash
+DEMO_APPLICANT_USERNAME=applicant1 DEMO_APPLICANT_PASSWORD='...' \
+DEMO_SUPERVISOR_USERNAME=supervisor1 DEMO_SUPERVISOR_PASSWORD='...' pnpm dev:worker
 ```
 
 登录 API：
@@ -69,9 +80,11 @@ demo-app 演示账号：`applicant1 / Applicant#2026`（申请人）、
 ## 验证命令
 
 ```bash
-pnpm test:contracts           # 契约 schema 校验测试（75 项）
-pnpm --filter @ai-qa/api test # API URL 白名单策略等单测
+pnpm test:contracts           # 契约 schema 校验测试（81 项）
+pnpm --filter @ai-qa/api test # API URL 白名单策略等单测（13 项）
+pnpm test:runtime             # 执行器单测（真实 Chromium，10 项）
 pnpm test:golden              # demo-app 黄金验收（真实浏览器，健康 + B1–B4）
+pnpm test:phase1              # 阶段 1 集成验收（53 项，经平台 API/队列/页面）
 pnpm typecheck                # 全部包类型检查
 
 # 数据库不变量（跨项目/悬空引用/已批准版本不可变；需先起 compose postgres）：

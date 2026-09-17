@@ -47,6 +47,7 @@ export interface DemoOrder {
   approved_by: string | null;
   approved_at: string | null;
   rejected_reason: string | null;
+  namespace: string | null;
 }
 
 export function openDatabase(config: DemoConfig): DatabaseSync {
@@ -72,7 +73,8 @@ export function openDatabase(config: DemoConfig): DatabaseSync {
       submitted_at TEXT,
       approved_by TEXT,
       approved_at TEXT,
-      rejected_reason TEXT
+      rejected_reason TEXT,
+      namespace TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
     CREATE TABLE IF NOT EXISTS approval_log (
@@ -84,6 +86,13 @@ export function openDatabase(config: DemoConfig): DatabaseSync {
       at TEXT NOT NULL
     );
   `);
+  // 旧库升级：幂等补列（存在则忽略错误）；namespace 索引在补列后创建。
+  try {
+    db.exec("ALTER TABLE orders ADD COLUMN namespace TEXT");
+  } catch {
+    /* column exists */
+  }
+  db.exec("CREATE INDEX IF NOT EXISTS idx_orders_namespace ON orders(namespace)");
   seedUsers(db);
   return db;
 }
@@ -95,8 +104,11 @@ function seedUsers(db: DatabaseSync): void {
     "INSERT INTO users (id, username, password_hash, display_name, role) VALUES (?, ?, ?, ?, ?)",
   );
   // 演示账号；密码仅用于演示环境，不与任何真实系统相关。
-  insert.run(randomUUID(), "applicant1", hashPassword("Applicant#2026"), "王一（申请人）", "applicant");
-  insert.run(randomUUID(), "supervisor1", hashPassword("Supervisor#2026"), "李二（主管）", "supervisor");
+  // 评测器可通过环境变量覆盖密码（用于"账号失效"场景注入）。
+  const applicantPassword = process.env.DEMO_APPLICANT_PASSWORD ?? "Applicant#2026";
+  const supervisorPassword = process.env.DEMO_SUPERVISOR_PASSWORD ?? "Supervisor#2026";
+  insert.run(randomUUID(), "applicant1", hashPassword(applicantPassword), "王一（申请人）", "applicant");
+  insert.run(randomUUID(), "supervisor1", hashPassword(supervisorPassword), "李二（主管）", "supervisor");
 }
 
 export function hashPassword(password: string): string {

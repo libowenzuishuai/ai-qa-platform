@@ -1,0 +1,17 @@
+{
+  "name": "@ai-qa/phase1-acceptance",
+  "version": "0.1.0",
+  "private": true,
+  "description": "阶段 1 集成验收 harness（评测器专用，通过平台入口驱动全部场景）",
+  "type": "module",
+  "scripts": {
+    "run": "node run.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.3.0",
+    "playwright": "^1.63.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

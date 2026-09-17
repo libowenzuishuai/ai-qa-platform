@@ -49,6 +49,8 @@ export const ProtectedPlanAction = z.object({
   instruction: z.string().optional(),
   /** goto 的导航业务路径（换业务路径 = 换验收语义，评审 F2）。 */
   path: z.string().optional(),
+  /** goto 的导航模板（含占位符，同样属于业务语义）。 */
+  pathTemplate: z.string().optional(),
   /** waitFor 的业务条件（kind+期望值；超时/轮询参数不纳入）。 */
   condition: z
     .object({
@@ -177,7 +179,10 @@ export function extractAcceptanceProtectedFields(input: {
     if (a.type === "captureValue") base.saveAs = a.saveAs;
     if ("value" in a && a.value) base.valueRef = serializeValueRef(a.value);
     if (a.type === "visualAction") base.instruction = a.instruction;
-    if (a.type === "goto") base.path = a.path;
+    if (a.type === "goto") {
+      if (a.path !== undefined) base.path = a.path;
+      if (a.pathTemplate !== undefined) base.pathTemplate = a.pathTemplate;
+    }
     if (a.type === "waitFor") {
       base.condition = {
         kind: a.condition.kind,

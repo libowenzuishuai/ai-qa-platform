@@ -954,3 +954,96 @@ describe("F3：可信入口校验身份、状态与类别", () => {
     expect(result.ok).toBe(false);
   });
 });
+
+
+describe("阶段 1：goto pathTemplate", () => {
+  function planWithTemplate(template: string, withCapture: boolean) {
+    const plan = makeValidPlan();
+    const draft: PlanDraft = {
+      ...plan,
+      bindings: [
+        ...plan.bindings,
+        {
+          targetRef: "observed-order-id",
+          locator: { type: "testId", value: "order-id" },
+          observedUrl: "http://demo.local/orders",
+          observedAt: "2026-09-16T00:00:01Z",
+          evidenceId: "art-observe-6",
+        },
+      ],
+      actions: [
+        ...plan.actions.slice(0, 4),
+        ...(withCapture
+          ? [{
+              id: "s4b",
+              type: "captureValue",
+              targetRef: "observed-order-id",
+              saveAs: "orderId",
+              effect: "READ",
+            } as never]
+          : []),
+        {
+          id: "s5",
+          type: "goto",
+          pathTemplate: template,
+          effect: "READ",
+        } as never,
+        plan.actions[4]!,
+      ],
+    };
+    return draft;
+  }
+
+  it("合法模板（占位符已定义）通过校验", () => {
+    const draft = planWithTemplate("/orders/{orderId}", true);
+    expect(() =>
+      TestPlanV1.parse({
+        ...draft,
+        acceptanceHash: computePlanAcceptanceHash({ testCase: makeTestCase(), plan: draft }),
+      }),
+    ).not.toThrow();
+  });
+
+  it("占位符未定义被拒绝", () => {
+    const draft = planWithTemplate("/orders/{orderId}", false);
+    expect(() => TestPlanV1.parse({ ...draft, acceptanceHash: "0".repeat(64) })).toThrow(
+      /未由此前的 captureValue 定义/,
+    );
+  });
+
+  it("模板骨架跳站被拒绝（//{var} 开头）", () => {
+    const draft = planWithTemplate("//{orderId}", true);
+    expect(() => TestPlanV1.parse({ ...draft, acceptanceHash: "0".repeat(64) })).toThrow(
+      /骨架|二选一/,
+    );
+  });
+
+  it("path 与 pathTemplate 同时提供被拒绝", () => {
+    const draft = planWithTemplate("/orders/{orderId}", true);
+    const gotoAction = draft.actions.find(
+      (a) => a.type === "goto" && "pathTemplate" in a,
+    ) as never as { path: string };
+    gotoAction.path = "/x";
+    expect(() => TestPlanV1.parse({ ...draft, acceptanceHash: "0".repeat(64) })).toThrow(
+      /二选一/,
+    );
+  });
+
+  it("两者都缺被拒绝", () => {
+    const draft = planWithTemplate("/orders/{orderId}", true);
+    const gotoAction = draft.actions.find(
+      (a) => a.type === "goto" && "pathTemplate" in a,
+    ) as never as Record<string, unknown>;
+    delete gotoAction.pathTemplate;
+    expect(() => TestPlanV1.parse({ ...draft, acceptanceHash: "0".repeat(64) })).toThrow(
+      /必须提供 path 或 pathTemplate/,
+    );
+  });
+
+  it("改变模板业务路径改变哈希", () => {
+    const testCase = makeTestCase();
+    const h1 = computePlanAcceptanceHash({ testCase, plan: planWithTemplate("/orders/{orderId}", true) });
+    const h2 = computePlanAcceptanceHash({ testCase, plan: planWithTemplate("/payments/{orderId}", true) });
+    expect(h1).not.toBe(h2);
+  });
+});

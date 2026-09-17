@@ -2,7 +2,7 @@ import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import formbody from "@fastify/formbody";
 import { randomUUID } from "node:crypto";
-import { loadConfig, hasBug, type DemoConfig } from "./config.js";
+import { loadConfig, hasBug, hasFault, type DemoConfig } from "./config.js";
 import {
   APPROVAL_THRESHOLD_CENTS,
   STATUS_LABEL,
@@ -135,9 +135,14 @@ app.post("/logout", async (req, reply) => {
 app.get("/orders", async (req, reply) => {
   const auth = requireLogin(req);
   if ("redirect" in auth) return reply.redirect(auth.redirect);
-  const orders = db
-    .prepare("SELECT * FROM orders ORDER BY created_at DESC LIMIT 200")
-    .all() as unknown as DemoOrder[];
+  const ns = req.cookies["demo_ns"] ?? null;
+  const orders = ns
+    ? (db
+        .prepare("SELECT * FROM orders WHERE namespace = ? ORDER BY created_at DESC LIMIT 200")
+        .all(ns) as unknown as DemoOrder[])
+    : (db
+        .prepare("SELECT * FROM orders ORDER BY created_at DESC LIMIT 200")
+        .all() as unknown as DemoOrder[]);
   return reply.type("text/html").send(ordersPage(navUser(auth.user)!, orders));
 });
 
@@ -188,10 +193,12 @@ app.post("/orders", async (req, reply) => {
   }
 
   const id = generateOrderId();
+  // 测试命名空间：由执行器通过 Cookie 注入（非凭据），用于按 attempt 隔离数据。
+  const namespace = req.cookies["demo_ns"] ?? null;
   db.prepare(
-    `INSERT INTO orders (id, title, amount_cents, note, status, created_by, created_at)
-     VALUES (?, ?, ?, ?, 'DRAFT', ?, ?)`,
-  ).run(id, title, amountCents, note || null, auth.user.id, new Date().toISOString());
+    `INSERT INTO orders (id, title, amount_cents, note, status, created_by, created_at, namespace)
+     VALUES (?, ?, ?, ?, 'DRAFT', ?, ?, ?)`,
+  ).run(id, title, amountCents, note || null, auth.user.id, new Date().toISOString(), namespace);
   return reply.redirect(`/orders/${id}`);
 });
 
@@ -226,6 +233,11 @@ app.post("/orders/:id/submit", async (req, reply) => {
   const now = new Date().toISOString();
   db.prepare("UPDATE orders SET status = ?, submitted_at = ? WHERE id = ?").run(nextStatus, now, id);
   logApproval(id, auth.user.id, "submit", null, now);
+  if (hasFault(config, "submit-commit-hang")) {
+    // 故障注入（评测器专用）：数据已提交，但响应挂起 —— 模拟"提交后响应中断"。
+    await new Promise((resolve) => setTimeout(resolve, 60_000));
+    return reply.redirect(`/orders/${id}`);
+  }
   return reply.redirect(`/orders/${id}`);
 });
 
@@ -294,11 +306,18 @@ app.post("/orders/:id/reject", async (req, reply) => {
 app.get("/payments", async (req, reply) => {
   const auth = requireLogin(req);
   if ("redirect" in auth) return reply.redirect(auth.redirect);
-  const orders = db
-    .prepare(
-      "SELECT * FROM orders WHERE status = 'AWAITING_PAYMENT' ORDER BY approved_at DESC LIMIT 200",
-    )
-    .all() as unknown as DemoOrder[];
+  const ns = req.cookies["demo_ns"] ?? null;
+  const orders = ns
+    ? (db
+        .prepare(
+          "SELECT * FROM orders WHERE status = 'AWAITING_PAYMENT' AND namespace = ? ORDER BY approved_at DESC LIMIT 200",
+        )
+        .all(ns) as unknown as DemoOrder[])
+    : (db
+        .prepare(
+          "SELECT * FROM orders WHERE status = 'AWAITING_PAYMENT' ORDER BY approved_at DESC LIMIT 200",
+        )
+        .all() as unknown as DemoOrder[]);
   return reply.type("text/html").send(paymentsPage(navUser(auth.user)!, orders));
 });
 
@@ -308,6 +327,43 @@ app.get("/payments", async (req, reply) => {
 app.post("/api/fixtures/reset", async () => {
   db.exec("DELETE FROM approval_log; DELETE FROM orders;");
   return { ok: true };
+});
+
+/** 按命名空间清理（阶段 1 数据隔离；不触碰其它 namespace 与手工数据）。 */
+app.post("/api/fixtures/ns/reset", async (req) => {
+  const body = req.body as { namespace?: string } | undefined;
+  const namespace = body?.namespace?.trim();
+  if (!namespace || namespace.length > 128) {
+    return { ok: false, error: "VALIDATION_ERROR", message: "namespace 必填且不超过 128 字符" };
+  }
+  // 先删审批日志再删订单（approval_log 外键引用 orders）。
+  db.prepare(
+    "DELETE FROM approval_log WHERE order_id IN (SELECT id FROM orders WHERE namespace = ?)",
+  ).run(namespace);
+  const result = db.prepare(
+    "DELETE FROM orders WHERE namespace = ?",
+  ).run(namespace);
+  return { ok: true, deleted: Number(result.changes) };
+});
+
+/** 读取命名空间内部状态（评测器断言用，不向测试智能体暴露）。 */
+app.get("/api/fixtures/ns/state", async (req) => {
+  const namespace = (req.query as { namespace?: string }).namespace?.trim();
+  if (!namespace) {
+    return { ok: false, error: "VALIDATION_ERROR", message: "namespace 必填" };
+  }
+  const orders = db
+    .prepare("SELECT * FROM orders WHERE namespace = ? ORDER BY created_at")
+    .all(namespace) as unknown as DemoOrder[];
+  return {
+    ok: true,
+    orders: orders.map((o) => ({
+      id: o.id,
+      title: o.title,
+      amountCents: o.amount_cents,
+      status: o.status,
+    })),
+  };
 });
 
 /** 评测器读取内部订单状态（ground truth 断言用）。 */
@@ -351,6 +407,7 @@ function fakeOrder(id: string, title: string, amountCents: number, createdBy: st
     approved_by: null,
     approved_at: null,
     rejected_reason: null,
+    namespace: null,
   };
 }
 

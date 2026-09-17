@@ -307,10 +307,26 @@ model Run {
   baseline              Baseline        @relation(fields: [baselineId, projectId], references: [id, projectId], onDelete: Restrict)
   environment           Environment     @relation(fields: [environmentId, projectId], references: [id, projectId], onDelete: Restrict)
   attempts              CaseAttempt[]
+  events                RunEvent[]
 
   @@unique([projectId, idempotencyKey])
   @@unique([id, projectId])
   @@index([projectId])
+}
+
+/** 持久化运行事件：SSE 的唯一事实来源（支持 Last-Event-ID 重放）。 */
+model RunEvent {
+  id        String   @id @default(cuid())
+  runId     String
+  /** run 内单调递增序号；重连按 seq 去重补发。 */
+  seq       Int
+  type      String
+  payload   Json     @default("{}")
+  createdAt DateTime @default(now())
+  run       Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, seq])
+  @@index([runId, createdAt])
 }
 
 model CaseAttempt {

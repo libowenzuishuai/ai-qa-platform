@@ -1,9 +1,14 @@
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import { PrismaClient } from "@prisma/client";
+import { Queue } from "bullmq";
+import { ArtifactStore } from "@ai-qa/artifact-store";
 import { loadConfig } from "./config.js";
 import { registerAuth } from "./auth.js";
 import { registerProjectRoutes } from "./routes-projects.js";
+import { registerRunRoutes } from "./routes-runs.js";
+import { registerAssetRoutes } from "./routes-assets.js";
+import { registerArtifactRoutes } from "./routes-artifacts.js";
 import { sendApiError } from "./errors.js";
 
 const config = loadConfig();
@@ -13,6 +18,16 @@ if (!config.databaseUrl) {
 }
 
 export const prisma = new PrismaClient();
+
+const redisConnection = (() => {
+  const url = new URL(process.env.REDIS_URL ?? "redis://127.0.0.1:6380/0");
+  return { host: url.hostname, port: Number(url.port || 6379) };
+})();
+
+const runsQueue = new Queue("runs", { connection: redisConnection });
+const seedQueue = new Queue("seed-fixed-assets", { connection: redisConnection });
+
+const artifactStore = new ArtifactStore(process.env.AIQA_ARTIFACT_DIR ?? "data/artifacts");
 
 export async function buildServer() {
   const app = Fastify({
@@ -42,6 +57,9 @@ export async function buildServer() {
 
   registerAuth(app, prisma, config.sessionTtlSeconds);
   registerProjectRoutes(app, prisma);
+  registerAssetRoutes(app, prisma, seedQueue);
+  registerRunRoutes(app, prisma, runsQueue, artifactStore);
+  registerArtifactRoutes(app, prisma, artifactStore);
 
   return app;
 }
@@ -53,6 +71,8 @@ app.listen({ port: config.port, host: config.host }).then(() => {
 
 const shutdown = async () => {
   await app.close();
+  await runsQueue.close();
+  await seedQueue.close();
   await prisma.$disconnect();
   process.exit(0);
 };
