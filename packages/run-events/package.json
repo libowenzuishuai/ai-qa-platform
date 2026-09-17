@@ -1,0 +1,25 @@
+{
+  "name": "@ai-qa/run-events",
+  "version": "0.1.0",
+  "private": true,
+  "description": "运行事件与生命周期：数据库原子序号分配（R7）、CAS 状态迁移（R2）、Redis URL 完整解析",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

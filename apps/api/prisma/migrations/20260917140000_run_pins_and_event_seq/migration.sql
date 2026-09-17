@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Run" ADD COLUMN     "casePlanPins" JSONB NOT NULL DEFAULT '[]',
+ADD COLUMN     "eventSeq" INTEGER NOT NULL DEFAULT 0;
+

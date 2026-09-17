@@ -47,6 +47,44 @@ async function main() {
       console.log("restored");
       break;
     }
+    case "add-plan-version": {
+      // 复制现有计划为新版本（内容相同、哈希不同）→ 测试"排队期间发布 v2"。
+      const [planId] = args;
+      const source = await prisma.testPlanVersion.findUniqueOrThrow({ where: { id: planId } });
+      const maxVersion = await prisma.testPlanVersion.aggregate({
+        where: { caseVersionId: source.caseVersionId },
+        _max: { version: true },
+      });
+      const created = await prisma.testPlanVersion.create({
+        data: {
+          caseVersionId: source.caseVersionId,
+          version: (maxVersion._max.version ?? 1) + 1,
+          schemaVersion: source.schemaVersion,
+          plan: source.plan as never,
+          bindingEvidenceIds: source.bindingEvidenceIds,
+          acceptanceHash: "b".repeat(64),
+        },
+      });
+      console.log(created.id);
+      break;
+    }
+    case "plan-expected": {
+      const [planId] = args;
+      const planVersion = await prisma.testPlanVersion.findUniqueOrThrow({ where: { id: planId } });
+      const plan = planVersion.plan as { assertions?: Array<{ id: string; expected?: string }> };
+      console.log(String(plan.assertions?.[0]?.expected ?? "none"));
+      break;
+    }
+    case "set-run-stale-cancellation": {
+      // 直接置 CANCEL_REQUESTED 且心跳超时 → 触发对账器完成取消（R2）。
+      const [runId] = args;
+      await prisma.run.update({
+        where: { id: runId },
+        data: { lifecycle: "CANCEL_REQUESTED", updatedAt: new Date(Date.now() - 200_000) },
+      });
+      console.log("stale-cancelled");
+      break;
+    }
     case "create-user": {
       const [username, password, platformRole, projectId, membershipRole] = args;
       const salt = randomBytes(16).toString("hex");

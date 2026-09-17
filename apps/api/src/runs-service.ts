@@ -1,13 +1,20 @@
-import type { PrismaClient, Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { TestCaseVersion, verifyStoredPlan } from "@ai-qa/contracts";
+import type { ArtifactStore } from "@ai-qa/artifact-store";
+import { allocateEventSeq } from "@ai-qa/run-events";
 import { ApiError } from "./errors.js";
 
 /**
- * 运行创建 repository（阶段 1 提示词 B/A.3）：
- * - 校验所有 ID/数组/JSON 引用真实存在且属于同一项目；
- * - 用例必须 APPROVED 且有绑定计划；执行前 verifyStoredPlan（服务端哈希核验）；
- * - 幂等键项目内唯一：同键同请求返回原 run，同键不同请求 409；
- * - 环境快照（含 secretRef 引用，不含明文）随 run 固化。
+ * 运行创建 repository（阶段 1.1：R3/R4/R8/R9）。
+ *
+ * - R3 版本固定：创建时在事务中固定每个用例的 planVersionId 与
+ *   acceptanceHash（casePlanPins）；worker 只按固定版本执行。
+ * - R4 可信引用：逐项核验规则（存在/同项目/APPROVED）、规则来源
+ *   （SourceSpan 存在且文档属于本项目）、基线成员、计划观察证据
+ *   （Artifact 存在/同项目/类型 OBSERVATION/文件真实存在）。
+ * - R8 并发幂等：唯一约束冲突后重读并按规范指纹比对（同体返回原 run，
+ *   异体 409），绝不 500。
+ * - R9 预算：解析并保存调用者预算（范围校验，超限拒绝）。
  */
 
 export interface CreateRunInput {
@@ -18,7 +25,11 @@ export interface CreateRunInput {
   buildId?: string | null;
   mode: "real" | "mock";
   idempotencyKey: string;
-  actorId: string;
+  budget?: {
+    maxToolActionsPerCase?: number;
+    maxWallClockMsPerCase?: number;
+    maxWallClockMsPerRun?: number;
+  };
 }
 
 export interface CreateRunResult {
@@ -26,25 +37,62 @@ export interface CreateRunResult {
   existed: boolean;
 }
 
+const BUDGET_LIMITS = {
+  maxToolActionsPerCase: { min: 1, max: 1000, def: 50 },
+  maxWallClockMsPerCase: { min: 10_000, max: 600_000, def: 300_000 },
+  maxWallClockMsPerRun: { min: 60_000, max: 7_200_000, def: 3_600_000 },
+} as const;
+
+type BudgetShape = {
+  maxToolActionsPerCase: number;
+  maxWallClockMsPerCase: number;
+  maxWallClockMsPerRun: number;
+  maxModelRequestsPerCase: number;
+  maxModelRequestsPerRun: number;
+  maxTokensPerRun: number;
+};
+
+function validateBudget(input: CreateRunInput["budget"]): BudgetShape {
+  const merged: BudgetShape = {
+    maxToolActionsPerCase: BUDGET_LIMITS.maxToolActionsPerCase.def,
+    maxWallClockMsPerCase: BUDGET_LIMITS.maxWallClockMsPerCase.def,
+    maxWallClockMsPerRun: BUDGET_LIMITS.maxWallClockMsPerRun.def,
+    maxModelRequestsPerCase: 0,
+    maxModelRequestsPerRun: 0,
+    maxTokensPerRun: 0,
+  };
+  if (!input) return merged;
+  for (const key of ["maxToolActionsPerCase", "maxWallClockMsPerCase", "maxWallClockMsPerRun"] as const) {
+    const value = input[key];
+    if (value === undefined) continue;
+    const limits = BUDGET_LIMITS[key];
+    if (!Number.isInteger(value) || value < limits.min || value > limits.max) {
+      throw new ApiError("VALIDATION_ERROR", `budget.${key} 必须是 ${limits.min}–${limits.max} 之间的整数`, {
+        field: `budget.${key}`,
+      });
+    }
+    merged[key] = value;
+  }
+  return merged;
+}
+
 export async function createRun(
-  prisma: PrismaClient,
+  prisma: import("@prisma/client").PrismaClient,
+  store: ArtifactStore,
   input: CreateRunInput,
 ): Promise<CreateRunResult> {
   const { projectId, baselineId, environmentId, caseVersionIds } = input;
 
   if (!Array.isArray(caseVersionIds) || caseVersionIds.length === 0) {
-    throw new ApiError("VALIDATION_ERROR", "caseVersionIds 不能为空：空运行无验收意义", {
-      field: "caseVersionIds",
-    });
+    throw new ApiError("VALIDATION_ERROR", "caseVersionIds 不能为空：空运行无验收意义", { field: "caseVersionIds" });
   }
   if (new Set(caseVersionIds).size !== caseVersionIds.length) {
     throw new ApiError("VALIDATION_ERROR", "caseVersionIds 存在重复", { field: "caseVersionIds" });
   }
   if (input.mode !== "real") {
-    throw new ApiError("UNSUPPORTED", "阶段 1 仅支持 mode=real；mock 不得用于真实验收", {
-      field: "mode",
-    });
+    throw new ApiError("UNSUPPORTED", "阶段 1 仅支持 mode=real；mock 不得用于真实验收", { field: "mode" });
   }
+  const budget = validateBudget(input.budget);
 
   const baseline = await prisma.baseline.findFirst({ where: { id: baselineId, projectId } });
   if (!baseline) throw new ApiError("NOT_FOUND", "基线不存在或不属于该项目");
@@ -55,32 +103,66 @@ export async function createRun(
     throw new ApiError("UNSUPPORTED", "禁止对生产环境执行业务测试", { field: "environmentId" });
   }
 
-  // 用例引用闭合校验：同项目、APPROVED、有计划、计划与批准语义一致。
+  // —— R4：真实引用核验（数据库事实，不只是 schema/哈希形状） ——
   const caseVersions = await prisma.testCaseVersion.findMany({
     where: { id: { in: caseVersionIds }, projectId },
   });
   const found = new Set(caseVersions.map((c) => c.id));
   const missing = caseVersionIds.filter((id) => !found.has(id));
   if (missing.length > 0) {
-    throw new ApiError("VALIDATION_ERROR", `用例版本不存在或不属于该项目：${missing.join(",")}`, {
-      field: "caseVersionIds",
-    });
+    throw new ApiError("VALIDATION_ERROR", `用例版本不存在或不属于该项目：${missing.join(",")}`, { field: "caseVersionIds" });
   }
+
+  const pins: Array<{ caseVersionId: string; planVersionId: string; acceptanceHash: string }> = [];
   for (const caseVersion of caseVersions) {
     if (caseVersion.approvalStatus !== "APPROVED" || !caseVersion.approvalHash) {
-      throw new ApiError("VALIDATION_ERROR", `用例 ${caseVersion.id} 未批准（不能作为验收标准）`, {
-        field: "caseVersionIds",
-      });
+      throw new ApiError("VALIDATION_ERROR", `用例 ${caseVersion.id} 未批准（不能作为验收标准）`, { field: "caseVersionIds" });
     }
+    if (!baseline.caseVersionIds.includes(caseVersion.id)) {
+      throw new ApiError("VALIDATION_ERROR", `用例 ${caseVersion.id} 不在基线 ${baseline.id} 范围内`, { field: "caseVersionIds" });
+    }
+
+    // R4：规则存在、同项目、APPROVED。
+    const ruleVersions = await prisma.ruleVersion.findMany({
+      where: { id: { in: caseVersion.ruleVersionIds } },
+      include: { rule: { select: { projectId: true } } },
+    });
+    for (const ruleId of caseVersion.ruleVersionIds) {
+      const rule = ruleVersions.find((r) => r.id === ruleId);
+      if (!rule || rule.rule.projectId !== projectId) {
+        throw new ApiError("VALIDATION_ERROR", `用例 ${caseVersion.id} 引用的规则 ${ruleId} 不存在或跨项目`, { field: "caseVersionIds" });
+      }
+      if (rule.reviewStatus !== "APPROVED") {
+        throw new ApiError("VALIDATION_ERROR", `用例 ${caseVersion.id} 引用的规则 ${ruleId} 状态为 ${rule.reviewStatus}（须 APPROVED）`, { field: "caseVersionIds" });
+      }
+      // R4：规则来源（SourceSpan 存在且文档属于本项目）。
+      const sources = (rule.sources ?? []) as Array<{ documentVersionId: string; sourceSpanIds: string[] }>;
+      for (const source of sources) {
+        const spanCount = await prisma.sourceSpan.count({
+          where: { id: { in: source.sourceSpanIds }, documentVersionId: source.documentVersionId },
+        });
+        if (spanCount !== source.sourceSpanIds.length) {
+          throw new ApiError("VALIDATION_ERROR", `规则 ${ruleId} 的来源 Span 不存在`, { field: "ruleVersionIds" });
+        }
+        const docVersion = await prisma.documentVersion.findUnique({
+          where: { id: source.documentVersionId },
+          include: { document: { select: { projectId: true } } },
+        });
+        if (!docVersion || docVersion.document.projectId !== projectId) {
+          throw new ApiError("VALIDATION_ERROR", `规则 ${ruleId} 的来源文档不属于本项目`, { field: "ruleVersionIds" });
+        }
+      }
+    }
+
+    // R3：固定当前最新计划版本（worker 只执行它）。
     const planVersion = await prisma.testPlanVersion.findFirst({
       where: { caseVersionId: caseVersion.id },
       orderBy: { version: "desc" },
     });
     if (!planVersion) {
-      throw new ApiError("VALIDATION_ERROR", `用例 ${caseVersion.id} 没有已绑定的执行计划`, {
-        field: "caseVersionIds",
-      });
+      throw new ApiError("VALIDATION_ERROR", `用例 ${caseVersion.id} 没有已绑定的执行计划`, { field: "caseVersionIds" });
     }
+
     const parsedCase = TestCaseVersion.safeParse({
       ...caseVersion,
       description: caseVersion.description ?? undefined,
@@ -101,15 +183,29 @@ export async function createRun(
     if (!verification.ok) {
       throw new ApiError("VALIDATION_ERROR", `用例 ${caseVersion.id} 计划校验失败：${verification.problems.slice(0, 2).join("; ")}`);
     }
-    // 基线一致性：选定的用例应属于基线范围（防绕过基线挑选用例）。
-    if (!baseline.caseVersionIds.includes(caseVersion.id)) {
-      throw new ApiError("VALIDATION_ERROR", `用例 ${caseVersion.id} 不在基线 ${baseline.id} 范围内`, {
-        field: "caseVersionIds",
-      });
+
+    // R4：计划观察证据（存在/同项目/OBSERVATION/文件真实存在）。
+    const bindings = ((planVersion.plan as { bindings?: Array<{ evidenceId: string }> }).bindings) ?? [];
+    for (const binding of bindings) {
+      const artifact = await prisma.artifact.findUnique({ where: { id: binding.evidenceId } });
+      if (!artifact || artifact.projectId !== projectId) {
+        throw new ApiError("VALIDATION_ERROR", `计划观察证据 ${binding.evidenceId} 不存在或跨项目`, { field: "caseVersionIds" });
+      }
+      if (artifact.type !== "OBSERVATION") {
+        throw new ApiError("VALIDATION_ERROR", `计划观察证据 ${binding.evidenceId} 类型为 ${artifact.type}（须 OBSERVATION）`, { field: "caseVersionIds" });
+      }
+      if (!store.exists(artifact.storageKey)) {
+        throw new ApiError("VALIDATION_ERROR", `计划观察证据文件缺失：${artifact.storageKey}`, { field: "caseVersionIds" });
+      }
     }
+
+    pins.push({
+      caseVersionId: caseVersion.id,
+      planVersionId: planVersion.id,
+      acceptanceHash: planVersion.acceptanceHash,
+    });
   }
 
-  // 环境快照：worker 只使用快照（不读“最新版本”）；仅存 secretRef 引用。
   const environmentSnapshot = {
     baseUrl: environment.baseUrl,
     allowedOrigins: environment.allowedOrigins,
@@ -119,63 +215,93 @@ export async function createRun(
     environmentRevision: environment.revision,
   };
 
-  const budget = {
-    maxToolActionsPerCase: 50,
-    maxModelRequestsPerCase: 0,
-    maxWallClockMsPerCase: 300_000,
-    maxModelRequestsPerRun: 0,
-    maxTokensPerRun: 0,
-    maxWallClockMsPerRun: 3_600_000,
-  };
-
-  // —— 幂等 ——
   const identity = {
     baselineId,
     environmentId,
     caseVersionIds: [...caseVersionIds].sort(),
     buildId: input.buildId ?? null,
     mode: input.mode,
+    budget,
   };
+
+  // —— R8：先查重（快速路径）——
   const existing = await prisma.run.findUnique({
     where: { projectId_idempotencyKey: { projectId, idempotencyKey: input.idempotencyKey } },
   });
   if (existing) {
-    const existingIdentity = {
-      baselineId: existing.baselineId,
-      environmentId: existing.environmentId,
-      caseVersionIds: [...existing.selectedCaseVersionIds].sort(),
-      buildId: existing.buildId,
-      mode: existing.mode,
-    };
-    if (JSON.stringify(existingIdentity) === JSON.stringify(identity)) {
-      return { runId: existing.id, existed: true };
-    }
-    throw new ApiError("IDEMPOTENCY_CONFLICT", "相同幂等键对应不同的请求体", {
-      idempotencyKey: input.idempotencyKey,
-    });
+    return resolveIdempotent(existing, identity, input.idempotencyKey);
   }
 
-  const run = await prisma.run.create({
-    data: {
-      projectId,
-      baselineId,
-      environmentId,
-      buildId: input.buildId ?? null,
-      mode: input.mode,
-      selectedCaseVersionIds: caseVersionIds,
-      budget,
-      idempotencyKey: input.idempotencyKey,
-      environmentSnapshot: environmentSnapshot as unknown as Prisma.InputJsonValue,
-      modelConfigSnapshot: { note: "stage1-fixed-cases-no-model" },
-    },
-  });
-  await prisma.runEvent.create({
-    data: {
-      runId: run.id,
-      seq: 1,
-      type: "run.created",
-      payload: { runId: run.id, caseVersionIds, buildId: input.buildId ?? null },
-    },
-  });
-  return { runId: run.id, existed: false };
+  // —— 插入（唯一约束兜底并发）——
+  try {
+    const run = await prisma.run.create({
+      data: {
+        projectId,
+        baselineId,
+        environmentId,
+        buildId: input.buildId ?? null,
+        mode: input.mode,
+        selectedCaseVersionIds: caseVersionIds,
+        budget,
+        idempotencyKey: input.idempotencyKey,
+        environmentSnapshot: environmentSnapshot as unknown as Prisma.InputJsonValue,
+        modelConfigSnapshot: { note: "stage1-fixed-cases-no-model" },
+        casePlanPins: pins as unknown as Prisma.InputJsonValue,
+      },
+    });
+    // 首事件与运行一致落库（同一事务语义由唯一键 + 事件分配器保证）。
+    const seq = await allocateEventSeq(prisma, run.id);
+    await prisma.runEvent.create({
+      data: {
+        runId: run.id,
+        seq,
+        type: "run.created",
+        payload: {
+          runId: run.id,
+          caseVersionIds,
+          buildId: input.buildId ?? null,
+          planPins: pins.map((p) => ({ caseVersionId: p.caseVersionId, planVersionId: p.planVersionId })),
+        },
+      },
+    });
+    return { runId: run.id, existed: false };
+  } catch (err) {
+    // R8：并发插入唯一冲突 → 重读并按指纹比对，绝不 500。
+    if (String(err).includes("Unique constraint") || (err as { code?: string }).code === "P2002") {
+      const raced = await prisma.run.findUnique({
+        where: { projectId_idempotencyKey: { projectId, idempotencyKey: input.idempotencyKey } },
+      });
+      if (raced) return resolveIdempotent(raced, identity, input.idempotencyKey);
+    }
+    throw err;
+  }
+}
+
+/** 幂等指纹中的预算投影：只比较调用者可设置的三键（按默认值归一）。 */
+function budgetFingerprint(budget: unknown): Record<string, number> {
+  const b = (budget ?? {}) as Record<string, unknown>;
+  return {
+    maxToolActionsPerCase: Number(b.maxToolActionsPerCase ?? BUDGET_LIMITS.maxToolActionsPerCase.def),
+    maxWallClockMsPerCase: Number(b.maxWallClockMsPerCase ?? BUDGET_LIMITS.maxWallClockMsPerCase.def),
+    maxWallClockMsPerRun: Number(b.maxWallClockMsPerRun ?? BUDGET_LIMITS.maxWallClockMsPerRun.def),
+  };
+}
+
+function resolveIdempotent(
+  existing: { id: string; baselineId: string; environmentId: string; selectedCaseVersionIds: string[]; buildId: string | null; mode: string; budget: unknown },
+  identity: Record<string, unknown>,
+  idempotencyKey: string,
+): CreateRunResult {
+  const existingIdentity = {
+    baselineId: existing.baselineId,
+    environmentId: existing.environmentId,
+    caseVersionIds: [...existing.selectedCaseVersionIds].sort(),
+    buildId: existing.buildId,
+    mode: existing.mode,
+    budget: budgetFingerprint(existing.budget),
+  };
+  const same =
+    JSON.stringify(existingIdentity) === JSON.stringify({ ...identity, budget: budgetFingerprint(identity.budget) });
+  if (same) return { runId: existing.id, existed: true };
+  throw new ApiError("IDEMPOTENCY_CONFLICT", "相同幂等键对应不同的请求体", { idempotencyKey });
 }

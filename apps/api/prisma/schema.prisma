@@ -299,6 +299,17 @@ model Run {
   idempotencyKey        String
   // PENDING / PASS / FAIL / INCOMPLETE
   acceptanceStatus      String          @default("PENDING")
+  /**
+   * 运行事件序号分配器（R7）：所有事件生产者通过
+   * UPDATE "eventSeq" = "eventSeq" + 1 RETURNING 原子取号。
+   */
+  eventSeq              Int             @default(0)
+  /**
+   * 用例计划版本固定（R3）：创建运行时固定每个用例执行的
+   * planVersionId 与 acceptanceHash；worker 只按固定版本执行。
+   * [{ caseVersionId, planVersionId, acceptanceHash }]
+   */
+  casePlanPins          Json            @default("[]")
   environmentSnapshot   Json            @default("{}")
   modelConfigSnapshot   Json            @default("{}")
   createdAt             DateTime        @default(now())

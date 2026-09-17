@@ -1,8 +1,10 @@
 import Fastify from "fastify";
 import { PrismaClient } from "@prisma/client";
 import { Queue, Worker as BullWorker } from "bullmq";
+import { emitRunEvent, parseRedisConnection } from "@ai-qa/run-events";
 import { loadConfig } from "./config.js";
 import { processRun } from "./run-processor.js";
+import { finalizeCancelledFromRequest } from "@ai-qa/run-events";
 import { seedFixedAssets } from "./seed-processor.js";
 
 /**
@@ -21,10 +23,16 @@ if (!config.databaseUrl) {
 }
 const prisma = new PrismaClient();
 
-const connection = (() => {
-  const url = new URL(config.redisUrl);
-  return { host: url.hostname, port: Number(url.port || 6379) };
-})();
+// Redis URL 完整解析（§三.1）：db/密码/TLS 实际生效，不只取 host/port。
+const parsed = parseRedisConnection(config.redisUrl);
+const connection = {
+  host: parsed.host,
+  port: parsed.port,
+  ...(parsed.username ? { username: parsed.username } : {}),
+  ...(parsed.password ? { password: parsed.password } : {}),
+  ...(parsed.db !== undefined ? { db: parsed.db } : {}),
+  ...(parsed.tls ? { tls: {} } : {}),
+};
 
 export const runsQueue = new Queue("runs", { connection });
 export const seedQueue = new Queue("seed-fixed-assets", { connection });
@@ -74,8 +82,21 @@ async function reconcile(): Promise<void> {
       .catch(() => undefined);
   }
 
-  // 2) worker 失联：心跳超时的非终态运行 → 未完成 attempt 置 BLOCKED，
-  //    run → ERROR（平台故障，不等于业务 FAIL）。
+  // 2) 取消后进程丢失：CANCEL_REQUESTED 停滞（无 worker 推进）→ 完成取消归宿。
+  const staleCancel = await prisma.run.findMany({
+    where: {
+      lifecycle: "CANCEL_REQUESTED",
+      updatedAt: { lt: new Date(Date.now() - LEASE_STALE_MS) },
+    },
+    select: { id: true },
+    take: 10,
+  });
+  for (const run of staleCancel) {
+    await finalizeCancelledFromRequest(prisma, run.id, "取消后 worker 失联（对账完成取消）");
+  }
+
+  // 3) worker 失联：心跳超时的活跃运行 → CAS 置 ERROR（平台故障 ≠ 业务 FAIL），
+  //    未完成 attempt 置 BLOCKED/ENVIRONMENT；事件走原子序号（R7）。
   const staleActive = await prisma.run.findMany({
     where: {
       lifecycle: { in: ["PREPARING", "RUNNING", "FINALIZING"] },
@@ -85,11 +106,11 @@ async function reconcile(): Promise<void> {
     take: 10,
   });
   for (const run of staleActive) {
-    const claimed = await prisma.run.updateMany({
+    const cas = await prisma.run.updateMany({
       where: { id: run.id, lifecycle: { in: ["PREPARING", "RUNNING", "FINALIZING"] } },
       data: { lifecycle: "ERROR" },
     });
-    if (claimed.count === 0) continue;
+    if (cas.count === 0) continue; // CAS 失败：状态已被他人迁移。
     await prisma.caseAttempt.updateMany({
       where: { runId: run.id, lifecycle: { not: "FINISHED" } },
       data: {
@@ -100,14 +121,9 @@ async function reconcile(): Promise<void> {
         finishedAt: new Date(),
       },
     });
-    await prisma.runEvent.create({
-      data: {
-        runId: run.id,
-        seq: 9_998,
-        type: "run.platform_error",
-        payload: { detail: "worker 心跳超时，运行进入 ERROR" },
-      },
-    }).catch(() => undefined);
+    await emitRunEvent(prisma, run.id, "run.platform_error", {
+      detail: "worker 心跳超时，运行进入 ERROR",
+    });
   }
 }
 

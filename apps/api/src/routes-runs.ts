@@ -3,7 +3,8 @@ import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { Queue } from "bullmq";
 import { ArtifactStore } from "@ai-qa/artifact-store";
-import { aggregateRun, percent } from "@ai-qa/evaluation";
+import { buildRunReport } from "@ai-qa/reporting";
+import { casTransitionRun, emitRunEvent } from "@ai-qa/run-events";
 import { ApiError } from "./errors.js";
 import { requireAuth, requireProjectAccess } from "./auth.js";
 import { createRun } from "./runs-service.js";
@@ -26,6 +27,14 @@ export function registerRunRoutes(
     buildId: z.string().min(1).max(200).optional(),
     mode: z.literal("real"),
     idempotencyKey: z.string().min(8).max(128),
+    // R9：调用者预算（解析、保存并执行；超限 422）。
+    budget: z
+      .object({
+        maxToolActionsPerCase: z.number().int().min(1).max(1000).optional(),
+        maxWallClockMsPerCase: z.number().int().min(10_000).max(600_000).optional(),
+        maxWallClockMsPerRun: z.number().int().min(60_000).max(7_200_000).optional(),
+      })
+      .optional(),
   });
 
   app.post("/api/runs", async (req, reply) => {
@@ -35,7 +44,7 @@ export function registerRunRoutes(
     if (auth.platformRole === "VIEWER") {
       throw new ApiError("FORBIDDEN", "查看者不能启动运行");
     }
-    const result = await createRun(prisma, { ...body, actorId: auth.userId });
+    const result = await createRun(prisma, store, body);
     if (result.existed) {
       const run = await prisma.run.findUniqueOrThrow({ where: { id: result.runId } });
       return reply.code(200).send({ runId: run.id, lifecycle: run.lifecycle, existed: true });
@@ -170,136 +179,26 @@ export function registerRunRoutes(
     if (TERMINAL_LIFECYCLE.has(run.lifecycle)) {
       return { runId: id, lifecycle: run.lifecycle, note: "运行已处于终态，取消为幂等空操作" };
     }
-    const updated = await prisma.run.updateMany({
-      where: { id, lifecycle: { in: ["QUEUED", "PREPARING", "RUNNING", "FINALIZING"] } },
-      data: { lifecycle: "CANCEL_REQUESTED" },
-    });
-    if (updated.count > 0) {
-      await prisma.runEvent
-        .create({ data: { runId: id, seq: 9_000, type: "run.cancel_requested", payload: { actor: req.auth?.userId } } })
-        .catch(() => undefined);
+    // R2/R7：CAS 迁移 + 数据库原子序号事件。
+    const updated = await casTransitionRun(
+      prisma,
+      id,
+      ["QUEUED", "PREPARING", "RUNNING", "FINALIZING"],
+      "CANCEL_REQUESTED",
+    );
+    if (updated) {
+      await emitRunEvent(prisma, id, "run.cancel_requested", { actor: req.auth?.userId });
     }
     const after = await prisma.run.findUniqueOrThrow({ where: { id }, select: { lifecycle: true } });
     return { runId: id, lifecycle: after.lifecycle };
   });
 
-  // ---------- 报告 ----------
+  // ---------- 报告（R5：与 worker 终态同一口径的共享报告构建器） ----------
   app.get("/api/runs/:id/report", async (req) => {
     const { id } = z.object({ id: z.string() }).parse(req.params);
-    const run = await prisma.run.findUnique({ where: { id }, include: { attempts: true } });
+    const run = await prisma.run.findUnique({ where: { id }, select: { projectId: true } });
     if (!run) throw new ApiError("NOT_FOUND", "运行不存在");
     await requireProjectAccess(prisma, req, run.projectId, "VIEWER");
-
-    const attempts = run.attempts;
-    const caseRows = await prisma.testCaseVersion.findMany({
-      where: { id: { in: run.selectedCaseVersionIds } },
-      select: { id: true, title: true, ruleVersionIds: true },
-    });
-
-    const caseReports = [];
-    for (const caseVersionId of run.selectedCaseVersionIds) {
-      const attempt = attempts.find((a) => a.caseVersionId === caseVersionId);
-      const assertionRecords = attempt
-        ? await prisma.assertionResultRecord.findMany({ where: { attemptId: attempt.id } })
-        : [];
-      // 证据文件存在性复核：PASS 必需断言的证据缺失 → 降级 REVIEW。
-      let evidenceMissing = false;
-      const assertionViews = [];
-      for (const record of assertionRecords) {
-        const artifactViews = [];
-        for (const artifactId of record.evidenceIds) {
-          const artifact = await prisma.artifact.findUnique({ where: { id: artifactId } });
-          const exists = artifact ? store.exists(artifact.storageKey) : false;
-          if (!exists) evidenceMissing = true;
-          artifactViews.push({
-            artifactId,
-            type: artifact?.type ?? "UNKNOWN",
-            sensitivity: artifact?.sensitivity ?? "NORMAL",
-            url: `/api/artifacts/${artifactId}`,
-            exists,
-          });
-        }
-        assertionViews.push({
-          assertionId: record.assertionId,
-          expected: record.expected,
-          actual: record.actual,
-          unit: record.unit,
-          result: record.result,
-          note: record.note,
-          evidence: artifactViews,
-        });
-      }
-      let verdict = attempt?.verdict ?? "NOT_RUN";
-      if (verdict === "PASS" && evidenceMissing) {
-        verdict = "REVIEW";
-      }
-      // attempt 级证据（trace 等）：在用例层列出，供报告与页面下载。
-      const traces = attempt
-        ? await prisma.artifact.findMany({
-            where: { attemptId: attempt.id, type: "TRACE" },
-            select: { id: true, type: true, sensitivity: true, storageKey: true },
-          })
-        : [];
-      const traceViews = traces.map((t) => ({
-        artifactId: t.id,
-        type: t.type,
-        sensitivity: t.sensitivity,
-        url: `/api/artifacts/${t.id}`,
-        exists: store.exists(t.storageKey),
-      }));
-      caseReports.push({
-        caseVersionId,
-        title: caseRows.find((c) => c.id === caseVersionId)?.title ?? caseVersionId,
-        verdict,
-        reasonCode: attempt?.reasonCode ?? "NONE",
-        unstable: attempt?.unstable ?? false,
-        evidenceDowngraded: verdict === "REVIEW" && attempt?.verdict === "PASS",
-        traces: traceViews,
-        assertions: assertionViews,
-      });
-    }
-
-    const baseline = await prisma.baseline.findUnique({ where: { id: run.baselineId } });
-    const ruleVersions = baseline?.ruleVersionIds ?? [];
-    const coveredRules = new Set<string>();
-    for (const caseRow of caseRows) {
-      for (const ruleId of caseRow.ruleVersionIds) coveredRules.add(ruleId);
-    }
-    const metrics = aggregateRun({
-      cases: caseReports.map((c) => ({
-        caseVersionId: c.caseVersionId,
-        verdict: c.verdict as "PASS" | "FAIL" | "BLOCKED" | "REVIEW" | "NOT_RUN",
-        reasonCode: c.reasonCode,
-        unstable: c.unstable,
-      })),
-      baselineRuleTotal: ruleVersions.length,
-      baselineRuleCovered: [...coveredRules].filter((r) => ruleVersions.includes(r)).length,
-      hasBuildId: run.buildId !== null && run.buildId !== undefined,
-      cancelled: run.lifecycle === "CANCELLED",
-      platformError: run.lifecycle === "ERROR",
-    });
-
-    return {
-      run: {
-        id: run.id,
-        lifecycle: run.lifecycle,
-        acceptanceStatus: run.acceptanceStatus,
-        buildId: run.buildId,
-        buildVerified: run.buildId ? true : false,
-        mode: run.mode,
-        startedAt: run.createdAt,
-        finishedAt: attempts.reduce<Date | null>(
-          (latest, a) => (a.finishedAt && (!latest || a.finishedAt > latest) ? a.finishedAt : latest),
-          null,
-        ),
-      },
-      metrics: {
-        ...metrics,
-        executionRateDisplay: percent(metrics.executionRate),
-        passRateDisplay: percent(metrics.passRate),
-        ruleCoverageDisplay: percent(metrics.ruleCoverage),
-      },
-      cases: caseReports,
-    };
+    return buildRunReport(prisma, store, id);
   });
 }

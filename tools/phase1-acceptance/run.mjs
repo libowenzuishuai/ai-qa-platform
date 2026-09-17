@@ -7,7 +7,7 @@
  * 这些能力。预期结论只写在 harness 内，不进入被测系统与执行器。
  */
 import { spawn, execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,11 +15,32 @@ import { chromium } from "playwright";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "../..");
-const API = "http://127.0.0.1:7300";
-const WEB = "http://127.0.0.1:7100";
+/**
+ * 阶段 1.1 起验收 harness 完全独立（评审 §三.1）：
+ * - 独立临时 PostgreSQL 库（不复用开发库，篡改类测试不碰日常数据）；
+ * - 独立 Redis 容器（带密码 + 非 0 db 序号，验证 URL 解析实际生效）；
+ * - 独立端口（API 7310 / worker 7211 / web 7110）与临时证据目录；
+ * - finally 中全部清理。
+ */
+const STAMP = Date.now().toString(36);
+const API_PORT = 7310;
+const WORKER_PORT = 7211;
+const WEB_PORT = 7110;
+const API = `http://127.0.0.1:${API_PORT}`;
+const WEB = `http://127.0.0.1:${WEB_PORT}`;
 const FIXTURE_TOKEN = "dev-fixture-token";
-const DB_URL = "postgresql://aiqa:aiqa_dev_password@127.0.0.1:5435/aiqa?schema=public";
+const PG_CONTAINER = "ai-qa-postgres-1";
+const PG_BASE = "postgresql://aiqa:aiqa_dev_password@127.0.0.1:5435";
+const DB_NAME = `aiqa_p1acc_${STAMP.replace(/[^a-z0-9]/g, "")}`;
+const DB_URL = `${PG_BASE}/${DB_NAME}?schema=public`;
+const REDIS_CONTAINER = `aiqa-p1-redis-${STAMP}`;
+const REDIS_PASSWORD = `p1acc-${STAMP}`;
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? "Admin#Dev2026";
+
+const ARTIFACT_DIR = join(HERE, `artifacts-${STAMP}`);
+const TEMP_DIRS = [ARTIFACT_DIR];
+let REDIS_PORT = 0;
+let REDIS_URL = "";
 
 const results = [];
 let failures = 0;
@@ -31,11 +52,48 @@ function record(name, ok, detail = "") {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function tsx(args, env = {}) {
-  return execFileSync(join(ROOT, "tools/phase1-acceptance/node_modules/.bin/tsx"), args, {
+  return execFileSync(join(HERE, "node_modules/.bin/tsx"), args, {
     cwd: HERE,
     encoding: "utf8",
     env: { ...process.env, DATABASE_URL: DB_URL, ...env },
   }).trim();
+}
+
+function sh(cmd) {
+  return execFileSync("sh", ["-c", cmd], { encoding: "utf8" }).trim();
+}
+
+/** 供给独立资源：临时库 + 独立 Redis（带密码与 db 序号）。 */
+function provisionResources() {
+  sh(`docker exec ${PG_CONTAINER} createdb -U aiqa ${DB_NAME}`);
+  execFileSync(join(ROOT, "apps/api/node_modules/.bin/prisma"), ["migrate", "deploy"], {
+    cwd: join(ROOT, "apps/api"),
+    env: { ...process.env, DATABASE_URL: DB_URL },
+    encoding: "utf8",
+  });
+  sh(`docker run -d --name ${REDIS_CONTAINER} -p 127.0.0.1::6379 redis:7-alpine --requirepass ${REDIS_PASSWORD}`);
+  REDIS_PORT = Number(sh(`docker port ${REDIS_CONTAINER} 6379/tcp | head -1 | cut -d: -f2`));
+  REDIS_URL = `redis://:${REDIS_PASSWORD}@127.0.0.1:${REDIS_PORT}/3`;
+  mkdirSync(ARTIFACT_DIR, { recursive: true });
+  // 种子管理员。
+  execFileSync(join(HERE, "node_modules/.bin/tsx"), [join(ROOT, "apps/api/prisma/seed.ts")], {
+    cwd: join(ROOT, "apps/api"),
+    env: { ...process.env, DATABASE_URL: DB_URL, SEED_ADMIN_PASSWORD: ADMIN_PASSWORD },
+    encoding: "utf8",
+  });
+}
+
+function cleanupResources() {
+  for (const child of children) child.kill("SIGKILL");
+  try {
+    // 先断开残留连接再删库。
+    sh(`docker exec ${PG_CONTAINER} psql -U aiqa -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='${DB_NAME}' AND pid <> pg_backend_pid()" > /dev/null 2>&1 || true`);
+    sh(`docker exec ${PG_CONTAINER} dropdb --if-exists -U aiqa ${DB_NAME}`);
+  } catch { /* 尽力清理 */ }
+  try {
+    sh(`docker rm -f ${REDIS_CONTAINER}`);
+  } catch { /* 尽力清理 */ }
+  for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
 }
 
 async function fetchJson(path, init = {}, sid) {
@@ -73,7 +131,7 @@ async function waitFor(fn, { timeoutMs = 120_000, intervalMs = 800, name = "cond
 }
 
 async function waitRunTerminal(sid, runId, timeoutMs = 300_000) {
-  return waitFor(
+  const terminal = await waitFor(
     async () => {
       const { data } = await fetchJson(`/api/runs/${runId}`, {}, sid);
       if (["FINISHED", "CANCELLED", "ERROR"].includes(data.run?.lifecycle)) return data;
@@ -81,6 +139,19 @@ async function waitRunTerminal(sid, runId, timeoutMs = 300_000) {
     },
     { timeoutMs, name: `run ${runId} 终态` },
   );
+  if (terminal.run.lifecycle === "ERROR") {
+    const seqs = await collectSse(runId, sid, 0, 4_000);
+    console.error(`[run ${runId} ERROR] events=${JSON.stringify(seqs.length)}`);
+    // 读取 platform_error 详情。
+    const stream = await fetch(`${API}/api/runs/${runId}/events?lastEventId=0`, { headers: { cookie: `aiqa_sid=${sid}` } });
+    const text = await stream.text();
+    for (const block of text.split("\n\n")) {
+      if (block.includes("platform_error") || block.includes("fixture_error")) {
+        console.error("  ", block.slice(0, 260));
+      }
+    }
+  }
+  return terminal;
 }
 
 async function login(username, password) {
@@ -220,38 +291,40 @@ async function main() {
   record("demo 实例全部启动（6 个：健康/B1/B3/B4/错误密码/提交挂起）", true);
 
   // 2) API / worker / web。
+  provisionResources();
+  record("独立资源就绪（临时库 + 独立 Redis（密码+db3）+ 独立端口/证据目录）", true);
   spawnService("api", "apps/api", ["node_modules/.bin/tsx", "src/server.ts"], {
-    API_PORT: "7300",
+    API_PORT: String(API_PORT),
     API_HOST: "127.0.0.1",
     API_LOG_LEVEL: "warn",
     DATABASE_URL: DB_URL,
-    REDIS_URL: "redis://127.0.0.1:6380/0",
-    AIQA_ARTIFACT_DIR: join(ROOT, "data/artifacts"),
-    SESSION_SECRET: process.env.SESSION_SECRET ?? "dev-session-secret-change-me",
+    REDIS_URL,
+    AIQA_ARTIFACT_DIR: ARTIFACT_DIR,
+    SESSION_SECRET: `p1acc-${STAMP}`,
   });
   await waitHealthy(`${API}/api/health`, "api");
   spawnService("worker", "apps/worker", ["node_modules/.bin/tsx", "src/server.ts"], {
-    WORKER_PORT: "7201",
+    WORKER_PORT: String(WORKER_PORT),
     WORKER_HOST: "127.0.0.1",
     WORKER_LOG_LEVEL: "warn",
     DATABASE_URL: DB_URL,
-    REDIS_URL: "redis://127.0.0.1:6380/0",
-    AIQA_ARTIFACT_DIR: join(ROOT, "data/artifacts"),
+    REDIS_URL,
+    AIQA_ARTIFACT_DIR: ARTIFACT_DIR,
     DEMO_FIXTURE_TOKEN: FIXTURE_TOKEN,
     DEMO_APPLICANT_USERNAME: "applicant1",
     DEMO_APPLICANT_PASSWORD: "Applicant#2026",
     DEMO_SUPERVISOR_USERNAME: "supervisor1",
     DEMO_SUPERVISOR_PASSWORD: "Supervisor#2026",
   });
-  await waitHealthy("http://127.0.0.1:7201/api/health", "worker");
+  await waitHealthy(`http://127.0.0.1:${WORKER_PORT}/api/health`, "worker");
   spawnService("web", "apps/web", ["node_modules/.bin/tsx", "src/server.ts"], {
-    WEB_PORT: "7100",
+    WEB_PORT: String(WEB_PORT),
     WEB_HOST: "127.0.0.1",
     WEB_LOG_LEVEL: "warn",
     API_BASE_URL: API,
   });
   await waitHealthy(`${WEB}/login`, "web");
-  record("API / worker / web 启动", true);
+  record("API / worker / web 启动（独立端口 7310/7211/7110）", true);
 
   // 3) 平台登录与项目准备。
   const admin = await login("admin", ADMIN_PASSWORD);
@@ -291,11 +364,12 @@ async function main() {
     ]),
   );
   const boundaryPlanId = cases.find((c) => c.title.includes("恰好"))?.planId;
+  const persistPlanId = cases.find((c) => c.title.includes("持久化"))?.planId;
   record("固定种子完成（4 用例 + 规则 + 基线 + 真实观察绑定）", true);
   const baselineId = (await fetchJson(`/api/projects/${projectId}/baselines`, {}, admin)).data.baselines.find((b) => b.active).id;
 
   async function createRun(envName, caseKeys, extra = {}) {
-    return fetchJson(
+    const response = await fetchJson(
       "/api/runs",
       {
         method: "POST",
@@ -305,12 +379,16 @@ async function main() {
           environmentId: environments[envName],
           caseVersionIds: caseKeys.map((k) => caseId[k]),
           mode: "real",
-          idempotencyKey: `p1-${stamp}-${Math.random().toString(36).slice(2, 10)}`,
+          idempotencyKey: `p1-${STAMP}-${Math.random().toString(36).slice(2, 10)}`,
           ...extra,
         }),
       },
       admin,
     );
+    if (response.status >= 400) {
+      console.error(`[createRun:${envName}:${caseKeys.join("+")}] ${response.status} ${JSON.stringify(response.data).slice(0, 300)}`);
+    }
+    return response;
   }
 
   // 5) 健康场景。
@@ -347,7 +425,11 @@ async function main() {
       record("健康：证据可下载且为 PNG", art.status === 200 && buf.subarray(1, 4).toString() === "PNG", `status=${art.status} bytes=${buf.length}`);
     }
     record("健康：trace 证据存在（RESTRICTED_RAW）", JSON.stringify(report).includes("TRACE"));
-    record("健康：构建标识已验证", report.run.buildVerified === true, String(report.run.buildVerified));
+    record(
+      "健康：构建号已声明但未验证（buildDeclared=true / buildVerified=false）",
+      report.run.buildDeclared === true && report.run.buildVerified === false,
+      `${report.run.buildDeclared}/${report.run.buildVerified}`,
+    );
 
     // 无构建标识的运行：严格验收 INCOMPLETE（FR-10 版本未验证语义）。
     {
@@ -356,8 +438,8 @@ async function main() {
       const r = (await fetchJson(`/api/runs/${noBuild.data.runId}/report`, {}, admin)).data;
       record(
         "版本未验证：无 buildId 的运行 INCOMPLETE（即使用例 PASS）",
-        r.metrics.acceptanceStatus === "INCOMPLETE" && r.run.buildVerified === false && t.cases[0].verdict === "PASS",
-        `${r.metrics.acceptanceStatus}/buildVerified=${r.run.buildVerified}/${t.cases[0].verdict}`,
+        r.metrics.acceptanceStatus === "INCOMPLETE" && r.run.buildDeclared === false && t.cases[0].verdict === "PASS",
+        `${r.metrics.acceptanceStatus}/declared=${r.run.buildDeclared}/${t.cases[0].verdict}`,
       );
     }
 
@@ -453,12 +535,19 @@ async function main() {
 
   // 9) 篡改计划（创建入口执行前拒绝）。
   {
+    const before = tsx(["dbtool.mts", "plan-expected", boundaryPlanId]);
     tsx(["dbtool.mts", "tamper-plan", boundaryPlanId, "0", "被篡改的预期"]);
+    const during = tsx(["dbtool.mts", "plan-expected", boundaryPlanId]);
     const tampered = await createRun("healthy", ["boundary"]);
-    record("篡改：执行前被拒绝（422 哈希不符）", tampered.status === 422, `status=${tampered.status} ${JSON.stringify(tampered.data).slice(0, 120)}`);
+    record("篡改：执行前被拒绝（422 哈希不符）", tampered.status === 422, `status=${tampered.status} expected=${during}`);
     tsx(["dbtool.mts", "restore-plan", boundaryPlanId]);
+    const after = tsx(["dbtool.mts", "plan-expected", boundaryPlanId]);
     const restored = await createRun("healthy", ["boundary"]);
-    record("篡改：恢复后可正常创建（202）", restored.status === 202, `status=${restored.status}`);
+    record(
+      "篡改：恢复后可正常创建（202）",
+      restored.status === 202,
+      `status=${restored.status} before=${before} after=${after}${restored.status !== 202 ? " " + JSON.stringify(restored.data).slice(0, 160) : ""}`,
+    );
     await waitRunTerminal(admin, restored.data.runId, 120_000).catch(() => undefined);
   }
 
@@ -476,13 +565,17 @@ async function main() {
     const { runId, overCase } = globalThis.__healthy;
     const evidence = overCase.assertions.flatMap((a) => a.evidence).find((e) => e.exists);
     const storageKey = tsx(["dbtool.mts", "storage-key", evidence.artifactId]);
-    const local = join(ROOT, "data/artifacts", storageKey);
+    const local = join(ARTIFACT_DIR, storageKey);
     const { readFileSync, writeFileSync, unlinkSync, existsSync } = await import("node:fs");
     const backupData = existsSync(local) ? readFileSync(local) : null;
     if (backupData) unlinkSync(local);
     const report = (await fetchJson(`/api/runs/${runId}/report`, {}, admin)).data;
     const degraded = report.cases.find((c) => c.caseVersionId === caseId.over);
-    record("证据缺失：PASS 用例降级 REVIEW", degraded.verdict === "REVIEW" && degraded.evidenceDowngraded, `${degraded.verdict}`);
+    record(
+      "证据缺失：PASS 用例降级 REVIEW（含降级原因）",
+      degraded.verdict === "REVIEW" && degraded.evidenceDowngraded && (degraded.downgradeReasons ?? []).length > 0,
+      `${degraded.verdict}: ${(degraded.downgradeReasons ?? [])[0] ?? ""}`,
+    );
     const gone = await fetch(`${API}/api/artifacts/${evidence.artifactId}`, { headers: { cookie: `aiqa_sid=${admin}` } });
     record("证据缺失：下载返回 404", gone.status === 404, `status=${gone.status}`);
     if (backupData) writeFileSync(local, backupData);
@@ -551,6 +644,134 @@ async function main() {
     record("WRITE 中断：严格验收 INCOMPLETE", report.metrics.acceptanceStatus === "INCOMPLETE");
   }
 
+  // 14) 阶段 1.1 新增场景（评审 R2/R3/R8/R9 + §三.2）。
+  {
+    const { Queue } = await import("bullmq");
+    const queueConnection = {
+      host: "127.0.0.1",
+      port: REDIS_PORT,
+      password: REDIS_PASSWORD,
+      db: 3,
+    };
+
+    // S1 排队取消（确定性）：暂停队列 → 创建并取消 → 恢复 → CANCELLED，attempt=0。
+    {
+      const q = new Queue("runs", { connection: queueConnection });
+      await q.pause();
+      const created = await createRun("healthy", ["persist"]);
+      await fetchJson(`/api/runs/${created.data.runId}/cancel`, { method: "POST" }, admin);
+      await q.resume();
+      await q.close();
+      const terminal = await waitRunTerminal(admin, created.data.runId, 60_000);
+      const attempts = terminal.cases.filter((c) => c.attemptId).length;
+      record(
+        "排队取消：终态 CANCELLED 且无 attempt（业务未执行）",
+        terminal.run.lifecycle === "CANCELLED" && attempts === 0,
+        `${terminal.run.lifecycle}/attempts=${attempts}`,
+      );
+    }
+
+    // S2 真实重复队列投递：同一 run 投两个 job → 业务只执行一次。
+    {
+      const created = await createRun("healthy", ["persist"]);
+      const ns = `ns-${created.data.runId.slice(-10)}-1`;
+      const watcher = watchNamespace(7420, ns);
+      const q = new Queue("runs", { connection: queueConnection });
+      await q.add("execute", { runId: created.data.runId }, { jobId: `dup-a-${created.data.runId}` });
+      await q.add("execute", { runId: created.data.runId }, { jobId: `dup-b-${created.data.runId}` });
+      await q.close();
+      const terminal = await waitRunTerminal(admin, created.data.runId);
+      await sleep(1_500);
+      watcher.stop();
+      const persistVerdict = terminal.cases[0].verdict;
+      record(
+        "重复投递：业务只执行一次（命名空间峰值 1 单，verdict 有终局）",
+        watcher.maxSeen() === 1 && ["PASS", "FAIL"].includes(persistVerdict),
+        `max=${watcher.maxSeen()} verdict=${persistVerdict}`,
+      );
+    }
+
+    // S3 排队期间发布计划 v2：旧 run 固定执行 v1（report.planVersionId）。
+    {
+      const q = new Queue("runs", { connection: queueConnection });
+      await q.pause();
+      const created = await createRun("healthy", ["persist"]);
+      const v2Id = tsx(["dbtool.mts", "add-plan-version", persistPlanId]);
+      await q.resume();
+      await q.close();
+      const terminal = await waitRunTerminal(admin, created.data.runId);
+      const report = (await fetchJson(`/api/runs/${created.data.runId}/report`, {}, admin)).data;
+      record(
+        "计划版本固定：排队期发布 v2，旧 run 仍执行 v1",
+        report.cases[0].planVersionId === persistPlanId && report.cases[0].planVersionId !== v2Id,
+        `executed=${report.cases[0].planVersionId?.slice(-12)} v1=${persistPlanId.slice(-12)} v2=${v2Id.slice(-12)}`,
+      );
+    }
+
+    // S4 并发幂等（HTTP 层真实并发）。
+    {
+      const key = `p1-conc-${STAMP}-${Math.random().toString(36).slice(2, 8)}`;
+      const body = {
+        projectId, baselineId, environmentId: environments.healthy,
+        caseVersionIds: [caseId.persist], mode: "real", idempotencyKey: key,
+      };
+      const [r1, r2] = await Promise.all([
+        fetchJson("/api/runs", { method: "POST", body: JSON.stringify(body) }, admin),
+        fetchJson("/api/runs", { method: "POST", body: JSON.stringify(body) }, admin),
+      ]);
+      record(
+        "并发幂等：同键同体并发请求返回同一 run，绝无 500",
+        [200, 202].includes(r1.status) && [200, 202].includes(r2.status) && r1.data.runId === r2.data.runId,
+        `${r1.status}/${r2.status}`,
+      );
+      const [d1, d2] = await Promise.all([
+        fetchJson("/api/runs", { method: "POST", body: JSON.stringify(body) }, admin),
+        fetchJson("/api/runs", { method: "POST", body: JSON.stringify({ ...body, buildId: "conflict-build" }) }, admin),
+      ]);
+      const statuses = [d1.status, d2.status].sort();
+      record(
+        "并发幂等：同键异体一个成功一个 409",
+        statuses.includes(409) && (statuses.includes(200) || statuses.includes(202)),
+        `${statuses.join("/")}`,
+      );
+    }
+
+    // S5 预算耗尽：wait-slow（waitFor 60s）+ 10s 用例预算 → 按时结束。
+    {
+      const started = Date.now();
+      const { data } = await createRun("healthy", ["wait"], { budget: { maxWallClockMsPerCase: 10_000 } });
+      const terminal = await waitRunTerminal(admin, data.runId, 90_000);
+      const elapsed = Date.now() - started;
+      const c = terminal.cases[0];
+      record(
+        "预算耗尽：短预算长等待按时结束（BLOCKED/TIME_BUDGET，≤40s）",
+        c.verdict === "BLOCKED" && c.reasonCode === "TIME_BUDGET" && elapsed < 40_000,
+        `${c.verdict}/${c.reasonCode} elapsed=${Math.round(elapsed / 1000)}s`,
+      );
+      record("预算耗尽：不依赖心跳即结束", elapsed < 40_000, `${Math.round(elapsed / 1000)}s`);
+    }
+
+    // S6 取消后失联：CANCEL_REQUESTED 心跳超时 → 对账器完成取消。
+    {
+      const created = await createRun("healthy", ["wait", "persist"]);
+      await sleep(1_500);
+      // 直接把运行置为 CANCEL_REQUESTED 且心跳过期（模拟 worker 消失）。
+      // 先暂停队列避免 worker 认领，再注入状态。
+      const q = new Queue("runs", { connection: queueConnection });
+      await q.pause();
+      await fetchJson(`/api/runs/${created.data.runId}/cancel`, { method: "POST" }, admin);
+      tsx(["dbtool.mts", "set-run-stale-cancellation", created.data.runId]);
+      await q.resume();
+      await q.close();
+      const terminal = await waitRunTerminal(admin, created.data.runId, 120_000);
+      record(
+        "取消后失联：对账器完成取消（CANCELLED）",
+        terminal.run.lifecycle === "CANCELLED",
+        terminal.run.lifecycle,
+      );
+    }
+  }
+
   // 14) 真实页面操作。
   {
     const browser = await chromium.launch({ headless: true });
@@ -615,20 +836,21 @@ async function main() {
   writeFileSync(join(HERE, "last-run.json"), JSON.stringify({ stamp, results }, null, 2));
 }
 
-async function cleanup() {
-  for (const child of children) child.kill("SIGTERM");
-  await sleep(1_500);
-  for (const child of children) child.kill("SIGKILL");
-  for (const dir of tmpDirs) rmSync(dir, { recursive: true, force: true });
+function cleanup() {
+  try {
+    cleanupResources();
+  } catch (err) {
+    console.error("[cleanup]", String(err).slice(0, 200));
+  }
 }
 
 main()
-  .then(async () => {
-    await cleanup();
+  .then(() => {
+    cleanup();
     process.exit(failures === 0 ? 0 : 1);
   })
-  .catch(async (err) => {
+  .catch((err) => {
     console.error("\n[HARNESS ERROR]", err);
-    await cleanup();
+    cleanup();
     process.exit(2);
   });

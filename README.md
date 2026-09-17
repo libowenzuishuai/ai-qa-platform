@@ -8,10 +8,11 @@
 - 开发提示词：[docs/ai-qa/03-GLM开发提示词.md](docs/ai-qa/03-GLM开发提示词.md)
 - 实施状态：[docs/implementation-status.md](docs/implementation-status.md)
 
-> 当前处于**阶段 1（固定用例的真实浏览器执行闭环）**：登录平台 → 选择环境与
-> 固定用例 → 真实浏览器执行 → 持久化进度/断言/截图/trace → 报告与复验。
-> AI 自动生成测试（资料解析、模型规划）在阶段 2 起；本阶段用例为人工种子
-> （origin=manual），执行 mode=real。不应作为生产测试平台部署。
+> 当前处于**阶段 1.1（固定用例真实浏览器执行闭环 + 独立评审修复）**：登录
+> 平台 → 选择环境与固定用例 → 真实浏览器执行（连接层网络策略、CAS 生命
+> 周期、固定计划版本、证据完整性复核）→ 持久化进度/断言/截图/trace →
+> 报告与复验。AI 自动生成测试（资料解析、模型规划）在阶段 2 起；本阶段
+> 用例为人工种子（origin=manual），执行 mode=real。不应作为生产测试平台部署。
 
 ## 目录结构
 
@@ -81,10 +82,10 @@ demo-app 演示账号：`applicant1 / Applicant#2026`（申请人）、
 
 ```bash
 pnpm test:contracts           # 契约 schema 校验测试（81 项）
-pnpm --filter @ai-qa/api test # API URL 白名单策略等单测（13 项）
-pnpm test:runtime             # 执行器单测（真实 Chromium，10 项）
+pnpm --filter @ai-qa/api test # API 策略 + 数据库层边界反例（30 项，临时库）
+pnpm test:runtime             # 执行器单测（真实 Chromium，20 项，含网络/语义）
 pnpm test:golden              # demo-app 黄金验收（真实浏览器，健康 + B1–B4）
-pnpm test:phase1              # 阶段 1 集成验收（53 项，经平台 API/队列/页面）
+pnpm test:phase1              # 阶段 1 隔离集成验收（62 项；独立库/Redis/端口）
 pnpm typecheck                # 全部包类型检查
 
 # 数据库不变量（跨项目/悬空引用/已批准版本不可变；需先起 compose postgres）：

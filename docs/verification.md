@@ -321,3 +321,81 @@ DRAFT 渲染）；APPROVED 冻结行不可回填哈希（改为先算后建）�
 - worker 租约超时 → ERROR 的对账路径为代码审查 + 单元语义验证，未在集成中
   杀进程注入（注入成本高；取消/幂等路径已覆盖并发写入安全）。
 - 断言失败后的自动重试（attemptNo>1）未实现（阶段 4：unstable 语义）。
+
+---
+
+# 阶段 1.1 验证记录（评审 R1–R9 修复）
+
+日期：2026-09-17 · 依据：《阶段1验收报告-a08df8d.md》
+
+## 16. 修复方法与前后证据
+
+每项先构造能在 a08df8d 上失败的针对性测试（R1/R6 在本地以真实第二接收站
+复现"越界站点收到请求"；R2–R9 的红色状态即评审探针记录），再实现修复，
+最后以新增回归锁定。未删除或放宽任何原有断言。
+
+| 编号 | 修复前（评审/本地复现） | 修复后（本次实测） |
+|---|---|---|
+| R1 | 302 目标 B 实际收到 `/outside`；观察流程向 B 提交虚构账密；夹具令牌随重定向到达 B | 连接层策略代理：302/307/308/多级跳转/表单外发场景 B 收到 **0 请求、0 凭据**；执行被阻断并记录 violation（test/runtime network-and-semantics 10/10） |
+| R2 | 排队取消永远停在 CANCEL_REQUESTED；持有 PREPARING 的旧对象可把 ERROR 覆盖回 RUNNING | CAS 全覆盖：排队取消→CANCELLED 且无 attempt；ERROR 后过期状态迁移返回 false；取消后失联由对账器完成（boundaries + harness） |
+| R3 | 排队期间发布合法 v2，worker 执行 v2 | run 固定 v1：harness 实测"executed=v1, v2=已发布未用"；固定哈希不符 → BLOCKED |
+| R4 | 证据换成不存在 ID / 规则改 DRAFT，createRun 仍成功 | 均被 422（boundaries R4 组，真实临时库反例） |
+| R5 | 必需断言 evidenceIds 清空后报告仍 PASS | 空 evidenceIds / 缺记录 / 丢文件 / 校验和不符 / 错归属 → REVIEW + 降级原因，验收 INCOMPLETE；报告与详情同源（boundaries R5 组） |
+| R6 | notExists 目标不存在 → NOT_EVALUATED（应 PASS）；display:none 被 visible 立即满足 | 目标不存在 exists=FAIL/notExists=PASS；display:none visible=不满足/hidden=满足（真实浏览器） |
+| R7 | 取消事件固定 seq=9000，SSE 漏掉之后事件 | 数据库原子取号：并发 20 取号严格递增无重复无空洞；harness 取消期间 SSE 完整 |
+| R8 | 屏障控制的并发插入返回 500 | 真实并发（单元 + HTTP）：同体同 run、异体 409、绝无 500；重复队列投递业务峰值 1 单 |
+| R9 | 请求预算被 Zod 删除（50 静默覆盖）；run 总时限未执行 | 预算保存并可拒绝超范围（422）；harness：wait-slow + 10s 用例预算 **11s 结束**（BLOCKED/TIME_BUDGET），不依赖心跳 |
+
+## 17. 隔离验收 harness（62/62，`pnpm test:phase1`）
+
+资源隔离（§三.1）：临时 PostgreSQL 库（`aiqa_p1acc_*`，迁移后使用，结束
+dropdb）；独立 Redis 容器（`--requirepass` + URL `/3`，验证密码与 db 序号
+实际生效）；独立端口（API 7310 / worker 7211 / web 7110）；临时证据目录；
+篡改类 dbtool 全部指向临时库；finally 统一清理（含断开残留连接）。
+
+场景清单（62 项全过）：健康三用例（严格验收 PASS/证据 PNG/trace 受限/
+SSE 有序无重复且 Last-Event-ID 续传/构建号已声明未验证）、版本未验证
+INCOMPLETE、B1/B3/B4（FAIL/BUSINESS_MISMATCH + 实际值）、AUTH（BLOCKED、
+断言全 NOT_EVALUATED）、幂等（串行同键/异体 409/业务峰值 1 单）、篡改
+（422 哈希不符 + 恢复后 202）、越界登记 422、证据缺失（降级 REVIEW + 404）、
+证据越权 403、受限 trace（VIEWER 403/管理员 200）、VIEWER 禁止启动、空
+运行 422、取消（幂等/CANCELLED/不误报）、WRITE 提交挂起（UNCERTAIN_SIDE_
+EFFECT + 无重复订单）、命名空间隔离、**排队取消（CANCELLED 无 attempt）、
+真实重复队列投递（业务一次）、排队期发布 v2（仍执行 v1）、并发幂等
+（同体同 run/异体 409）、预算耗尽（11s 结束）、取消后失联（对账完成）、**
+真实页面（登录→启动→SSE→刷新→报告截图加载）。
+
+## 18. 回归（全部通过）
+
+```
+$ pnpm test:contracts   # 81/81
+$ pnpm --filter @ai-qa/api test   # 30/30（url-policy 13 + boundaries 17 新增）
+$ pnpm --filter @ai-qa/evaluation --filter @ai-qa/artifact-store test  # 14/14、4/4
+$ pnpm test:runtime     # 20/20（原 10 + R1/R6 新增 10，真实 Chromium）
+$ pnpm test:golden      # healthy/B1/B2/B3/B4 全 PASS
+$ pnpm typecheck        # 0 错误
+```
+
+原 185 项全部保持；数量变化仅因新增（API +17、runtime +10），说明见上。
+
+## 19. 边界测试基础设施（apps/api/test/helpers/db.ts + boundaries.test.ts）
+
+每轮创建独立临时库并 `prisma migrate deploy`，构造最小资产（真实观察证据
+文件、真实 acceptanceHash），覆盖 R2/R3/R4/R5/R7/R8/R9 数据库层反例；
+结束 dropdb + 删除证据目录。不在开发库做任何篡改测试。
+
+## 20. 干净提交快照（5c6d1a1）
+
+```
+$ git archive HEAD | tar -x -C /tmp/p11-snap && cd /tmp/p11-snap
+$ pnpm install --frozen-lockfile --ignore-scripts --offline   # 通过
+$ pnpm --filter @ai-qa/api db:generate && pnpm typecheck       # 0 错误
+```
+
+## 21. 未执行项（如实）
+
+- compose 容器化 api/web 未在本环境验证（无 registry；compose 定义已同步
+  Redis URL 完整解析与 worker 凭据注入，属静态检查 + 配置传递验证）。
+- 未做生产规模负载与真实客户系统故障注入。
+- buildVerified 恒 false：目标构建身份核验（执行前后漂移检测）未实现，
+  属阶段 2+ 范围；界面与报告明确"已声明（未验证）"。

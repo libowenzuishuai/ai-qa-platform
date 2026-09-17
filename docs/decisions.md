@@ -190,3 +190,78 @@ demo_ns Cookie 由执行器注入（测试数据标记，非凭据）；订单/�
 与计数（orders-count/payments-count），夹具接口 ns/reset、ns/state 令牌保护。
 黄金验收（无 Cookie）行为不变。故障注入 DEMO_FAULTS=submit-commit-hang 与缺陷
 模式相互独立，均不暴露给运行时智能体。
+
+## 阶段 1.1（评审 R1–R9 修复）
+
+## D27 连接层网络策略（R1）
+
+CDP/Playwright 拦截（context.route）不足以保证"请求不发出"（评审以真实
+第二站点证明 302 目标可收到请求）。执行器与观察流程的每个 BrowserContext
+都经本地策略代理（HTTP 正向代理 + CONNECT 隧道）：目的地在建立连接/转发
+前按 origin 白名单校验，越界直接 403——对重定向目标、表单外发、CONNECT
+一律生效，字节不离开本机。route 拦截保留为第二层防线与违规记录。夹具
+客户端同策略：白名单校验 + redirect:"manual"（令牌不得跟随重定向）+ 超时。
+
+## D28 CAS 生命周期与取消归宿（R2）
+
+所有迁移使用条件 UPDATE（比较数据库当前值，不信任内存状态）。排队取消：
+认领失败且当前为 CANCEL_REQUESTED → finalizeCancelledFromRequest 完成
+CANCELLED（attempt 保持无记录 = NOT_RUN）。取消后失联：对账器扫描停滞的
+CANCEL_REQUESTED 完成取消。心跳受租约约束（仅 PREPARING/RUNNING 刷新，
+失守即停）。shouldContinue 仅活跃态为真：ERROR/终态一律停止安排动作。
+
+## D29 运行固定计划版本（R3）
+
+创建运行时以 Run.casePlanPins 固定每个用例的 planVersionId 与
+acceptanceHash（迁移 005 新列）；worker 只按固定 ID 读取，固定哈希与存储
+不符即 BLOCKED。发布新版本不影响已创建运行；旧运行（无固定记录）回退
+最新版本仅为兼容。
+
+## D30 数据库事实核验（R4）
+
+创建入口在 schema+哈希之外逐项核验数据库事实：规则存在/同项目/APPROVED、
+来源 Span 与文档归属、基线成员、观察 Artifact 存在/同项目/OBSERVATION/
+文件真实存在。执行入口复核规则批准状态（数据库损坏时运行期也能拒绝）。
+
+## D31 共享报告构建器与证据完整性（R5）
+
+worker 终态聚合与 API 报告共用 packages/reporting：对照固定计划的必需
+断言核验记录完整性、证据非空、归属本次 attempt/项目、文件存在且 sha256
+与登记一致。任何缺失 → REVIEW + 降级原因，严格验收 INCOMPLETE。
+
+## D32 存在/可见语义与登录态区分（R6）
+
+有效页面内的业务缺失（exists 目标未出现）= FAIL，不再是 NOT_EVALUATED；
+notExists 目标仍在 DOM = FAIL；visible 基于 isVisible（display:none 不
+满足），hidden 含 display:none。登录页启发命中时优先 AUTH（blocked），
+不与业务 FAIL 混淆。
+
+## D33 事件原子序号（R7）
+
+所有事件生产者经 `UPDATE Run SET eventSeq=eventSeq+1 RETURNING` 取号；
+取消/平台错误事件不再使用固定大数预留，也不吞唯一冲突。SSE 重放按 seq
+严格有序，无漏事件。
+
+## D34 并发幂等（R8）
+
+插入依赖唯一约束兜底：冲突后重读并按规范指纹比对（预算按调用者可设三键
+归一化后比较），同体返回原 run、异体 409，任何路径不产生 500。
+
+## D35 预算贯通（R9）
+
+POST /api/runs 接受 budget（范围校验、超限 422）并保存；worker 以 run
+创建时间 + maxWallClockMsPerRun 计算截止，约束每个 attempt 的 wallClock
+与执行器 waitFor 轮询；夹具请求带 AbortSignal 超时。短预算 + 挂起服务
+按时结束（实测 11s），不依赖心跳刷新。
+
+## D36 构建声明与验证分离（§三.4）
+
+buildDeclared（调用者是否声明 buildId）与 buildVerified（目标构建身份
+是否已核验）分离；阶段 1 恒 verified=false，界面显示"已声明（未验证）"。
+严格验收仍按"未声明 → INCOMPLETE"处理。
+
+## D37 验收资源隔离（§三.1）
+
+harness 每轮自建临时库 + 独立 Redis 容器（密码 + 非 0 db，验证 URL 解析
+实际生效）+ 独立端口/证据目录，finally 全清理；dbtool 以环境变量指向
+临时库。Redis 连接解析完整支持 username/password/db/TLS（run-events 包）。

@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "@prisma/client": "^6.3.0",
-    "playwright": "^1.63.0"
+    "playwright": "^1.63.0",
+    "bullmq": "^5.34.0"
   },
   "devDependencies": {
     "tsx": "^4.19.0"

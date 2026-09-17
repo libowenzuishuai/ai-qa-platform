@@ -3,6 +3,7 @@ import cookie from "@fastify/cookie";
 import { PrismaClient } from "@prisma/client";
 import { Queue } from "bullmq";
 import { ArtifactStore } from "@ai-qa/artifact-store";
+import { parseRedisConnection } from "@ai-qa/run-events";
 import { loadConfig } from "./config.js";
 import { registerAuth } from "./auth.js";
 import { registerProjectRoutes } from "./routes-projects.js";
@@ -19,10 +20,16 @@ if (!config.databaseUrl) {
 
 export const prisma = new PrismaClient();
 
-const redisConnection = (() => {
-  const url = new URL(process.env.REDIS_URL ?? "redis://127.0.0.1:6380/0");
-  return { host: url.hostname, port: Number(url.port || 6379) };
-})();
+// Redis URL 完整解析（§三.1）：db/密码/TLS 实际生效。
+const parsedRedis = parseRedisConnection(process.env.REDIS_URL ?? "redis://127.0.0.1:6380/0");
+const redisConnection = {
+  host: parsedRedis.host,
+  port: parsedRedis.port,
+  ...(parsedRedis.username ? { username: parsedRedis.username } : {}),
+  ...(parsedRedis.password ? { password: parsedRedis.password } : {}),
+  ...(parsedRedis.db !== undefined ? { db: parsedRedis.db } : {}),
+  ...(parsedRedis.tls ? { tls: {} } : {}),
+};
 
 const runsQueue = new Queue("runs", { connection: redisConnection });
 const seedQueue = new Queue("seed-fixed-assets", { connection: redisConnection });

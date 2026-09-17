@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { chromium } from "playwright";
+import { checkDestination, startPolicyProxy } from "@ai-qa/test-runtime";
 import {
   TestCaseVersion,
   TestPlanV1,
@@ -20,7 +21,7 @@ import { DemoFixtureClient } from "./fixtures.js";
  * 3. 幂等：固定 ID，已存在且语义一致则跳过。
  */
 
-const NS = "seed-observe";
+/** 每次种子观察使用唯一命名空间（§三.5：多项目并行观察隔离）。 */
 
 interface ObservedBinding {
   targetRef: string;
@@ -56,15 +57,22 @@ async function observeBindings(
   projectId: string,
   baseUrl: string,
   resolveCredential: (ref: string) => string | undefined,
-): Promise<{ bindings: ObservedBinding[]; orderId: string }> {
+): Promise<{ bindings: ObservedBinding[]; orderId: string; namespace: string }> {
   const bindings: ObservedBinding[] = [];
-  const browser = await chromium.launch({ headless: true });
+  const NS = `seed-observe-${projectId.slice(0, 10)}-${Date.now().toString(36)}`;
+  // 观察流程与执行器同一网络策略（R1）：全部流量经本地策略代理，
+  // 登录凭据只可能到达环境白名单内的目的地。
+  const allowedPolicy = { allowedOrigins: [baseUrl], dependencyOrigins: [] };
+  const proxy = await startPolicyProxy(allowedPolicy);
+  const browser = await chromium.launch({ headless: true, proxy: { server: "per-context" } });
   try {
     const contexts = new Map<string, Awaited<ReturnType<typeof browser.newContext>>>();
     const contextFor = async (role: string) => {
       const existing = contexts.get(role);
       if (existing) return existing;
-      const context = await browser.newContext();
+      // per-context 模式下所有 context 必须经策略代理（R1：观察流程与
+      // 执行器同一网络边界，登录凭据只可能到达白名单目的地）。
+      const context = await browser.newContext({ proxy: { server: proxy.url } });
       await context.addCookies([{ name: "demo_ns", value: NS, url: baseUrl, sameSite: "Lax" }]);
       contexts.set(role, context);
       return context;
@@ -93,7 +101,7 @@ async function observeBindings(
     let submitted = false;
     // 登录页观察必须用匿名上下文（已登录会话会被重定向离开 /login）。
     let anonPage: import("playwright").Page | null = null;
-    const anonContext = await browser.newContext();
+    const anonContext = await browser.newContext({ proxy: { server: proxy.url } });
     await anonContext.addCookies([{ name: "demo_ns", value: NS, url: baseUrl, sameSite: "Lax" }]);
     for (const target of OBSERVATION_TARGETS) {
       if (target.submitFirst && !submitted) {
@@ -155,9 +163,10 @@ async function observeBindings(
         });
       }
     }
-    return { bindings, orderId };
+    return { bindings, orderId, namespace: NS };
   } finally {
     await browser.close().catch(() => undefined);
+    await proxy.close().catch(() => undefined);
   }
 }
 
@@ -356,6 +365,7 @@ export async function seedFixedAssets(
   }
 
   const store = new ArtifactStore(config.artifactDir);
+  let bindings: ObservedBinding[] = [];
   const snapshotSecretRefs = (environment.secretRefs ?? {}) as SecretRefs;
   const resolveCredential = makeCredentialResolver(snapshotSecretRefs);
   const missing = ["applicant.username", "applicant.password", "supervisor.username", "supervisor.password"]
@@ -366,17 +376,22 @@ export async function seedFixedAssets(
     );
   }
 
-  // —— 真实浏览器观察 ——
-  const { bindings } = await observeBindings(
-    prisma,
-    store,
-    projectId,
-    environment.baseUrl,
-    resolveCredential,
-  );
-  // 清理观察数据。
+  // —— 真实浏览器观察（同一网络策略；唯一命名空间；失败也清理） ——
   const fixture = new DemoFixtureClient(environment.baseUrl, config.demoFixtureToken);
-  await fixture.resetNamespace(NS).catch(() => undefined);
+  let observeNamespace = `seed-observe-${projectId.slice(0, 10)}-${Date.now().toString(36)}`;
+  try {
+    const observed = await observeBindings(
+      prisma,
+      store,
+      projectId,
+      environment.baseUrl,
+      resolveCredential,
+    );
+    bindings = observed.bindings;
+    observeNamespace = observed.namespace;
+  } finally {
+    await fixture.resetNamespace(observeNamespace).catch(() => undefined);
+  }
 
   // —— 来源文档（固定种子说明） ——
   const doc = await prisma.document.upsert({
@@ -434,7 +449,7 @@ export async function seedFixedAssets(
         businessFields: [
           { key: "amountCents", operator: "gt", value: 500000, unit: "fen" },
         ],
-        sources: [{ documentVersionId: docVersion.id, sourceSpanIds: [`fx-span-${rule.id}`] }],
+        sources: [{ documentVersionId: docVersion.id, sourceSpanIds: [`${P}-span-${rule.id}`] }],
         reviewStatus: "APPROVED",
         origin: "manual",
         reviewedBy: "seed:manual",

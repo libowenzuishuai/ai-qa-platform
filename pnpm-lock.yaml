@@ -19,6 +19,12 @@ importers:
       '@ai-qa/evaluation':
         specifier: workspace:*
         version: link:../../packages/evaluation
+      '@ai-qa/reporting':
+        specifier: workspace:*
+        version: link:../../packages/reporting
+      '@ai-qa/run-events':
+        specifier: workspace:*
+        version: link:../../packages/run-events
       '@fastify/cookie':
         specifier: ^11.0.0
         version: 11.1.2
@@ -112,6 +118,12 @@ importers:
       '@ai-qa/evaluation':
         specifier: workspace:*
         version: link:../../packages/evaluation
+      '@ai-qa/reporting':
+        specifier: workspace:*
+        version: link:../../packages/reporting
+      '@ai-qa/run-events':
+        specifier: workspace:*
+        version: link:../../packages/run-events
       '@ai-qa/test-runtime':
         specifier: workspace:*
         version: link:../../packages/test-runtime
@@ -192,6 +204,41 @@ importers:
         specifier: ^3.0.0
         version: 3.2.7(@types/node@22.20.3)(jiti@2.7.0)(tsx@4.23.13)
 
+  packages/reporting:
+    dependencies:
+      '@ai-qa/artifact-store':
+        specifier: workspace:*
+        version: link:../artifact-store
+      '@ai-qa/evaluation':
+        specifier: workspace:*
+        version: link:../evaluation
+      '@prisma/client':
+        specifier: ^6.3.0
+        version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.3
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
+  packages/run-events:
+    dependencies:
+      '@prisma/client':
+        specifier: ^6.3.0
+        version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.3
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.3)(jiti@2.7.0)(tsx@4.23.13)
+
   packages/test-runtime:
     dependencies:
       '@ai-qa/artifact-store':
@@ -219,6 +266,9 @@ importers:
       '@prisma/client':
         specifier: ^6.3.0
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
+      bullmq:
+        specifier: ^5.34.0
+        version: 5.81.5
       playwright:
         specifier: ^1.63.0
         version: 1.63.0

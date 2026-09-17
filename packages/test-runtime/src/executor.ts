@@ -1,6 +1,7 @@
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from "playwright";
 import type { ObservedLocator, PlanValue, TestPlanV1 } from "@ai-qa/contracts";
 import { checkDestination, resolveTargetUrl, type NavigationPolicy } from "./navigation-policy.js";
+import { startPolicyProxy } from "./policy-proxy.js";
 import { compareAssertion, type AssertionValue } from "./assertions.js";
 
 /**
@@ -125,12 +126,15 @@ async function readActual(page: Page, locator: Locator, kind: string): Promise<A
 export async function executePlan(options: ExecuteOptions): Promise<ExecuteResult> {
   const { plan, sink, events } = options;
   const startedAtMs = Date.now();
+  // R9：总预算截止（动作间隔检查 + waitFor 轮询内强制）。
+  const budgetDeadline = startedAtMs + options.budget.wallClockMs;
   const steps: StepProgress[] = [];
   const assertions: AssertionProgress[] = [];
   const vars: Record<string, string> = { ...(options.dataRefs ?? {}) };
   let blocked: ExecuteResult["blocked"];
   let cancelled = false;
   let browserCrashed = false;
+  let authSuspected = false;
   let actionsExecuted = 0;
 
   const bindingByRef = new Map(plan.bindings.map((b) => [b.targetRef, b]));
@@ -144,6 +148,11 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
   }
 
   let browser: Browser | null = null;
+  // 连接层隔离（R1）：全部浏览器流量经本地策略代理；越界目标在建立
+  // 连接前被拒绝（对 302/307/308 重定向目标、service worker、CONNECT 同样生效）。
+  const policyProxy = await startPolicyProxy(options.policy, (v) => {
+    void events?.onViolation?.(v);
+  });
   const roleContexts = new Map<string, BrowserContext>();
   let currentRole: string | null = null;
   const pendingTraces: Array<{ context: BrowserContext; role: string }> = [];
@@ -156,8 +165,8 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
     const existing = roleContexts.get(role);
     if (existing) return existing;
     if (!browser) throw new Error("browser not launched");
-    const context = await browser.newContext();
-    // 发出前拦截：主框架/子资源/重定向目的地策略；弹窗直接关闭并记录。
+    const context = await browser.newContext({ proxy: { server: policyProxy.url } });
+    // 第二层防线（CDP 拦截）：即使代理被绕过也按目的地中止并记录。
     await context.route("**/*", (route) => {
       const url = route.request().url();
       const decision = checkDestination(url, options.policy);
@@ -271,7 +280,7 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
   }
 
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({ headless: true, proxy: { server: "per-context" } });
 
     actionLoop: for (const action of plan.actions) {
       const now = new Date().toISOString();
@@ -474,7 +483,7 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
             const page = await currentPage();
             const binding = action.targetRef ? bindingByRef.get(action.targetRef) : undefined;
             if (action.targetRef && !binding) throw new Error(`targetRef ${action.targetRef} 无绑定`);
-            const deadline = Date.now() + action.timeoutMs;
+            const deadline = Math.min(Date.now() + action.timeoutMs, budgetDeadline);
             let attempt = 0;
             let satisfied = false;
             let lastObservation = "";
@@ -490,9 +499,11 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
                   lastObservation = page.url();
                 } else if (binding) {
                   const locator = locatorFor(page, binding.locator);
+                  // R6：可见性 ≠ DOM 存在：display:none 有 count 但不可见。
                   const count = await locator.count();
-                  if (action.condition.kind === "visible") satisfied = count > 0;
-                  else if (action.condition.kind === "hidden") satisfied = count === 0;
+                  const visibleNow = count > 0 && (await locator.first().isVisible());
+                  if (action.condition.kind === "visible") satisfied = visibleNow;
+                  else if (action.condition.kind === "hidden") satisfied = !visibleNow;
                   else if (action.condition.kind === "text") {
                     satisfied = count > 0 && (await locator.innerText()).includes(action.condition.value);
                     lastObservation = count > 0 ? await locator.innerText().catch(() => "") : "";
@@ -546,13 +557,37 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
                 if (!binding) throw new Error(`targetRef ${assertion.targetRef} 无绑定`);
                 const locator = locatorFor(page, binding.locator);
                 if (assertion.operator === "exists" || assertion.operator === "notExists") {
-                  await locator.waitFor({ state: "attached", timeout });
-                  const count = await locator.count();
-                  const exists = count > 0;
-                  const pass =
-                    assertion.operator === "exists" ? exists : !exists;
-                  progress.actual = exists ? "1" : "0";
-                  progress.result = pass ? "PASS" : "FAIL";
+                  // R6：业务存在性在有效页面内可判定 —— 缺失就是 FAIL，
+                  // 不得归为 NOT_EVALUATED；登录态失效优先归类 AUTH。
+                  if (assertion.operator === "exists") {
+                    try {
+                      await locator.waitFor({ state: "attached", timeout });
+                      progress.actual = "1";
+                      progress.result = "PASS";
+                    } catch (err) {
+                      if (await looksLikeLoginPage(page)) {
+                        progress.result = "NOT_EVALUATED";
+                        progress.note = "页面呈现登录表单（会话疑似失效）";
+                        authSuspected = true;
+                      } else if (isTimeoutError(err)) {
+                        progress.actual = "0";
+                        progress.result = "FAIL";
+                        progress.note = "业务要求存在的目标未出现（有效页面内业务缺失）";
+                      } else {
+                        throw err;
+                      }
+                    }
+                  } else {
+                    // notExists：目标仍附着 = FAIL；不在 DOM（或已移除）= PASS。
+                    try {
+                      await locator.waitFor({ state: "detached", timeout });
+                    } catch {
+                      /* 超时 = 元素仍在 DOM，属业务不符 */
+                    }
+                    const count = await locator.count();
+                    progress.actual = count > 0 ? "1" : "0";
+                    progress.result = count > 0 ? "FAIL" : "PASS";
+                  }
                 } else {
                   await locator.waitFor({ state: "visible", timeout });
                   const actual = await readActual(page, locator, assertion.kind);
@@ -623,6 +658,15 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
   } finally {
     await stopAndStoreTraces().catch(() => undefined);
     await browser?.close().catch(() => undefined);
+    await policyProxy.close().catch(() => undefined);
+  }
+
+  // 登录态失效优先于其它非 FAIL 结局：必需断言因登录页无法判定 → AUTH。
+  if (!blocked && !cancelled && !browserCrashed && authSuspected) {
+    const hasRequiredFail = assertions.some((a) => a.required && a.result === "FAIL");
+    if (!hasRequiredFail) {
+      blocked = { reasonCode: "AUTH", detail: "页面呈现登录表单（会话疑似失效），必需断言未能判定" };
+    }
   }
 
   // 计划中未被评估的断言统一登记为 NOT_EVALUATED。
