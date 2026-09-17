@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import type { ArtifactStore } from "@ai-qa/artifact-store";
+import { TestCaseVersion, verifyStoredPlan } from "@ai-qa/contracts";
 import { aggregateRun, percent } from "@ai-qa/evaluation";
 
 /**
@@ -98,7 +99,6 @@ export async function buildRunReport(
 
   const caseRows = await prisma.testCaseVersion.findMany({
     where: { id: { in: run.selectedCaseVersionIds } },
-    select: { id: true, title: true, ruleVersionIds: true },
   });
 
   const cases: CaseReportView[] = [];
@@ -119,9 +119,20 @@ export async function buildRunReport(
       ? await prisma.assertionResultRecord.findMany({ where: { attemptId: attempt.id } })
       : [];
 
-    const planAssertions: PlanAssertionShape[] =
-      ((planVersion?.plan as { assertions?: PlanAssertionShape[] } | null)?.assertions ?? []);
+    const rawAssertions = (planVersion?.plan as { assertions?: unknown } | null)?.assertions;
+    const planAssertions: PlanAssertionShape[] = Array.isArray(rawAssertions)
+      ? rawAssertions.filter((a) => a && typeof a.id === "string") : [];
     const requiredIds = planAssertions.filter((a) => a.required !== false).map((a) => a.id);
+    const caseRow = caseRows.find((c) => c.id === caseVersionId);
+    const parsedCase = caseRow && TestCaseVersion.safeParse({
+      ...caseRow, description: caseRow.description ?? undefined,
+      approvalHash: caseRow.approvalHash ?? undefined, createdAt: caseRow.createdAt.toISOString(),
+    });
+    if (!planVersion || !parsedCase?.success || !verifyStoredPlan(planVersion.plan, parsedCase.data).ok ||
+        (pin && (planVersion.caseVersionId !== caseVersionId || planVersion.acceptanceHash !== pin.acceptanceHash))) {
+      downgradeReasons.push("固定计划缺失、被修改或与已批准用例不一致");
+    }
+    if (requiredIds.length === 0) downgradeReasons.push("固定计划缺少必需断言，不能 PASS");
 
     const assertionViews: AssertionView[] = [];
     for (const record of assertionRecords) {
@@ -130,7 +141,7 @@ export async function buildRunReport(
       const evidence: AssertionView["evidence"] = [];
       for (const artifactId of record.evidenceIds) {
         const artifact = await prisma.artifact.findUnique({ where: { id: artifactId } });
-        const exists = artifact ? store.exists(artifact.storageKey) : false;
+        const exists = artifact ? store.exists(artifact.storageKey) && (!artifact.expiresAt || artifact.expiresAt > new Date()) : false;
         let integrityOk = false;
         if (artifact && exists) {
           try {
@@ -181,8 +192,13 @@ export async function buildRunReport(
 
     // 固定计划的必需断言必须有结果记录（R5：空记录集不能 PASS）。
     for (const requiredId of requiredIds) {
-      if (!assertionRecords.some((r) => r.assertionId === requiredId)) {
+      const records = assertionRecords.filter((r) => r.assertionId === requiredId);
+      if (records.length === 0) {
         downgradeReasons.push(`必需断言 ${requiredId} 缺少结果记录`);
+      } else if (records.length !== 1) {
+        downgradeReasons.push(`必需断言 ${requiredId} 结果记录重复`);
+      } else if (records[0]!.result !== "PASS" && attempt?.verdict === "PASS") {
+        downgradeReasons.push(`必需断言 ${requiredId} 为 ${records[0]!.result}，与用例 PASS 不一致`);
       }
     }
     if (attempt && attempt.verdict === "PASS" && downgradeReasons.length > 0) {
@@ -209,7 +225,7 @@ export async function buildRunReport(
       title: caseRows.find((c) => c.id === caseVersionId)?.title ?? caseVersionId,
       verdict,
       reportedVerdict: attempt?.verdict ?? "NOT_RUN",
-      reasonCode: attempt?.reasonCode ?? "NONE",
+      reasonCode: verdict === "REVIEW" && attempt?.verdict === "PASS" ? "TEST_DATA" : attempt?.reasonCode ?? "NONE",
       unstable: attempt?.unstable ?? false,
       evidenceDowngraded: verdict === "REVIEW" && attempt?.verdict === "PASS",
       downgradeReasons,
@@ -241,11 +257,13 @@ export async function buildRunReport(
     platformError: run.lifecycle === "ERROR",
   });
 
+  const acceptanceStatus = metrics.acceptanceStatus;
+
   return {
     run: {
       id: run.id,
       lifecycle: run.lifecycle,
-      acceptanceStatus: run.acceptanceStatus,
+      acceptanceStatus,
       mode: run.mode,
       buildId: run.buildId,
       buildDeclared: run.buildId !== null && run.buildId !== undefined,
@@ -259,7 +277,7 @@ export async function buildRunReport(
       executionRateDisplay: percent(metrics.executionRate),
       passRateDisplay: percent(metrics.passRate),
       ruleCoverageDisplay: percent(metrics.ruleCoverage),
-      acceptanceStatus: metrics.acceptanceStatus,
+      acceptanceStatus,
     },
     cases,
   };

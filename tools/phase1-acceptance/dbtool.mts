@@ -48,7 +48,7 @@ async function main() {
       break;
     }
     case "add-plan-version": {
-      // 复制现有计划为新版本（内容相同、哈希不同）→ 测试"排队期间发布 v2"。
+      // 发布内容相同的合法新版本；验收哈希按内容保持一致，版本 ID 必须不同。
       const [planId] = args;
       const source = await prisma.testPlanVersion.findUniqueOrThrow({ where: { id: planId } });
       const maxVersion = await prisma.testPlanVersion.aggregate({
@@ -62,7 +62,7 @@ async function main() {
           schemaVersion: source.schemaVersion,
           plan: source.plan as never,
           bindingEvidenceIds: source.bindingEvidenceIds,
-          acceptanceHash: "b".repeat(64),
+          acceptanceHash: source.acceptanceHash,
         },
       });
       console.log(created.id);

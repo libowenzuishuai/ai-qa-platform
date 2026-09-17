@@ -106,23 +106,26 @@ async function reconcile(): Promise<void> {
     take: 10,
   });
   for (const run of staleActive) {
-    const cas = await prisma.run.updateMany({
-      where: { id: run.id, lifecycle: { in: ["PREPARING", "RUNNING", "FINALIZING"] } },
-      data: { lifecycle: "ERROR" },
-    });
-    if (cas.count === 0) continue; // CAS 失败：状态已被他人迁移。
-    await prisma.caseAttempt.updateMany({
-      where: { runId: run.id, lifecycle: { not: "FINISHED" } },
-      data: {
-        lifecycle: "FINISHED",
-        verdict: "BLOCKED",
-        reasonCode: "ENVIRONMENT",
-        retryReason: "worker 租约丢失（心跳超时）",
-        finishedAt: new Date(),
-      },
-    });
-    await emitRunEvent(prisma, run.id, "run.platform_error", {
-      detail: "worker 心跳超时，运行进入 ERROR",
+    await prisma.$transaction(async (tx) => {
+      const cas = await tx.run.updateMany({
+        where: { id: run.id, lifecycle: { in: ["PREPARING", "RUNNING", "FINALIZING"] },
+          updatedAt: { lt: new Date(Date.now() - LEASE_STALE_MS) } },
+        data: { lifecycle: "ERROR" },
+      });
+      if (cas.count === 0) return; // CAS 失败：状态已被他人迁移。
+      await tx.caseAttempt.updateMany({
+        where: { runId: run.id, lifecycle: { not: "FINISHED" } },
+        data: {
+          lifecycle: "FINISHED",
+          verdict: "BLOCKED",
+          reasonCode: "ENVIRONMENT",
+          retryReason: "worker 租约丢失（心跳超时）",
+          finishedAt: new Date(),
+        },
+      });
+      await emitRunEvent(tx, run.id, "run.platform_error", {
+        detail: "worker 心跳超时，运行进入 ERROR",
+      });
     });
   }
 }

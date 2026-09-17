@@ -27,12 +27,14 @@ export class DemoFixtureClient {
     return { allowedOrigins: [this.baseUrl], dependencyOrigins: [] };
   }
 
-  private async call(path: string, init?: RequestInit): Promise<unknown> {
+  private async call(path: string, init?: RequestInit, deadline?: number): Promise<unknown> {
     const url = `${this.baseUrl}${path}`;
     const decision = checkDestination(url, this.guard());
     if (!decision.allowed) {
       throw new Error(`夹具目标被策略拒绝：${url}`);
     }
+    const remaining = deadline === undefined ? this.timeoutMs : Math.min(this.timeoutMs, deadline - Date.now());
+    if (remaining <= 0) throw new Error("夹具请求未发出：运行时间预算耗尽");
     const response = await fetch(url, {
       ...init,
       redirect: "manual",
@@ -41,7 +43,7 @@ export class DemoFixtureClient {
         "content-type": "application/json",
         ...(init?.headers ?? {}),
       },
-      signal: AbortSignal.timeout(this.timeoutMs),
+      signal: AbortSignal.timeout(remaining),
     });
     // redirect: manual 时 3xx 返回 opaque 重定向 —— 视为违规（不应发生）。
     if (response.type === "opaqueredirect" || (response.status >= 300 && response.status < 400)) {
@@ -53,11 +55,11 @@ export class DemoFixtureClient {
     return response.json();
   }
 
-  async resetNamespace(namespace: string): Promise<{ deleted: number }> {
+  async resetNamespace(namespace: string, deadline?: number): Promise<{ deleted: number }> {
     const result = (await this.call("/api/fixtures/ns/reset", {
       method: "POST",
       body: JSON.stringify({ namespace }),
-    })) as { ok: boolean; deleted: number };
+    }, deadline)) as { ok: boolean; deleted: number };
     if (!result.ok) throw new Error("namespace 重置未成功");
     return { deleted: result.deleted };
   }

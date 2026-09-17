@@ -148,11 +148,19 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
   }
 
   let browser: Browser | null = null;
+  let deadlineExpired = false;
+  let writeInFlight = false;
+  const timeExpired = () => deadlineExpired || Date.now() >= budgetDeadline;
   // 连接层隔离（R1）：全部浏览器流量经本地策略代理；越界目标在建立
   // 连接前被拒绝（对 302/307/308 重定向目标、service worker、CONNECT 同样生效）。
   const policyProxy = await startPolicyProxy(options.policy, (v) => {
     void events?.onViolation?.(v);
   });
+  // 限制所有浏览器动作（包括 goto/fill/assert），不能只在轮询或动作之间检查。
+  const deadlineTimer = setTimeout(() => {
+    deadlineExpired = true;
+    void browser?.close().catch(() => undefined);
+  }, Math.max(1, budgetDeadline - Date.now()));
   const roleContexts = new Map<string, BrowserContext>();
   let currentRole: string | null = null;
   const pendingTraces: Array<{ context: BrowserContext; role: string }> = [];
@@ -280,7 +288,7 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
   }
 
   try {
-    browser = await chromium.launch({ headless: true, proxy: { server: "per-context" } });
+    browser = await chromium.launch({ headless: true, proxy: { server: "per-context" }, timeout: Math.max(1, budgetDeadline - Date.now()) });
 
     actionLoop: for (const action of plan.actions) {
       const now = new Date().toISOString();
@@ -308,7 +316,7 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
       }
       // —— 预算 ——
       const elapsed = Date.now() - startedAtMs;
-      if (actionsExecuted >= options.budget.maxActions || elapsed > options.budget.wallClockMs) {
+      if (actionsExecuted >= options.budget.maxActions || elapsed >= options.budget.wallClockMs) {
         blocked = {
           reasonCode: "TIME_BUDGET",
           detail: `预算耗尽（动作 ${actionsExecuted}/${options.budget.maxActions}，耗时 ${elapsed}ms/${options.budget.wallClockMs}ms）`,
@@ -351,8 +359,9 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
         }
       }
 
+      writeInFlight = false;
       actionsExecuted += 1;
-      const timeout = options.budget.perActionTimeoutMs;
+      const timeout = Math.max(1, Math.min(options.budget.perActionTimeoutMs, budgetDeadline - Date.now()));
 
       try {
         switch (action.type) {
@@ -427,9 +436,10 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
             const locator = locatorFor(page, binding.locator);
             await locator.waitFor({ state: "visible", timeout });
             try {
+              writeInFlight = action.effect === "WRITE";
               await locator.click({ timeout });
             } catch (err) {
-              if (action.effect === "WRITE" && isTimeoutError(err)) {
+              if (action.effect === "WRITE" && (isTimeoutError(err) || timeExpired())) {
                 // 前置可见性检查已通过；点击超时大概率是提交后导航/响应挂起，
                 // 无法确认业务结果 → 副作用不确定，禁止重试（PRD FR-08）。
                 blocked = {
@@ -461,6 +471,7 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
                 throw err;
               }
             }
+            writeInFlight = false;
             await finishStep({ status: "PASSED" });
             break;
           }
@@ -516,7 +527,7 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
               } catch (err) {
                 lastObservation = err instanceof Error ? err.message : String(err);
               }
-              await page.waitForTimeout(action.pollMs);
+              await page.waitForTimeout(Math.max(0, Math.min(action.pollMs, deadline - Date.now())));
             }
             if (cancelled) {
               await finishStep({ status: "CANCELLED", error: "等待中收到取消请求" });
@@ -556,7 +567,11 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
                 const binding = bindingByRef.get(assertion.targetRef);
                 if (!binding) throw new Error(`targetRef ${assertion.targetRef} 无绑定`);
                 const locator = locatorFor(page, binding.locator);
-                if (assertion.operator === "exists" || assertion.operator === "notExists") {
+                if ((await locator.count()) === 0 && await looksLikeLoginPage(page)) {
+                  progress.result = "NOT_EVALUATED";
+                  progress.note = "页面呈现登录表单（会话疑似失效）";
+                  authSuspected = true;
+                } else if (assertion.operator === "exists" || assertion.operator === "notExists") {
                   // R6：业务存在性在有效页面内可判定 —— 缺失就是 FAIL，
                   // 不得归为 NOT_EVALUATED；登录态失效优先归类 AUTH。
                   if (assertion.operator === "exists") {
@@ -569,7 +584,7 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
                         progress.result = "NOT_EVALUATED";
                         progress.note = "页面呈现登录表单（会话疑似失效）";
                         authSuspected = true;
-                      } else if (isTimeoutError(err)) {
+                      } else if (isTimeoutError(err) && !timeExpired()) {
                         progress.actual = "0";
                         progress.result = "FAIL";
                         progress.note = "业务要求存在的目标未出现（有效页面内业务缺失）";
@@ -581,8 +596,9 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
                     // notExists：目标仍附着 = FAIL；不在 DOM（或已移除）= PASS。
                     try {
                       await locator.waitFor({ state: "detached", timeout });
-                    } catch {
-                      /* 超时 = 元素仍在 DOM，属业务不符 */
+                    } catch (err) {
+                      // 只有正常的元素等待超时可判断为业务不符；页面关闭等不能吞掉。
+                      if (!isTimeoutError(err) || timeExpired()) throw err;
                     }
                     const count = await locator.count();
                     progress.actual = count > 0 ? "1" : "0";
@@ -603,7 +619,7 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
               }
             } catch (err) {
               const message = err instanceof Error ? err.message : String(err);
-              if (isTimeoutError(err)) {
+              if (isTimeoutError(err) || timeExpired()) {
                 progress.result = "NOT_EVALUATED";
                 progress.note = `断言目标未出现：${message.split("\n")[0] ?? ""}`;
               } else {
@@ -656,9 +672,16 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
     const message = err instanceof Error ? err.message.split("\n")[0] ?? "" : String(err);
     blocked ??= { reasonCode: "ENVIRONMENT", detail: `浏览器/执行器故障：${message}` };
   } finally {
+    clearTimeout(deadlineTimer);
     await stopAndStoreTraces().catch(() => undefined);
     await browser?.close().catch(() => undefined);
     await policyProxy.close().catch(() => undefined);
+  }
+
+  if (timeExpired() && !cancelled) {
+    blocked = writeInFlight
+      ? { reasonCode: "UNCERTAIN_SIDE_EFFECT", detail: "写操作期间耗尽时间预算，提交结果未知；禁止重试" }
+      : { reasonCode: "TIME_BUDGET", detail: "执行时间预算耗尽，已停止浏览器动作" };
   }
 
   // 登录态失效优先于其它非 FAIL 结局：必需断言因登录页无法判定 → AUTH。

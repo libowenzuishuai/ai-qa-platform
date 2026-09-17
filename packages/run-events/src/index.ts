@@ -55,11 +55,15 @@ export async function emitRunEvent(
   type: string,
   payload: Record<string, unknown> = {},
 ): Promise<number> {
-  const seq = await allocateEventSeq(prisma, runId);
-  await prisma.runEvent.create({
-    data: { runId, seq, type, payload: payload as Prisma.InputJsonValue },
-  });
-  return seq;
+  // 取号时持有 Run 行锁，直到事件也提交：高序号不能抢先可见。
+  const write = async (tx: Prisma.TransactionClient) => {
+    const seq = await allocateEventSeq(tx, runId);
+    await tx.runEvent.create({
+      data: { runId, seq, type, payload: payload as Prisma.InputJsonValue },
+    });
+    return seq;
+  };
+  return "$transaction" in prisma ? prisma.$transaction(write) : write(prisma);
 }
 
 /**
@@ -67,18 +71,16 @@ export async function emitRunEvent(
  * 返回是否成功。持有过期内存状态的调用者会得到 false，不会覆盖新状态。
  */
 export async function casTransitionRun(
-  prisma: PrismaClient,
+  prisma: PrismaClient | Prisma.TransactionClient,
   runId: string,
   allowedFrom: readonly string[],
   to: string,
 ): Promise<boolean> {
-  const allowed = RUN_LIFECYCLE_TRANSITIONS[allowedFrom[0] ?? ""] ?? [];
   // 校验迁移本身合法（任一 from → to 必须在状态机中）。
   for (const from of allowedFrom) {
     if ((RUN_LIFECYCLE_TRANSITIONS[from] ?? []).includes(to)) continue;
     throw new Error(`非法生命周期迁移：${from} → ${to}`);
   }
-  void allowed;
   const result = await prisma.run.updateMany({
     where: { id: runId, lifecycle: { in: [...allowedFrom] } },
     data: { lifecycle: to },
@@ -120,8 +122,11 @@ export function parseRedisConnection(url: string): RedisConnection {
     throw new Error(`不支持的 Redis 协议：${parsed.protocol}`);
   }
   const dbRaw = parsed.pathname.replace(/^\//, "");
+  if (dbRaw && (!/^\d+$/.test(dbRaw) || !Number.isSafeInteger(Number(dbRaw)))) {
+    throw new Error("Redis 数据库号必须是非负安全整数");
+  }
   const connection: RedisConnection = {
-    host: parsed.hostname || "127.0.0.1",
+    host: parsed.hostname.replace(/^\[|\]$/g, "") || "127.0.0.1",
     port: Number(parsed.port || 6379),
   };
   if (parsed.username) connection.username = decodeURIComponent(parsed.username);
@@ -137,19 +142,18 @@ export async function finalizeCancelledFromRequest(
   runId: string,
   reason: string,
 ): Promise<boolean> {
-  await prisma.caseAttempt.updateMany({
-    where: { runId, lifecycle: { not: "FINISHED" } },
-    data: {
-      lifecycle: "FINISHED",
-      verdict: "BLOCKED",
-      reasonCode: "CANCELLED",
-      retryReason: reason,
-      finishedAt: new Date(),
-    },
+  return prisma.$transaction(async (tx) => {
+    const cancelled = await casTransitionRun(tx, runId, ["CANCEL_REQUESTED"], "CANCELLED");
+    if (!cancelled) return false;
+    await tx.caseAttempt.updateMany({
+      where: { runId, lifecycle: { not: "FINISHED" } },
+      data: {
+        lifecycle: "FINISHED", verdict: "BLOCKED", reasonCode: "CANCELLED",
+        retryReason: reason, finishedAt: new Date(),
+      },
+    });
+    await emitRunEvent(tx, runId, "run.lifecycle", { lifecycle: "CANCELLED", runId, reason });
+    await emitRunEvent(tx, runId, "run.done", { runId, lifecycle: "CANCELLED" });
+    return true;
   });
-  const cancelled = await casTransitionRun(prisma, runId, ["CANCEL_REQUESTED"], "CANCELLED");
-  if (!cancelled) return false;
-  await emitRunEvent(prisma, runId, "run.lifecycle", { lifecycle: "CANCELLED", runId, reason });
-  await emitRunEvent(prisma, runId, "run.done", { runId, lifecycle: "CANCELLED" });
-  return true;
 }

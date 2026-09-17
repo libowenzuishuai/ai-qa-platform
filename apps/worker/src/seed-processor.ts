@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { chromium } from "playwright";
 import { checkDestination, startPolicyProxy } from "@ai-qa/test-runtime";
@@ -57,22 +58,23 @@ async function observeBindings(
   projectId: string,
   baseUrl: string,
   resolveCredential: (ref: string) => string | undefined,
+  NS: string,
 ): Promise<{ bindings: ObservedBinding[]; orderId: string; namespace: string }> {
   const bindings: ObservedBinding[] = [];
-  const NS = `seed-observe-${projectId.slice(0, 10)}-${Date.now().toString(36)}`;
   // 观察流程与执行器同一网络策略（R1）：全部流量经本地策略代理，
   // 登录凭据只可能到达环境白名单内的目的地。
   const allowedPolicy = { allowedOrigins: [baseUrl], dependencyOrigins: [] };
   const proxy = await startPolicyProxy(allowedPolicy);
-  const browser = await chromium.launch({ headless: true, proxy: { server: "per-context" } });
+  let browser: import("playwright").Browser | undefined;
   try {
-    const contexts = new Map<string, Awaited<ReturnType<typeof browser.newContext>>>();
+    browser = await chromium.launch({ headless: true, proxy: { server: "per-context" } });
+    const contexts = new Map<string, import("playwright").BrowserContext>();
     const contextFor = async (role: string) => {
       const existing = contexts.get(role);
       if (existing) return existing;
       // per-context 模式下所有 context 必须经策略代理（R1：观察流程与
       // 执行器同一网络边界，登录凭据只可能到达白名单目的地）。
-      const context = await browser.newContext({ proxy: { server: proxy.url } });
+      const context = await browser!.newContext({ proxy: { server: proxy.url } });
       await context.addCookies([{ name: "demo_ns", value: NS, url: baseUrl, sameSite: "Lax" }]);
       contexts.set(role, context);
       return context;
@@ -101,7 +103,7 @@ async function observeBindings(
     let submitted = false;
     // 登录页观察必须用匿名上下文（已登录会话会被重定向离开 /login）。
     let anonPage: import("playwright").Page | null = null;
-    const anonContext = await browser.newContext({ proxy: { server: proxy.url } });
+    const anonContext = await browser!.newContext({ proxy: { server: proxy.url } });
     await anonContext.addCookies([{ name: "demo_ns", value: NS, url: baseUrl, sameSite: "Lax" }]);
     for (const target of OBSERVATION_TARGETS) {
       if (target.submitFirst && !submitted) {
@@ -136,7 +138,7 @@ async function observeBindings(
       evidenceCounter += 1;
       const screenshot = await page.screenshot({ fullPage: false });
       const stored = store.put({
-        runId: `seed-${projectId.slice(0, 12)}`,
+        runId: NS,
         attemptId: "observation",
         filename: `observe-${String(evidenceCounter).padStart(2, "0")}.png`,
         data: screenshot,
@@ -165,7 +167,7 @@ async function observeBindings(
     }
     return { bindings, orderId, namespace: NS };
   } finally {
-    await browser.close().catch(() => undefined);
+    await browser?.close().catch(() => undefined);
     await proxy.close().catch(() => undefined);
   }
 }
@@ -378,7 +380,7 @@ export async function seedFixedAssets(
 
   // —— 真实浏览器观察（同一网络策略；唯一命名空间；失败也清理） ——
   const fixture = new DemoFixtureClient(environment.baseUrl, config.demoFixtureToken);
-  let observeNamespace = `seed-observe-${projectId.slice(0, 10)}-${Date.now().toString(36)}`;
+  const observeNamespace = `seed-observe-${randomUUID()}`;
   try {
     const observed = await observeBindings(
       prisma,
@@ -386,9 +388,9 @@ export async function seedFixedAssets(
       projectId,
       environment.baseUrl,
       resolveCredential,
+      observeNamespace,
     );
     bindings = observed.bindings;
-    observeNamespace = observed.namespace;
   } finally {
     await fixture.resetNamespace(observeNamespace).catch(() => undefined);
   }

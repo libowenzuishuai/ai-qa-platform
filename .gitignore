@@ -29,3 +29,6 @@ apps/api/prisma/*.db
 # 阶段 1 验收 harness 输出
 tools/phase1-acceptance/last-run.json
 tools/phase1-acceptance/ui-report.png
+
+# 隔离验收临时证据目录（退出时会清理）
+tools/phase1-acceptance/artifacts-*/

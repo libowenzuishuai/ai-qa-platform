@@ -68,7 +68,11 @@ export function registerRunRoutes(
         createdAt: true, updatedAt: true, selectedCaseVersionIds: true,
       },
     });
-    return { runs };
+    const verifiedRuns = await Promise.all(runs.map(async (run) => {
+      const report = await buildRunReport(prisma, store, run.id);
+      return { ...run, acceptanceStatus: report.run.acceptanceStatus };
+    }));
+    return { runs: verifiedRuns };
   });
 
   app.get("/api/runs/:id", async (req) => {
@@ -79,15 +83,12 @@ export function registerRunRoutes(
     });
     if (!run) throw new ApiError("NOT_FOUND", "运行不存在");
     await requireProjectAccess(prisma, req, run.projectId, "VIEWER");
-    const caseTitles = await prisma.testCaseVersion.findMany({
-      where: { id: { in: run.selectedCaseVersionIds } },
-      select: { id: true, title: true },
-    });
+    const report = await buildRunReport(prisma, store, id);
     return {
       run: {
         id: run.id,
         lifecycle: run.lifecycle,
-        acceptanceStatus: run.acceptanceStatus,
+        acceptanceStatus: report.run.acceptanceStatus,
         mode: run.mode,
         buildId: run.buildId,
         createdAt: run.createdAt,
@@ -96,13 +97,14 @@ export function registerRunRoutes(
       },
       cases: run.selectedCaseVersionIds.map((caseVersionId) => {
         const attempt = run.attempts.find((a) => a.caseVersionId === caseVersionId);
+        const checked = report.cases.find((c) => c.caseVersionId === caseVersionId)!;
         return {
           caseVersionId,
-          title: caseTitles.find((t) => t.id === caseVersionId)?.title ?? caseVersionId,
+          title: checked.title,
           attemptId: attempt?.id ?? null,
           attemptNamespace: attempt?.namespace ?? null,
-          verdict: attempt?.verdict ?? "NOT_RUN",
-          reasonCode: attempt?.reasonCode ?? "NONE",
+          verdict: checked.verdict,
+          reasonCode: checked.reasonCode,
           unstable: attempt?.unstable ?? false,
         };
       }),
@@ -180,15 +182,10 @@ export function registerRunRoutes(
       return { runId: id, lifecycle: run.lifecycle, note: "运行已处于终态，取消为幂等空操作" };
     }
     // R2/R7：CAS 迁移 + 数据库原子序号事件。
-    const updated = await casTransitionRun(
-      prisma,
-      id,
-      ["QUEUED", "PREPARING", "RUNNING", "FINALIZING"],
-      "CANCEL_REQUESTED",
-    );
-    if (updated) {
-      await emitRunEvent(prisma, id, "run.cancel_requested", { actor: req.auth?.userId });
-    }
+    await prisma.$transaction(async (tx) => {
+      const updated = await casTransitionRun(tx, id, ["QUEUED", "PREPARING", "RUNNING", "FINALIZING"], "CANCEL_REQUESTED");
+      if (updated) await emitRunEvent(tx, id, "run.cancel_requested", { actor: req.auth?.userId });
+    });
     const after = await prisma.run.findUniqueOrThrow({ where: { id }, select: { lifecycle: true } });
     return { runId: id, lifecycle: after.lifecycle };
   });

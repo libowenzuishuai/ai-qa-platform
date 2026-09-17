@@ -16,7 +16,8 @@
   "dependencies": {
     "@ai-qa/artifact-store": "workspace:*",
     "@ai-qa/evaluation": "workspace:*",
-    "@prisma/client": "^6.3.0"
+    "@prisma/client": "^6.3.0",
+    "@ai-qa/contracts": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

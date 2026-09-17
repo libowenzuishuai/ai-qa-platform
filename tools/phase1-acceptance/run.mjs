@@ -6,6 +6,7 @@
  * 可以读取 demo fixtures、注入数据库篡改与临时用户 —— 平台运行时不知道
  * 这些能力。预期结论只写在 harness 内，不进入被测系统与执行器。
  */
+import { createServer } from "node:net";
 import { spawn, execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,13 +20,26 @@ const ROOT = resolve(HERE, "../..");
  * 阶段 1.1 起验收 harness 完全独立（评审 §三.1）：
  * - 独立临时 PostgreSQL 库（不复用开发库，篡改类测试不碰日常数据）；
  * - 独立 Redis 容器（带密码 + 非 0 db 序号，验证 URL 解析实际生效）；
- * - 独立端口（API 7310 / worker 7211 / web 7110）与临时证据目录；
+ * - 动态分配的独立端口与临时证据目录；
  * - finally 中全部清理。
  */
 const STAMP = Date.now().toString(36);
-const API_PORT = 7310;
-const WORKER_PORT = 7211;
-const WEB_PORT = 7110;
+const chosenPorts = new Set();
+async function freePort() {
+  for (;;) {
+    const server = createServer();
+    await new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
+    const port = server.address().port;
+    await new Promise((resolve) => server.close(resolve));
+    if (!chosenPorts.has(port)) { chosenPorts.add(port); return port; }
+  }
+}
+const API_PORT = await freePort();
+const WORKER_PORT = await freePort();
+const WEB_PORT = await freePort();
+const DEMO_PORTS = Object.fromEntries(await Promise.all(
+  ["healthy", "B1", "B3", "B4", "badcreds", "fault"].map(async (name) => [name, await freePort()]),
+));
 const API = `http://127.0.0.1:${API_PORT}`;
 const WEB = `http://127.0.0.1:${WEB_PORT}`;
 const FIXTURE_TOKEN = "dev-fixture-token";
@@ -84,7 +98,12 @@ function provisionResources() {
 }
 
 function cleanupResources() {
-  for (const child of children) child.kill("SIGKILL");
+  for (const child of children) {
+    try {
+      if (process.platform !== "win32") process.kill(-child.pid, "SIGKILL");
+      else child.kill("SIGKILL");
+    } catch { /* 本次子进程组已退出。 */ }
+  }
   try {
     // 先断开残留连接再删库。
     sh(`docker exec ${PG_CONTAINER} psql -U aiqa -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='${DB_NAME}' AND pid <> pg_backend_pid()" > /dev/null 2>&1 || true`);
@@ -93,7 +112,7 @@ function cleanupResources() {
   try {
     sh(`docker rm -f ${REDIS_CONTAINER}`);
   } catch { /* 尽力清理 */ }
-  for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
+  for (const dir of [...TEMP_DIRS, ...tmpDirs]) rmSync(dir, { recursive: true, force: true });
 }
 
 async function fetchJson(path, init = {}, sid) {
@@ -202,6 +221,7 @@ function spawnService(name, cwd, command, env = {}) {
     cwd: join(ROOT, cwd),
     env: { ...process.env, NO_PROXY: "127.0.0.1,localhost", no_proxy: "127.0.0.1,localhost", ...env },
     stdio: ["ignore", "pipe", "pipe"],
+    detached: process.platform !== "win32",
   });
   const emit = (stream, tag) => (chunk) => {
     for (const line of String(chunk).split("\n")) {
@@ -214,21 +234,31 @@ function spawnService(name, cwd, command, env = {}) {
   };
   child.stdout.on("data", emit("", ":out"));
   child.stderr.on("data", emit("", ":err"));
+  child.serviceName = name;
+  child.on("error", (error) => { child.startupError = error; });
   children.push(child);
   return child;
 }
 
 async function waitHealthy(url, name, timeoutMs = 40_000) {
+  const child = children.findLast((c) => c.serviceName === name);
   await waitFor(
     async () => {
+      if (child?.startupError || child?.exitCode !== null || child?.signalCode !== null) {
+        throw new Error(`${name} 启动进程已退出`);
+      }
       try {
-        return (await fetch(url)).ok;
+        return (await fetch(url, { signal: AbortSignal.timeout(2_000) })).ok;
       } catch {
         return false;
       }
     },
     { timeoutMs, intervalMs: 500, name: `${name} 健康` },
   );
+  await sleep(100);
+  if (child?.startupError || child?.exitCode !== null || child?.signalCode !== null) {
+    throw new Error(`${name} 未成功启动，不能使用其他进程的健康响应`);
+  }
 }
 
 async function collectSse(runId, sid, lastEventId, timeoutMs) {
@@ -269,12 +299,12 @@ async function main() {
 
   // 1) demo 实例。
   const demos = [
-    { name: "healthy", port: 7420, env: {} },
-    { name: "B1", port: 7421, env: { DEMO_BUG_MODES: "B1" } },
-    { name: "B3", port: 7423, env: { DEMO_BUG_MODES: "B3" } },
-    { name: "B4", port: 7424, env: { DEMO_BUG_MODES: "B4" } },
-    { name: "badcreds", port: 7425, env: { DEMO_APPLICANT_PASSWORD: "Wrong#Password9" } },
-    { name: "fault", port: 7426, env: { DEMO_FAULTS: "submit-commit-hang" } },
+    { name: "healthy", port: DEMO_PORTS.healthy, env: {} },
+    { name: "B1", port: DEMO_PORTS.B1, env: { DEMO_BUG_MODES: "B1" } },
+    { name: "B3", port: DEMO_PORTS.B3, env: { DEMO_BUG_MODES: "B3" } },
+    { name: "B4", port: DEMO_PORTS.B4, env: { DEMO_BUG_MODES: "B4" } },
+    { name: "badcreds", port: DEMO_PORTS.badcreds, env: { DEMO_APPLICANT_PASSWORD: "Wrong#Password9" } },
+    { name: "fault", port: DEMO_PORTS.fault, env: { DEMO_FAULTS: "submit-commit-hang" } },
   ];
   for (const demo of demos) {
     const dir = mkdtempSync(join(tmpdir(), `p1-${demo.name}-`));
@@ -293,7 +323,7 @@ async function main() {
   // 2) API / worker / web。
   provisionResources();
   record("独立资源就绪（临时库 + 独立 Redis（密码+db3）+ 独立端口/证据目录）", true);
-  spawnService("api", "apps/api", ["node_modules/.bin/tsx", "src/server.ts"], {
+  spawnService("api", "apps/api", [process.execPath, "--import", "tsx", "src/server.ts"], {
     API_PORT: String(API_PORT),
     API_HOST: "127.0.0.1",
     API_LOG_LEVEL: "warn",
@@ -303,7 +333,7 @@ async function main() {
     SESSION_SECRET: `p1acc-${STAMP}`,
   });
   await waitHealthy(`${API}/api/health`, "api");
-  spawnService("worker", "apps/worker", ["node_modules/.bin/tsx", "src/server.ts"], {
+  spawnService("worker", "apps/worker", [process.execPath, "--import", "tsx", "src/server.ts"], {
     WORKER_PORT: String(WORKER_PORT),
     WORKER_HOST: "127.0.0.1",
     WORKER_LOG_LEVEL: "warn",
@@ -317,14 +347,14 @@ async function main() {
     DEMO_SUPERVISOR_PASSWORD: "Supervisor#2026",
   });
   await waitHealthy(`http://127.0.0.1:${WORKER_PORT}/api/health`, "worker");
-  spawnService("web", "apps/web", ["node_modules/.bin/tsx", "src/server.ts"], {
+  spawnService("web", "apps/web", [process.execPath, "--import", "tsx", "src/server.ts"], {
     WEB_PORT: String(WEB_PORT),
     WEB_HOST: "127.0.0.1",
     WEB_LOG_LEVEL: "warn",
     API_BASE_URL: API,
   });
   await waitHealthy(`${WEB}/login`, "web");
-  record("API / worker / web 启动（独立端口 7310/7211/7110）", true);
+  record(`API / worker / web 启动（临时端口 ${API_PORT}/${WORKER_PORT}/${WEB_PORT}）`, true);
 
   // 3) 平台登录与项目准备。
   const admin = await login("admin", ADMIN_PASSWORD);
@@ -512,7 +542,7 @@ async function main() {
       caseVersionIds: [caseId.persist], mode: "real", idempotencyKey: key,
     };
     const first = await fetchJson("/api/runs", { method: "POST", body: JSON.stringify(body) }, admin);
-    const watcher = watchNamespace(7420, `ns-${first.data.runId.slice(-10)}-1`);
+    const watcher = watchNamespace(DEMO_PORTS.healthy, `ns-${first.data.runId.slice(-10)}-1`);
     const second = await fetchJson("/api/runs", { method: "POST", body: JSON.stringify(body) }, admin);
     record("幂等：同键同请求返回原 run", first.data.runId === second.data.runId && second.status === 200, `${first.status}/${second.status}`);
     const conflict = await fetchJson("/api/runs", { method: "POST", body: JSON.stringify({ ...body, caseVersionIds: [caseId.boundary] }) }, admin);
@@ -633,7 +663,7 @@ async function main() {
   // 13) WRITE 提交后响应中断。
   {
     const { data } = await createRun("fault", ["persist"]);
-    const watcher = watchNamespace(7426, `ns-${data.runId.slice(-10)}-1`);
+    const watcher = watchNamespace(DEMO_PORTS.fault, `ns-${data.runId.slice(-10)}-1`);
     const terminal = await waitRunTerminal(admin, data.runId, 240_000);
     const c = terminal.cases[0];
     record("WRITE 中断：BLOCKED/UNCERTAIN_SIDE_EFFECT", c.verdict === "BLOCKED" && c.reasonCode === "UNCERTAIN_SIDE_EFFECT", `${c.verdict}/${c.reasonCode}`);
@@ -675,7 +705,7 @@ async function main() {
     {
       const created = await createRun("healthy", ["persist"]);
       const ns = `ns-${created.data.runId.slice(-10)}-1`;
-      const watcher = watchNamespace(7420, ns);
+      const watcher = watchNamespace(DEMO_PORTS.healthy, ns);
       const q = new Queue("runs", { connection: queueConnection });
       await q.add("execute", { runId: created.data.runId }, { jobId: `dup-a-${created.data.runId}` });
       await q.add("execute", { runId: created.data.runId }, { jobId: `dup-b-${created.data.runId}` });
@@ -753,17 +783,15 @@ async function main() {
 
     // S6 取消后失联：CANCEL_REQUESTED 心跳超时 → 对账器完成取消。
     {
-      const created = await createRun("healthy", ["wait", "persist"]);
-      await sleep(1_500);
-      // 直接把运行置为 CANCEL_REQUESTED 且心跳过期（模拟 worker 消失）。
-      // 先暂停队列避免 worker 认领，再注入状态。
       const q = new Queue("runs", { connection: queueConnection });
       await q.pause();
+      const created = await createRun("healthy", ["wait", "persist"]);
       await fetchJson(`/api/runs/${created.data.runId}/cancel`, { method: "POST" }, admin);
       tsx(["dbtool.mts", "set-run-stale-cancellation", created.data.runId]);
+      // 队列保持暂停：排除消费者完成取消，只允许后台对账推进终态。
+      const terminal = await waitRunTerminal(admin, created.data.runId, 120_000);
       await q.resume();
       await q.close();
-      const terminal = await waitRunTerminal(admin, created.data.runId, 120_000);
       record(
         "取消后失联：对账器完成取消（CANCELLED）",
         terminal.run.lifecycle === "CANCELLED",

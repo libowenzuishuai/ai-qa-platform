@@ -1,5 +1,5 @@
 import { createServer, request as httpRequest, type Server } from "node:http";
-import { connect as netConnect, isIPv6 } from "node:net";
+import { connect as netConnect } from "node:net";
 import { checkDestination, type NavigationPolicy } from "./navigation-policy.js";
 
 /**
@@ -39,6 +39,12 @@ export function startPolicyProxy(
   policy: NavigationPolicy,
   onViolation?: (v: { kind: string; url: string; detail: string }) => void,
 ): Promise<PolicyProxy> {
+  const sockets = new Set<import("node:stream").Duplex>();
+  const track = (socket: import("node:stream").Duplex) => {
+    if (sockets.has(socket)) return;
+    sockets.add(socket);
+    socket.once("close", () => sockets.delete(socket));
+  };
   const stats: PolicyProxyStats = { forwarded: {}, blocked: {}, blockedUrls: [] };
 
   const recordBlocked = (origin: string, url: string, detail: string) => {
@@ -60,6 +66,10 @@ export function startPolicyProxy(
       res.writeHead(400).end("malformed proxy request");
       return;
     }
+    if (parsed.protocol !== "http:") {
+      res.writeHead(400).end("HTTPS requires CONNECT");
+      return;
+    }
     const origin = `${parsed.protocol}//${parsed.host}`;
     const decision = checkDestination(target, policy);
     if (!decision.allowed) {
@@ -72,7 +82,7 @@ export function startPolicyProxy(
     const upstream = httpRequest(
       {
         protocol: parsed.protocol,
-        hostname: parsed.hostname,
+        hostname: parsed.hostname.replace(/^\[|\]$/g, ""),
         port: parsed.port || 80,
         method: req.method,
         path: parsed.pathname + parsed.search,
@@ -83,6 +93,8 @@ export function startPolicyProxy(
         upstreamRes.pipe(res);
       },
     );
+    upstream.on("socket", track);
+    res.on("close", () => upstream.destroy());
     upstream.on("error", () => {
       res.destroy();
     });
@@ -92,13 +104,21 @@ export function startPolicyProxy(
   // HTTPS CONNECT 隧道：先校验目的地，再建立上游连接。
   server.on("connect", (req, clientSocket, head) => {
     const hostPort = req.url ?? "";
-    const [host, portRaw] = hostPort.split(":");
-    const port = Number(portRaw ?? 443);
-    if (!host || Number.isNaN(port)) {
-      clientSocket.destroy();
+    let target: URL;
+    try {
+      target = new URL(`https://${hostPort}`);
+      if (target.username || target.password || target.pathname !== "/" || target.search || target.hash) throw new Error("invalid CONNECT");
+    } catch {
+      clientSocket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
       return;
     }
-    const origin = `https://${isIPv6(host) ? `[${host}]` : host}${port === 443 ? "" : `:${port}`}`;
+    const host = target.hostname.replace(/^\[|\]$/g, "");
+    const port = Number(target.port || 443);
+    if (port < 1 || port > 65535) {
+      clientSocket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
+      return;
+    }
+    const origin = target.origin;
     const decision = checkDestination(`${origin}/`, policy);
     if (!decision.allowed) {
       recordBlocked(origin, `connect://${hostPort}`, `代理拒绝非白名单 CONNECT ${origin}`);
@@ -112,9 +132,14 @@ export function startPolicyProxy(
       upstream.pipe(clientSocket);
       clientSocket.pipe(upstream);
     });
+    track(upstream);
+    clientSocket.on("close", () => upstream.destroy());
+    upstream.on("close", () => clientSocket.destroy());
     upstream.on("error", () => clientSocket.destroy());
     clientSocket.on("error", () => upstream.destroy());
   });
+
+  server.on("connection", track);
 
   return new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -132,6 +157,8 @@ export function startPolicyProxy(
         close: () =>
           new Promise<void>((resolveClose) => {
             server.close(() => resolveClose());
+            // closeAllConnections 不关闭升级后的 CONNECT 隧道。
+            for (const socket of sockets) socket.destroy();
             server.closeAllConnections?.();
           }),
       });

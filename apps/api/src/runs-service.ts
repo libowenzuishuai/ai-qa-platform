@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { TestCaseVersion, verifyStoredPlan } from "@ai-qa/contracts";
 import type { ArtifactStore } from "@ai-qa/artifact-store";
-import { allocateEventSeq } from "@ai-qa/run-events";
+import { emitRunEvent } from "@ai-qa/run-events";
 import { ApiError } from "./errors.js";
 
 /**
@@ -94,6 +94,25 @@ export async function createRun(
   }
   const budget = validateBudget(input.budget);
 
+  const identity = {
+    baselineId,
+    environmentId,
+    caseVersionIds: [...caseVersionIds].sort(),
+    buildId: input.buildId ?? null,
+    mode: input.mode,
+    budget,
+  };
+
+  // —— R8：先查重（快速路径）——
+  const existing = await prisma.run.findUnique({
+    where: { projectId_idempotencyKey: { projectId, idempotencyKey: input.idempotencyKey } },
+  });
+  if (existing) {
+    return resolveIdempotent(existing, identity, input.idempotencyKey);
+  }
+
+
+
   const baseline = await prisma.baseline.findFirst({ where: { id: baselineId, projectId } });
   if (!baseline) throw new ApiError("NOT_FOUND", "基线不存在或不属于该项目");
 
@@ -184,6 +203,9 @@ export async function createRun(
       throw new ApiError("VALIDATION_ERROR", `用例 ${caseVersion.id} 计划校验失败：${verification.problems.slice(0, 2).join("; ")}`);
     }
 
+    if (planVersion.acceptanceHash !== (planVersion.plan as { acceptanceHash: string }).acceptanceHash) {
+      throw new ApiError("VALIDATION_ERROR", "计划登记哈希与实际内容不一致");
+    }
     // R4：计划观察证据（存在/同项目/OBSERVATION/文件真实存在）。
     const bindings = ((planVersion.plan as { bindings?: Array<{ evidenceId: string }> }).bindings) ?? [];
     for (const binding of bindings) {
@@ -196,6 +218,10 @@ export async function createRun(
       }
       if (!store.exists(artifact.storageKey)) {
         throw new ApiError("VALIDATION_ERROR", `计划观察证据文件缺失：${artifact.storageKey}`, { field: "caseVersionIds" });
+      }
+      if (!store.verify(artifact.storageKey, artifact.checksum) ||
+          (artifact.expiresAt && artifact.expiresAt <= new Date())) {
+        throw new ApiError("VALIDATION_ERROR", `计划观察证据损坏或过期：${binding.evidenceId}`);
       }
     }
 
@@ -215,56 +241,30 @@ export async function createRun(
     environmentRevision: environment.revision,
   };
 
-  const identity = {
-    baselineId,
-    environmentId,
-    caseVersionIds: [...caseVersionIds].sort(),
-    buildId: input.buildId ?? null,
-    mode: input.mode,
-    budget,
-  };
-
-  // —— R8：先查重（快速路径）——
-  const existing = await prisma.run.findUnique({
-    where: { projectId_idempotencyKey: { projectId, idempotencyKey: input.idempotencyKey } },
-  });
-  if (existing) {
-    return resolveIdempotent(existing, identity, input.idempotencyKey);
-  }
-
   // —— 插入（唯一约束兜底并发）——
   try {
-    const run = await prisma.run.create({
-      data: {
-        projectId,
-        baselineId,
-        environmentId,
-        buildId: input.buildId ?? null,
-        mode: input.mode,
-        selectedCaseVersionIds: caseVersionIds,
-        budget,
-        idempotencyKey: input.idempotencyKey,
-        environmentSnapshot: environmentSnapshot as unknown as Prisma.InputJsonValue,
-        modelConfigSnapshot: { note: "stage1-fixed-cases-no-model" },
-        casePlanPins: pins as unknown as Prisma.InputJsonValue,
-      },
-    });
-    // 首事件与运行一致落库（同一事务语义由唯一键 + 事件分配器保证）。
-    const seq = await allocateEventSeq(prisma, run.id);
-    await prisma.runEvent.create({
-      data: {
-        runId: run.id,
-        seq,
-        type: "run.created",
-        payload: {
-          runId: run.id,
-          caseVersionIds,
+    return await prisma.$transaction(async (tx) => {
+      const run = await tx.run.create({
+        data: {
+          projectId,
+          baselineId,
+          environmentId,
           buildId: input.buildId ?? null,
-          planPins: pins.map((p) => ({ caseVersionId: p.caseVersionId, planVersionId: p.planVersionId })),
+          mode: input.mode,
+          selectedCaseVersionIds: caseVersionIds,
+          budget,
+          idempotencyKey: input.idempotencyKey,
+          environmentSnapshot: environmentSnapshot as unknown as Prisma.InputJsonValue,
+          modelConfigSnapshot: { note: "stage1-fixed-cases-no-model" },
+          casePlanPins: pins as unknown as Prisma.InputJsonValue,
         },
-      },
+      });
+      await emitRunEvent(tx, run.id, "run.created", {
+        runId: run.id, caseVersionIds, buildId: input.buildId ?? null,
+        planPins: pins.map((p) => ({ caseVersionId: p.caseVersionId, planVersionId: p.planVersionId })),
+      });
+      return { runId: run.id, existed: false };
     });
-    return { runId: run.id, existed: false };
   } catch (err) {
     // R8：并发插入唯一冲突 → 重读并按指纹比对，绝不 500。
     if (String(err).includes("Unique constraint") || (err as { code?: string }).code === "P2002") {

@@ -303,3 +303,50 @@ describe("R6：存在性/可见性语义（真实页面）", () => {
     expect(result.steps.find((s) => s.stepId === "s3")?.status).toBe("PASSED");
   }, 60_000);
 });
+
+describe("独立复查：鉴权缺失与硬时间上限", () => {
+  it("登录页上业务元素缺失不能让 notExists 假通过", async () => {
+    const plan = buildPlan(aBase, {
+      actions: [
+        { id: "s1", type: "switchRole", role: "applicant", effect: "READ" },
+        { id: "s2", type: "goto", path: "/login-form", effect: "READ" },
+        { id: "s3", type: "assert", assertionId: "a1", effect: "READ" },
+      ],
+      assertions: [{ id: "a1", stepId: "s3", required: true, ruleVersionId: "rule-r1", kind: "ui.element", targetRef: "b-ghost", operator: "notExists" }],
+    });
+    const { result } = await run(plan);
+    expect(result.assertions[0]!.result).toBe("NOT_EVALUATED");
+    expect(result.blocked?.reasonCode).toBe("AUTH");
+  });
+
+  it("goto 响应挂起时也必须被总预算打断", async () => {
+    const slow = createServer((_req, res) => {
+      const timer = setTimeout(() => res.end("late"), 5_000);
+      res.on("close", () => clearTimeout(timer));
+    });
+    await new Promise<void>((r) => slow.listen(0, "127.0.0.1", r));
+    const base = `http://127.0.0.1:${(slow.address() as { port: number }).port}`;
+    try {
+      const plan = buildPlan(base, {
+        actions: [
+          { id: "s1", type: "switchRole", role: "applicant", effect: "READ" },
+          { id: "s2", type: "goto", path: "/", effect: "READ" },
+          { id: "s3", type: "assert", assertionId: "a1", effect: "READ" },
+        ],
+        assertions: [{ id: "a1", stepId: "s3", required: true, ruleVersionId: "rule-r1", kind: "ui.element", targetRef: "b-ghost", operator: "notExists" }],
+      });
+      const started = Date.now();
+      const result = await executePlan({ plan, baseUrl: base,
+        policy: { allowedOrigins: [base], dependencyOrigins: [] }, namespace: "deadline-review",
+        resolveCredential: () => undefined, shouldContinue: async () => true, sink: memorySink().sink,
+        budget: { maxActions: 10, wallClockMs: 1_000, perActionTimeoutMs: 10_000 },
+      });
+      expect(Date.now() - started).toBeLessThan(3_000);
+      expect(result.blocked?.reasonCode).toBe("TIME_BUDGET");
+      expect(result.assertions[0]!.result).toBe("NOT_EVALUATED");
+    } finally {
+      slow.closeAllConnections();
+      await new Promise<void>((r) => slow.close(() => r()));
+    }
+  }, 15_000);
+});

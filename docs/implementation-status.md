@@ -1,6 +1,6 @@
 # 实施状态
 
-更新日期：2026-09-17 · 当前阶段：**阶段 1.1 修复完成（评审 R1–R9 + 验收纠正，62 项隔离验收全通过，待人工复核）**
+更新日期：2026-09-17 · 当前阶段：**阶段 1.1 修复完成（评审 R1–R9 + 验收纠正，独立复查补充修复完成，242 项检查全部通过）**
 
 > 本文档描述当前代码的真实状态；历史阶段的演进记录在文末附录，不再逐段追加。
 
@@ -33,7 +33,7 @@ Midscene 视觉步骤、apiCheck/downloadCheck 执行、attemptNo>1 重试（uns
 | R9 | 调用者预算解析/校验/保存（范围外 422）；run 级截止时间约束 attempt 与 waitFor 轮询；夹具请求 AbortSignal 超时；不依赖心跳 | runs-service、run-processor、executor、fixtures | boundaries R9 + harness 预算耗尽（11s 结束） |
 
 **验收与文档纠正（§三）**：harness 完全独立资源（临时库 + 独立 Redis 容器
-（密码 + db3，验证 URL 解析实际生效）+ 独立端口 7310/7211/7110 + 临时证据
+（密码 + db3，验证 URL 解析实际生效）+ 动态分配端口 + 临时证据
 目录，finally 全清理）；Redis URL 解析完整（username/password/db/TLS）；
 buildDeclared 与 buildVerified 区分（声明 ≠ 已验证，核验未实现前恒 false）；
 种子观察使用唯一命名空间并在失败时也清理；本文档整体改写消除阶段矛盾。
@@ -48,9 +48,11 @@ PASS、PNG/trace 证据、SSE 有序续传）、版本未验证、B1/B3/B4、AUT
 
 ## 回归
 
-契约 81 + API 30（13 策略 + 17 边界[新增]）+ evaluation 14 + artifact-store 4
-+ runtime 20（新增 R1/R6 10 项）+ 黄金验收 10 + 隔离 harness 62 + typecheck 0。
-原有 185 项全部保持通过（API 包 13→30、runtime 10→20 为新增反例，无删除）。
+契约 81 + API 45 + evaluation 14 + artifact-store 4 + runtime 23 + Redis 3，
+共 170 项回归；黄金浏览器验收 10 项。类型检查、应用构建、冻结锁文件离线安装通过。
+原有测试保留，本次新增 21 项回归。平台验收结果见 verification.md §22。
+
+独立复查发现的剩余缺陷与修复依据见 [补充修复报告](review-2026-09-17.md)。
 
 ---
 

@@ -69,6 +69,14 @@ export class ArtifactStore {
     }
   }
 
+  /** 登记的文件必须仍存在且内容未改变。 */
+  verify(storageKey: string, checksum: string | null): boolean {
+    try {
+      return Boolean(checksum && this.exists(storageKey) &&
+        createHash("sha256").update(this.read(storageKey)).digest("hex") === checksum);
+    } catch { return false; }
+  }
+
   size(storageKey: string): number | null {
     try {
       return statSync(this.resolveSafe(storageKey)).size;

@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient, Prisma } from "@prisma/client";
 import { TestCaseVersion, TestPlanV1, verifyStoredPlan } from "@ai-qa/contracts";
 import { ArtifactStore } from "@ai-qa/artifact-store";
 import { aggregateCase, type AssertionOutcome } from "@ai-qa/evaluation";
@@ -46,9 +46,18 @@ interface CasePlanPin {
   acceptanceHash: string;
 }
 
+/** 状态与对应事件同事务提交，SSE 不会先看到终态再漏掉尾部事件。 */
+async function transitionWithEvent(prisma: PrismaClient, runId: string, from: string[], to: string) {
+  return prisma.$transaction(async (tx) => {
+    const changed = await casTransitionRun(tx, runId, from, to);
+    if (changed) await emitRunEvent(tx, runId, "run.lifecycle", { lifecycle: to, runId });
+    return changed;
+  });
+}
+
 export async function processRun(prisma: PrismaClient, config: WorkerConfig, runId: string): Promise<void> {
   // —— 认领（CAS）：QUEUED → PREPARING，仅一个消费者成功 ——
-  const claimed = await casTransitionRun(prisma, runId, ["QUEUED"], "PREPARING");
+  const claimed = await transitionWithEvent(prisma, runId, ["QUEUED"], "PREPARING");
   if (!claimed) {
     // 未认领成功：若已被取消（如排队期取消），完成取消归宿。
     const lifecycle = await currentLifecycle(prisma, runId);
@@ -57,7 +66,6 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
     }
     return; // 已被其它消费者处理或终态。
   }
-  await emitRunEvent(prisma, runId, "run.lifecycle", { lifecycle: "PREPARING", runId });
 
   const store = new ArtifactStore(config.artifactDir);
   const run = await prisma.run.findUniqueOrThrow({ where: { id: runId } });
@@ -90,13 +98,12 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
         ? new Date(run.createdAt).getTime() + budget.maxWallClockMsPerRun
         : Number.MAX_SAFE_INTEGER;
 
-    const enteredRunning = await casTransitionRun(prisma, runId, ["PREPARING"], "RUNNING");
+    const enteredRunning = await transitionWithEvent(prisma, runId, ["PREPARING"], "RUNNING");
     if (!enteredRunning) {
       // 数据库已被外部迁移（取消/ERROR）：交给 finalize 分支处理。
       await finalize(prisma, store, runId);
       return;
     }
-    await emitRunEvent(prisma, runId, "run.lifecycle", { lifecycle: "RUNNING", runId });
 
     const pins = (run.casePlanPins ?? []) as unknown as CasePlanPin[];
     let index = 0;
@@ -172,6 +179,21 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
       }
 
       const plan = TestPlanV1.parse(planVersion.plan);
+      let invalidEvidence = false;
+      for (const binding of plan.bindings) {
+        const evidence = await prisma.artifact.findUnique({ where: { id: binding.evidenceId } });
+        if (!evidence || evidence.projectId !== run.projectId || evidence.type !== "OBSERVATION" ||
+            (evidence.expiresAt && evidence.expiresAt <= new Date()) ||
+            !store.verify(evidence.storageKey, evidence.checksum)) {
+          invalidEvidence = true;
+          break;
+        }
+      }
+      if (invalidEvidence) {
+        await createBlockedAttempt(prisma, runId, run.projectId, caseVersionId, index,
+          "UNSUPPORTED", "执行前复核发现观察证据缺失、损坏、过期或归属错误");
+        continue;
+      }
       const namespace = `ns-${runId.slice(-10)}-${index}`;
       const existingAttempt = await prisma.caseAttempt.findUnique({
         where: { runId_caseVersionId_attemptNo: { runId, caseVersionId, attemptNo: 1 } },
@@ -193,7 +215,7 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
       });
 
       try {
-        await fixture.resetNamespace(namespace);
+        await fixture.resetNamespace(namespace, runDeadline);
       } catch (err) {
         await emitRunEvent(prisma, runId, "attempt.fixture_error", {
           attemptId: attempt.id, phase: "pre-clean",
@@ -203,7 +225,7 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
 
       const sink = createArtifactSink(prisma, store, run.projectId, runId, attempt.id);
       // R9：attempt 预算受 run 截止时间约束。
-      const remainingForCase = Math.max(1_000, runDeadline - Date.now());
+      const remainingForCase = Math.max(1, runDeadline - Date.now());
       const wallClockMs = Math.min(budget.maxWallClockMsPerCase ?? 300_000, remainingForCase);
       const result = await executePlan({
         plan,
@@ -239,10 +261,6 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
         },
       });
 
-      for (const a of result.assertions) {
-        await upsertAssertion(prisma, attempt.id, plan.assertions, a);
-      }
-
       const assertionOutcomes: AssertionOutcome[] = result.assertions.map((a) => ({
         assertionId: a.assertionId,
         required: a.required,
@@ -272,23 +290,27 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
         evidenceComplete,
       });
 
-      await prisma.caseAttempt.update({
-        where: { id: attempt.id },
-        data: {
-          lifecycle: "FINISHED",
-          verdict: aggregate.verdict,
-          reasonCode: aggregate.reasonCode,
-          finishedAt: new Date(),
-        },
-      });
-      await emitRunEvent(prisma, runId, "attempt.finished", {
-        attemptId: attempt.id, caseVersionId,
-        verdict: aggregate.verdict, reasonCode: aggregate.reasonCode,
-        detail: aggregate.detail, planVersionId: planVersion.id,
+      await prisma.$transaction(async (tx) => {
+        // 锁住运行行再收尾 attempt：不能覆盖取消/对账器刚写入的结果。
+        const active = await tx.run.updateMany({
+          where: { id: runId, lifecycle: "RUNNING" }, data: { updatedAt: new Date() },
+        });
+        if (active.count === 0) return;
+        const completed = await tx.caseAttempt.updateMany({
+          where: { id: attempt.id, lifecycle: "RUNNING" },
+          data: { lifecycle: "FINISHED", verdict: aggregate.verdict,
+            reasonCode: aggregate.reasonCode, finishedAt: new Date() },
+        });
+        if (completed.count === 0) return;
+        for (const a of result.assertions) await upsertAssertion(tx, attempt.id, plan.assertions, a);
+        await emitRunEvent(tx, runId, "attempt.finished", {
+          attemptId: attempt.id, caseVersionId, verdict: aggregate.verdict,
+          reasonCode: aggregate.reasonCode, detail: aggregate.detail, planVersionId: planVersion.id,
+        });
       });
 
       try {
-        await fixture.resetNamespace(namespace);
+        await fixture.resetNamespace(namespace, runDeadline);
       } catch (err) {
         await emitRunEvent(prisma, runId, "attempt.fixture_error", {
           attemptId: attempt.id, phase: "post-clean",
@@ -301,8 +323,16 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
   } catch (err) {
     const detail = (err instanceof Error ? err.message : String(err)).slice(0, 500);
     // 平台故障：仅在仍处于非终态时落 ERROR（CAS，不覆盖已定终态）。
-    await casTransitionRun(prisma, runId, ["QUEUED", "PREPARING", "RUNNING", "FINALIZING", "CANCEL_REQUESTED"], "ERROR");
-    await emitRunEvent(prisma, runId, "run.platform_error", { detail });
+    await prisma.$transaction(async (tx) => {
+      const changed = await casTransitionRun(tx, runId,
+        ["QUEUED", "PREPARING", "RUNNING", "FINALIZING", "CANCEL_REQUESTED"], "ERROR");
+      if (!changed) return;
+      await tx.caseAttempt.updateMany({
+        where: { runId, lifecycle: { not: "FINISHED" } },
+        data: { lifecycle: "FINISHED", verdict: "BLOCKED", reasonCode: "ENVIRONMENT", finishedAt: new Date() },
+      });
+      await emitRunEvent(tx, runId, "run.platform_error", { detail });
+    });
   } finally {
     clearInterval(heartbeat);
   }
@@ -325,7 +355,7 @@ async function finalize(
   if (lifecycle !== "FINALIZING") {
     // 仅 RUNNING 可进入 FINALIZING（状态机边）；PREPARING 中途回到收尾的
     // 场景由 enteredRunning 失败分支提前 return 处理。
-    const entered = await casTransitionRun(prisma, runId, ["RUNNING"], "FINALIZING");
+    const entered = await transitionWithEvent(prisma, runId, ["RUNNING"], "FINALIZING");
     if (!entered) {
       // 竞争失败（被取消/ERROR）：按当前状态收尾。
       const now = await currentLifecycle(prisma, runId);
@@ -334,8 +364,6 @@ async function finalize(
         return;
       }
       if (now !== "FINALIZING") return;
-    } else {
-      await emitRunEvent(prisma, runId, "run.lifecycle", { lifecycle: "FINALIZING", runId });
     }
   }
   // 收尾期间到达的取消：FINALIZING → CANCEL_REQUESTED → CANCELLED。
@@ -345,16 +373,18 @@ async function finalize(
     return;
   }
   const report = await buildRunReport(prisma, store, runId);
-  const finished = await casTransitionRun(prisma, runId, ["FINALIZING"], "FINISHED");
-  if (!finished) return;
-  await prisma.run.updateMany({
-    where: { id: runId, lifecycle: "FINISHED" },
-    data: { acceptanceStatus: report.metrics.acceptanceStatus },
+  await prisma.$transaction(async (tx) => {
+    const finished = await casTransitionRun(tx, runId, ["FINALIZING"], "FINISHED");
+    if (!finished) return;
+    await tx.run.update({ where: { id: runId }, data: { acceptanceStatus: report.metrics.acceptanceStatus } });
+    await emitRunEvent(tx, runId, "run.lifecycle", {
+      lifecycle: "FINISHED", runId, acceptanceStatus: report.metrics.acceptanceStatus,
+    });
+    await emitRunEvent(tx, runId, "run.done", { runId, lifecycle: "FINISHED" });
   });
-  await emitRunEvent(prisma, runId, "run.lifecycle", {
-    lifecycle: "FINISHED", runId, acceptanceStatus: report.metrics.acceptanceStatus,
-  });
-  await emitRunEvent(prisma, runId, "run.done", { runId, lifecycle: "FINISHED" });
+  if (await currentLifecycle(prisma, runId) === "CANCEL_REQUESTED") {
+    await finalizeCancelledFromRequest(prisma, runId, "收尾期间取消");
+  }
 }
 
 function parseCaseVersion(caseVersion: {
@@ -434,7 +464,7 @@ async function upsertStep(
 }
 
 async function upsertAssertion(
-  prisma: PrismaClient,
+  prisma: PrismaClient | Prisma.TransactionClient,
   attemptId: string,
   planAssertions: Array<{ id: string; required: boolean }>,
   a: {

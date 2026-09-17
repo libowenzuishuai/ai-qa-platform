@@ -209,6 +209,9 @@ importers:
       '@ai-qa/artifact-store':
         specifier: workspace:*
         version: link:../artifact-store
+      '@ai-qa/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@ai-qa/evaluation':
         specifier: workspace:*
         version: link:../evaluation
