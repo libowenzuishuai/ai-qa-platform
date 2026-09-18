@@ -108,3 +108,7 @@ docker exec ai-qa-postgres-1 dropdb -U aiqa aiqa_invariants
 docker compose down           # 保留数据
 docker compose down -v        # 连同数据库卷一起删除（谨慎）
 ```
+
+## 产品设计与路线
+
+完整定位、模块设计、Harness 与代码测试规划、三人分工见 [产品设计与开发路线](docs/product-design-and-roadmap.md)。

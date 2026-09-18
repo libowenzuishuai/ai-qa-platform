@@ -43,7 +43,7 @@
 
 - **B / 原泽菲**：从最新 main 开 Python 分支，继续扫描 PDF OCR、精细文字框定位、复杂/嵌套表格和遗漏覆盖率。PDF 当前只提文字层；空白页与扫描页不能可靠区分，会明确要求检查/OCR。DOCX 页眉页脚、文本框、修订等未完整解析。
 - **A / 李博闻**：接文档上传、版本登记、DOCUMENT_PARSE 作业与解析资产落库，之后联调审阅流程。本次未实现这些平台功能。
-- **C / 李琪双**：继续正式 Python 规则提取与用例生成；对应 ready 仍为 false，保持原责任边界。
+- **C / 李琦双**：继续正式 Python 规则提取与用例生成；对应 ready 仍为 false，保持原责任边界。
 - 真实 Kimi 图片质量、Docker 镜像运行、生产负载/资源隔离另行验收，本次不宣称通过。
 
 接口与运行限制见 `services/intelligence/README.md`；协作边界见 `docs/stage2-python-handoff.md`。

@@ -24,7 +24,7 @@
 |---|---|---|---|
 | A / 李博闻 | `apps/api`、`apps/worker`、`apps/web`；Python 的 app/context/models/storage/contracts | 上传/解析作业接线、平台审阅和澄清、版本/证据落库、集成验收；维护公共契约和模型网关 | 不代替 B/C 开发解析或生成算法 |
 | B / 原泽菲 | `services/intelligence/src/aiqa_intelligence/doc_ingestion`、`tests/doc_ingestion` | Python 文档解析、OCR/表格/来源定位，返回 ParsedDocumentBundle | 不建作业队列、不写数据库、不另做模型 SDK |
-| C / 李琪双 | `services/intelligence/src/aiqa_intelligence/agents`、`tests/agents` | 规则提取、冲突澄清草稿、用例生成、提示词/分块/覆盖分析 | 不写 API/worker、不分配 DB 版本 ID、不重写浏览器执行器 |
+| C / 李琦双 | `services/intelligence/src/aiqa_intelligence/agents`、`tests/agents` | 规则提取、冲突澄清草稿、用例生成、提示词/分块/覆盖分析 | 不写 API/worker、不分配 DB 版本 ID、不重写浏览器执行器 |
 
 公共契约、依赖锁文件和服务入口由 A 汇总修改。B/C 增加依赖时同时说明用途及许可证/运行要求，由 A 合并锁文件；不要各自升级全项目依赖。
 
