@@ -1,1 +1,5146 @@
-{"entries":{}}
+{
+  "entries": {
+    "9454bf88f4aeb4150847dedfad8cfe51647f6a647a158223a65f6732e801e6a0": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "0babaaa1a8fab318808aa84ba9a7133850088728df6a2a215e114402a16f2fe8": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-02",
+              "sourceSpanIds": [
+                "span-02-2"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-02",
+              "sourceSpanIds": [
+                "span-02-4"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "ac6272f596ea2984a952d25415df1555d96b7c3c4c43e48dda09f9d512e39190": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "4fdcd811cf531305d5517f92afb9a120f1d1bd8930fb6a8cb0b95aebfae597dd": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-02",
+              "sourceSpanIds": [
+                "span-02-2"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-02",
+              "sourceSpanIds": [
+                "span-02-4"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "6769f89dc7a15ec65663382596f0c7356482b3d218682052520d32bd40afa72d": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-hioz7d6u",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-hioz7d6u",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-hioz7d6u",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "ee3c3750d4c027e1d746cd7b9ee0c6b009629a0713daf882931d22d4a6c1e4c7": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-1afnqndy",
+              "sourceSpanIds": [
+                "span-02-2"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-1afnqndy",
+              "sourceSpanIds": [
+                "span-02-4"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "54f76b2d5b358950c6bb6d80ddf63b0be58cbdd42af377af384d35c715242a28": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-nlvt3gc2",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-nlvt3gc2",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-nlvt3gc2",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "77a915ecff69afadd7827866ae4b60009afb4ecf46f4ef9072557c2e02e504d3": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-95d5ebkq",
+              "sourceSpanIds": [
+                "span-02-2"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-95d5ebkq",
+              "sourceSpanIds": [
+                "span-02-4"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "42571f8ca0c1d71c10d56ea280c3293730652b3821da99bc706731723c5730f1": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-bz5lmcz2",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-bz5lmcz2",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-bz5lmcz2",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "d30e2bc52948bd33763b60c97c3997824fea0e5be7f8559eb42eb57169b81052": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-b104w9fm",
+              "sourceSpanIds": [
+                "span-02-2"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-b104w9fm",
+              "sourceSpanIds": [
+                "span-02-4"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "6d7353ff6a05c67a68064ec632c7c588c693fc7ad7a78cc5e2a65da0ad5fdfa0": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-vmaff7ww",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-vmaff7ww",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-vmaff7ww",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "e52914bd1e0f1b465602ef036b25159ceffe4a336015755ae95425c3729e58d4": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-vxs3jieg",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-vxs3jieg",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-vxs3jieg",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "93d0b7a6af1872e1c025d9244c010866210a3b7f68743522e02ad3a77e8be40c": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-g8wacpux",
+              "sourceSpanIds": [
+                "span-02-2"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-g8wacpux",
+              "sourceSpanIds": [
+                "span-02-4"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "1301c41335102116d38cb445a93d3d48391a62e9f38df0448512d58dcdad3d85": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-zvy528yg",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-zvy528yg",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-zvy528yg",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "1394a6cec7ab670f7555e79ffa6e94909725d3ae1a8943beb1f7a2b5e9f12abe": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-sydirbxh",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-sydirbxh",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-sydirbxh",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "42e53836f3689a05c2f98ae2d04cca2ec75abb270aa6a515a84411c87a24072b": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-jzmpcxps",
+              "sourceSpanIds": [
+                "span-02-2"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-jzmpcxps",
+              "sourceSpanIds": [
+                "span-02-4"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "3586a293d591a47e2100a9ca3629796c1154b2bd80b6a4b78f998b117ee12f4e": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-dz1o4b5u",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-dz1o4b5u",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-dz1o4b5u",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "3c594163944fa010dbbee0239219a26b3ce718e9a5aae63e39455f68478ef1f1": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-qozrq1ek",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-qozrq1ek",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-qozrq1ek",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "c32233c661c3ad24b39e4196accb4d82ede329f05d522564f53c1d20c238d50d": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-m5doi934",
+              "sourceSpanIds": [
+                "span-02-2"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-m5doi934",
+              "sourceSpanIds": [
+                "span-02-4"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "3bb77831546b7c8db50c81eb0e33535a3aa2a47c3fe08910b241d69fc5d805cd": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-etsuu24v",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-etsuu24v",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-etsuu24v",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "ad9211e463b97da9a119e1ba5fdae207aae260fd272291b68d77c3e731c13f2d": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-u4m9rks3",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-u4m9rks3",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-u4m9rks3",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "22910e084067e5dd65bfefb014cefe691a608e574e859f9ab3e3f8a20a3f49b4": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-dcxkexi3",
+              "sourceSpanIds": [
+                "span-02-2"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-dcxkexi3",
+              "sourceSpanIds": [
+                "span-02-4"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "bcfc3f5227708181684ed91902080dde2e370f98176047dfe3a5fe9568dae032": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-13l52uv2",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-13l52uv2",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-13l52uv2",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "d9a1935059cf49df3490c66e1e0ed355effd48a9a2277ffbba2755f1b4d8dceb": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-5bf0rnmr",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-5bf0rnmr",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-5bf0rnmr",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "ee4d1c8e8f431509de19ee4e143c58ba62ae79ce418ca13252a33a16dc87346b": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-b2mjetjg",
+              "sourceSpanIds": [
+                "span-02-2"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-b2mjetjg",
+              "sourceSpanIds": [
+                "span-02-4"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "98cb71378ed7a76e55bf3aac190a7ed70580370d1571abed2a410d5746121947": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-yrycpq32",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-yrycpq32",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-yrycpq32",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "a9a7dea0f49783be25bd2ab37c30571b3c2fde3f15acb8551c946473f3a37a67": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-nxso0kg7",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-nxso0kg7",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-nxso0kg7",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "9f91e2df8ccf6a36d0cc5e6ca69d8ba407b183742ead6bdb01f31eb82eafd9e5": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-ncpmdtix",
+              "sourceSpanIds": [
+                "span-02-2"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-ncpmdtix",
+              "sourceSpanIds": [
+                "span-02-4"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "eeb25a769262d44dcb4fda019c5e46f2022563f80e20bb209d657df8a844b404": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-aafniz4j",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-aafniz4j",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-aafniz4j",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "26777fda343d07b18280710c652013878e97342d220aa1bd86f3e0d907945f97": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-25f0sejy",
+              "sourceSpanIds": [
+                "span-01-2-kzxv"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-25f0sejy",
+              "sourceSpanIds": [
+                "span-01-2-kzxv"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-25f0sejy",
+              "sourceSpanIds": [
+                "span-01-3-kzxv"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "52a3f87ea10e86f7e0fdf0a4104e75e10e1e4b81853b9f3a765060bdf32f8e7a": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-mse012c8",
+              "sourceSpanIds": [
+                "span-02-2-f76f"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-mse012c8",
+              "sourceSpanIds": [
+                "span-02-4-f76f"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "557f931cb0f179a697c40d4580b77f73e0e809786da498751566b77e8fc561c2": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-5ggms393",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-5ggms393",
+              "sourceSpanIds": [
+                "span-01-2-gv5d"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-5ggms393",
+              "sourceSpanIds": [
+                "span-01-3-gv5d"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "0dcd88f630d73dc8f90f897815f776bf92cf5b488b07f03852cf51b619e33bf4": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-ft6zsrnm",
+              "sourceSpanIds": [
+                "span-01-2-y6mn"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-ft6zsrnm",
+              "sourceSpanIds": [
+                "span-01-2-y6mn"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-ft6zsrnm",
+              "sourceSpanIds": [
+                "span-01-3-y6mn"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "d7651f6f8b1ebe8dd070f415cf89834d5b4a9e06edc66e54efb8cdd2637c6a8b": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-pxleahvt",
+              "sourceSpanIds": [
+                "span-02-2-1mej"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-pxleahvt",
+              "sourceSpanIds": [
+                "span-02-4-1mej"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "74dc6c4e1570598eaebacf2f171026e118f0dd492bf2cf1a5fe2e22f2efe1e3e": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-e94yu3mp",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-e94yu3mp",
+              "sourceSpanIds": [
+                "span-01-2-7lfw"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-e94yu3mp",
+              "sourceSpanIds": [
+                "span-01-3-7lfw"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "995fa2e3e0722a91bf57ba69879b8447837d97d2cc37aa8c41ed40822ce0db70": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-lcetg6ll",
+              "sourceSpanIds": [
+                "span-01-2-429s"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-lcetg6ll",
+              "sourceSpanIds": [
+                "span-01-2-429s"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-lcetg6ll",
+              "sourceSpanIds": [
+                "span-01-3-429s"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "ef2d488cee5671b2efe6c8eebd90cef1a448fdb229c4ee408b4b167447e6f814": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-vqd3ibhq",
+              "sourceSpanIds": [
+                "span-02-2-s52t"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-vqd3ibhq",
+              "sourceSpanIds": [
+                "span-02-4-s52t"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "7694cb75409f30954d3276b0ce4c79345b8169239df02d2c51ac433d73900f49": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-swhafqnj",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-swhafqnj",
+              "sourceSpanIds": [
+                "span-01-2-cto2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-swhafqnj",
+              "sourceSpanIds": [
+                "span-01-3-cto2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "8cf16b87e1b9481c8f50f62807f3e4da82f91e213e76706a6adf82fb2307b801": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-kwtu3f4o",
+              "sourceSpanIds": [
+                "span-01-2-mp51"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-kwtu3f4o",
+              "sourceSpanIds": [
+                "span-01-2-mp51"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-kwtu3f4o",
+              "sourceSpanIds": [
+                "span-01-3-mp51"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "1d5d9532be51368b3ecd0466d4809c6694c32663eb48d2a638a23d94f5ccaeec": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-9zmudlk1",
+              "sourceSpanIds": [
+                "span-02-2-l6sg"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-9zmudlk1",
+              "sourceSpanIds": [
+                "span-02-4-l6sg"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "2703a8299b59b72acb0c58ade8d362124165f86b314608ee7bea2b4a6c063180": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-1tbw9gdx",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-1tbw9gdx",
+              "sourceSpanIds": [
+                "span-01-2-5h7a"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-1tbw9gdx",
+              "sourceSpanIds": [
+                "span-01-3-5h7a"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "604e5c70285b8251817cb8b057a0b054b72571604e799b963695e9a6559b15a2": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-6nw0ug5q",
+              "sourceSpanIds": [
+                "span-01-2-akew"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-6nw0ug5q",
+              "sourceSpanIds": [
+                "span-01-2-akew"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-6nw0ug5q",
+              "sourceSpanIds": [
+                "span-01-3-akew"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "214dd1413e84046b22c2f80a2f67b48333c8912e9647b63c5fdbdc1f7f407adf": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-vz3ehr38",
+              "sourceSpanIds": [
+                "span-02-2-ca5j"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-vz3ehr38",
+              "sourceSpanIds": [
+                "span-02-4-ca5j"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "6f748af2cfc6d215b98012d57a7e614cf31ac021d4801385e5ef8e0e9c684374": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-bzeux3b9",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-bzeux3b9",
+              "sourceSpanIds": [
+                "span-01-2-6643"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-bzeux3b9",
+              "sourceSpanIds": [
+                "span-01-3-6643"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "54384b85ca32b25151eb9515ef4d5bc889d0e00e7ffdae439b3b0cf5b4160a2b": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-p4sjn5ph",
+              "sourceSpanIds": [
+                "span-01-2-khgg"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-p4sjn5ph",
+              "sourceSpanIds": [
+                "span-01-2-khgg"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-p4sjn5ph",
+              "sourceSpanIds": [
+                "span-01-3-khgg"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "d59f2db8edb07f8d62b42b313d6509bf0060959cf4c97190403b9262e19d0f34": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-8cvy8giz",
+              "sourceSpanIds": [
+                "span-02-2-eycp"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-8cvy8giz",
+              "sourceSpanIds": [
+                "span-02-4-eycp"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "487aa52d24547c1b64b571df8ca20e2a091272618c05fe5d7bcb8372eac953b3": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-v2rowxm0",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-v2rowxm0",
+              "sourceSpanIds": [
+                "span-01-2-prku"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-v2rowxm0",
+              "sourceSpanIds": [
+                "span-01-3-prku"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "e5b49eb7f463502c7da28622466531609178bf0b2b63a8bba152a5763998fdb2": {
+      "caseDrafts": [
+        {
+          "title": "审批边界用例",
+          "ruleVersionIds": [
+            "cmu6j3dt4000a0a7fqtw18be0"
+          ],
+          "roles": [
+            "申请人",
+            "任何角色"
+          ],
+          "preconditions": [],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面创建"
+          },
+          "steps": [
+            {
+              "role": "申请人",
+              "action": "以 申请人 身份执行流程"
+            },
+            {
+              "role": "任何角色",
+              "action": "以 任何角色 身份执行流程"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态符合预期",
+              "kind": "ui.text",
+              "required": true,
+              "ruleVersionId": "cmu6j3dt4000a0a7fqtw18be0",
+              "operator": "equals",
+              "expected": "待审批"
+            }
+          ],
+          "cleanup": {
+            "strategy": "namespace"
+          },
+          "priority": "P1",
+          "dimensions": [
+            "BOUNDARY"
+          ]
+        }
+      ],
+      "coverageMap": [
+        {
+          "ruleVersionId": "cmu6j3dt4000a0a7fqtw18be0",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        },
+        {
+          "ruleVersionId": "cmu6j3dt8000e0a7fi1zgo8os",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        },
+        {
+          "ruleVersionId": "cmu6j3dta000i0a7fv6ym6yd6",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        },
+        {
+          "ruleVersionId": "cmu6j3dtq000s0a7f7ytuik87",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        },
+        {
+          "ruleVersionId": "cmu6j3dts000w0a7f91txdj4w",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        }
+      ],
+      "blockedRequirements": []
+    },
+    "ad265a9d7986ddd09030c570cecdabac5366d3ef883fc9865fa970596247f371": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-p7z82vvr",
+              "sourceSpanIds": [
+                "span-01-2-8f9j"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-p7z82vvr",
+              "sourceSpanIds": [
+                "span-01-2-8f9j"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-p7z82vvr",
+              "sourceSpanIds": [
+                "span-01-3-8f9j"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "8fd0ed91a9d75f3c7d034a0bfcd765ab5ba94999086d486ce66adef9c8a0130b": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-ee8visxe",
+              "sourceSpanIds": [
+                "span-02-2-org5"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-ee8visxe",
+              "sourceSpanIds": [
+                "span-02-4-org5"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "d4e40ebf25fcada7553caf25b95bb8ce17cf63427e152fb7057ff0b64b756087": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-fsiefdbv",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-fsiefdbv",
+              "sourceSpanIds": [
+                "span-01-2-sdpb"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-fsiefdbv",
+              "sourceSpanIds": [
+                "span-01-3-sdpb"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "f9dd6b85b928ee46b1cf0757ad3187d5d4073835a0e81953618d0a44f757c8b2": {
+      "caseDrafts": [
+        {
+          "title": "审批边界用例",
+          "ruleVersionIds": [
+            "cmu6j42vl000a0afjr4fgg6fo"
+          ],
+          "roles": [
+            "申请人",
+            "任何角色"
+          ],
+          "preconditions": [],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面创建"
+          },
+          "steps": [
+            {
+              "role": "申请人",
+              "action": "以 申请人 身份执行流程"
+            },
+            {
+              "role": "任何角色",
+              "action": "以 任何角色 身份执行流程"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态符合预期",
+              "kind": "ui.text",
+              "required": true,
+              "ruleVersionId": "cmu6j42vl000a0afjr4fgg6fo",
+              "operator": "equals",
+              "expected": "待审批"
+            }
+          ],
+          "cleanup": {
+            "strategy": "namespace"
+          },
+          "priority": "P1",
+          "dimensions": [
+            "BOUNDARY"
+          ]
+        }
+      ],
+      "coverageMap": [
+        {
+          "ruleVersionId": "cmu6j42vl000a0afjr4fgg6fo",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        },
+        {
+          "ruleVersionId": "cmu6j42vq000e0afjutl9k72q",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        },
+        {
+          "ruleVersionId": "cmu6j42vs000i0afjrbr1gqd7",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        },
+        {
+          "ruleVersionId": "cmu6j42w9000s0afjkdnnmxik",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        },
+        {
+          "ruleVersionId": "cmu6j42wb000w0afjxtzrj7oi",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        }
+      ],
+      "blockedRequirements": []
+    },
+    "c9a7a944b77f9c510f64652f2358a2116ac1c17ee234e02138c67959df7d1d49": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-i0ubrvwn",
+              "sourceSpanIds": [
+                "span-01-2-a5fm"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-i0ubrvwn",
+              "sourceSpanIds": [
+                "span-01-2-a5fm"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-i0ubrvwn",
+              "sourceSpanIds": [
+                "span-01-3-a5fm"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "ce5eaea7da3c950b8a426bd606f829c9b8aaff00ab015c463412620bfebe8dc7": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-5cx3lq65",
+              "sourceSpanIds": [
+                "span-02-2-tb29"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-5cx3lq65",
+              "sourceSpanIds": [
+                "span-02-4-tb29"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "a854bdf7124b34687a60936fcf52d48c6b3be7af8dfdfec5dbde32696746118e": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-nij29clx",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-nij29clx",
+              "sourceSpanIds": [
+                "span-01-2-g09z"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-nij29clx",
+              "sourceSpanIds": [
+                "span-01-3-g09z"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "7c7850e62314a7e021b74506e4b8e6ee773433826e17eabc0b2271931cd98aee": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-5m7wdm69",
+              "sourceSpanIds": [
+                "span-01-2-siis"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-5m7wdm69",
+              "sourceSpanIds": [
+                "span-01-2-siis"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-5m7wdm69",
+              "sourceSpanIds": [
+                "span-01-3-siis"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "718bf1c76545113c2b82c951b8d441c0889acf94af7c9a9c2aa1e02e7f51873f": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-7bvzxrkk",
+              "sourceSpanIds": [
+                "span-01-2-pe5d"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-7bvzxrkk",
+              "sourceSpanIds": [
+                "span-01-2-pe5d"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-7bvzxrkk",
+              "sourceSpanIds": [
+                "span-01-3-pe5d"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "9ccac952b0873f1ecf03bb5c6edd9d98ebb1e4008210dc75fd46bac28cf35354": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-m0x3gd7h",
+              "sourceSpanIds": [
+                "span-02-2-egpj"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-m0x3gd7h",
+              "sourceSpanIds": [
+                "span-02-4-egpj"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "57e5b2f00b4f1a3c89c7c7e797ac5aaa5c6808b0ecff751bdc4ce9d3677eee99": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-9isa92a1",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-9isa92a1",
+              "sourceSpanIds": [
+                "span-01-2-7415"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-9isa92a1",
+              "sourceSpanIds": [
+                "span-01-3-7415"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "40b55958d25d16d28199aad84cd5519423a29d34b6cb09c4e67c45876340702c": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-o8ff0xx2",
+              "sourceSpanIds": [
+                "span-01-2-jq8u"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-o8ff0xx2",
+              "sourceSpanIds": [
+                "span-01-2-jq8u"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-o8ff0xx2",
+              "sourceSpanIds": [
+                "span-01-3-jq8u"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "7bb5ab75afd64f3bed999ae26f24721bd5f6973a597e63a60859e4eecf8fd5af": {
+      "caseDrafts": [
+        {
+          "title": "审批边界用例",
+          "ruleVersionIds": [
+            "cmu6jcte4001f0a62n8flq2cx"
+          ],
+          "roles": [
+            "申请人"
+          ],
+          "preconditions": [],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面创建"
+          },
+          "steps": [
+            {
+              "role": "申请人",
+              "action": "以 申请人 身份执行流程"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态符合预期",
+              "kind": "ui.text",
+              "required": true,
+              "ruleVersionId": "cmu6jcte4001f0a62n8flq2cx",
+              "operator": "equals",
+              "expected": "待审批"
+            }
+          ],
+          "cleanup": {
+            "strategy": "namespace"
+          },
+          "priority": "P1",
+          "dimensions": [
+            "BOUNDARY"
+          ]
+        }
+      ],
+      "coverageMap": [
+        {
+          "ruleVersionId": "cmu6jcte4001f0a62n8flq2cx",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        },
+        {
+          "ruleVersionId": "cmu6jcte7001j0a62tn0q8smb",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        },
+        {
+          "ruleVersionId": "cmu6jcte9001n0a626avuoyxq",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        }
+      ],
+      "blockedRequirements": []
+    },
+    "f75053fd67f5bd6a23b23921fe274c33f8463fd91d80ca664a038d139180cca6": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-g3c7y6ft",
+              "sourceSpanIds": [
+                "span-01-2-h7c1"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-g3c7y6ft",
+              "sourceSpanIds": [
+                "span-01-2-h7c1"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-g3c7y6ft",
+              "sourceSpanIds": [
+                "span-01-3-h7c1"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "6709e676a3876a172e10ee4d8f02791a58ae4c2659f066a36c50ef2de5c989e3": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-t1hp6her",
+              "sourceSpanIds": [
+                "span-02-2-sspn"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-t1hp6her",
+              "sourceSpanIds": [
+                "span-02-4-sspn"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "3cbecad707537a1a569a07d7f9b957454816b07c7238f558e1ef6bd16da0f310": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-6fxt596l",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-6fxt596l",
+              "sourceSpanIds": [
+                "span-01-2-im6l"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-6fxt596l",
+              "sourceSpanIds": [
+                "span-01-3-im6l"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "66a369b74dad549486c287ef1deca51bf38525823a1e7ad8ba99fbaaac7246b7": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-eb7rv5p4",
+              "sourceSpanIds": [
+                "span-01-2-e4xe"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-eb7rv5p4",
+              "sourceSpanIds": [
+                "span-01-2-e4xe"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-eb7rv5p4",
+              "sourceSpanIds": [
+                "span-01-3-e4xe"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "af9fafebb53e97422bcddd92f8523714515027b79b122c6ffc3b35af122ec38b": {
+      "caseDrafts": [
+        {
+          "title": "审批边界用例",
+          "ruleVersionIds": [
+            "cmu6jd5qu001f0aanidwprzxy"
+          ],
+          "roles": [
+            "申请人"
+          ],
+          "preconditions": [],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面创建"
+          },
+          "steps": [
+            {
+              "role": "申请人",
+              "action": "以 申请人 身份执行流程"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态符合预期",
+              "kind": "ui.text",
+              "required": true,
+              "ruleVersionId": "cmu6jd5qu001f0aanidwprzxy",
+              "operator": "equals",
+              "expected": "待审批"
+            }
+          ],
+          "cleanup": {
+            "strategy": "namespace"
+          },
+          "priority": "P1",
+          "dimensions": [
+            "BOUNDARY"
+          ]
+        }
+      ],
+      "coverageMap": [
+        {
+          "ruleVersionId": "cmu6jd5qu001f0aanidwprzxy",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        },
+        {
+          "ruleVersionId": "cmu6jd5qw001j0aan576pja60",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        },
+        {
+          "ruleVersionId": "cmu6jd5qx001n0aanygze6k5u",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        }
+      ],
+      "blockedRequirements": []
+    },
+    "51c2e69c0c2e23be3d05cd991e5e3855a59ac427e4882321d565cf9d339f927b": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-b1dnl9nd",
+              "sourceSpanIds": [
+                "span-01-2-4p7m"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-b1dnl9nd",
+              "sourceSpanIds": [
+                "span-01-2-4p7m"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-b1dnl9nd",
+              "sourceSpanIds": [
+                "span-01-3-4p7m"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "1df2deedb9b367dfbf59e3054cec6cdb9f8f0904fccf352dba19812f9e733bb6": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-tm2lt662",
+              "sourceSpanIds": [
+                "span-02-2-leri"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-tm2lt662",
+              "sourceSpanIds": [
+                "span-02-4-leri"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "ef9876a0bc62d2bf963ed1de7de03231065d1b8a268a052bca3f111e4cbf4226": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-7hqerzax",
+              "sourceSpanIds": [
+                "span-fabricated"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-7hqerzax",
+              "sourceSpanIds": [
+                "span-01-2-7xqp"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-7hqerzax",
+              "sourceSpanIds": [
+                "span-01-3-7xqp"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "faf48c947d8efb533bb74a51d9d61af84630143d3d2c28cffedb3c549cf096a8": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-zeyy958q",
+              "sourceSpanIds": [
+                "span-01-2-i4l1"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "docv-zeyy958q",
+              "sourceSpanIds": [
+                "span-01-2-i4l1"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "docv-zeyy958q",
+              "sourceSpanIds": [
+                "span-01-3-i4l1"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "a98802c23b0b81fb30e71fae07ca63d4dfaf1065307991e04a483d12047fedff": {
+      "caseDrafts": [
+        {
+          "title": "审批边界用例",
+          "ruleVersionIds": [
+            "cmu6jdw1d001f0awgkymsewch"
+          ],
+          "roles": [
+            "申请人"
+          ],
+          "preconditions": [],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面创建"
+          },
+          "steps": [
+            {
+              "role": "申请人",
+              "action": "以 申请人 身份执行流程"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态符合预期",
+              "kind": "ui.text",
+              "required": true,
+              "ruleVersionId": "cmu6jdw1d001f0awgkymsewch",
+              "operator": "equals",
+              "expected": "待审批"
+            }
+          ],
+          "cleanup": {
+            "strategy": "namespace"
+          },
+          "priority": "P1",
+          "dimensions": [
+            "BOUNDARY"
+          ]
+        }
+      ],
+      "coverageMap": [
+        {
+          "ruleVersionId": "cmu6jdw1d001f0awgkymsewch",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        },
+        {
+          "ruleVersionId": "cmu6jdw1g001j0awgwzto2hnj",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        },
+        {
+          "ruleVersionId": "cmu6jdw1m001n0awgra0pciwb",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "BOUNDARY"
+          ]
+        }
+      ],
+      "blockedRequirements": []
+    }
+  }
+}

@@ -58,6 +58,7 @@ model Project {
   modelInvocations ModelInvocation[]
   artifacts        Artifact[]
   deploymentEvents DeploymentEvent[]
+  jobs             Job[]
 }
 
 model ProjectMembership {
@@ -195,6 +196,8 @@ model Clarification {
   id             String   @id @default(cuid())
   projectId      String
   ruleVersionIds String[]
+  /** MISSING_INFO / CONFLICT / AMBIGUITY（阶段 2 契约 ClarificationDraft.kind）。 */
+  kind           String   @default("MISSING_INFO")
   question       String
   answer         String?
   answerSource   String?
@@ -499,4 +502,25 @@ model DeploymentEvent {
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, eventId])
+}
+
+/** 阶段 2 异步作业（contracts/jobs.ts 的持久化宿主）。
+ *  幂等（裁决点 4）：(projectId, kind, fingerprint) 唯一；同参数重复 POST 返回原 jobId。 */
+model Job {
+  id          String    @id @default(cuid())
+  projectId   String
+  kind        String
+  status      String    @default("QUEUED")
+  request     Json
+  result      Json?
+  error       Json?
+  fingerprint String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, kind, fingerprint])
+  @@index([projectId, createdAt])
 }

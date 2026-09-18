@@ -6,6 +6,7 @@ import { loadConfig } from "./config.js";
 import { processRun } from "./run-processor.js";
 import { finalizeCancelledFromRequest } from "@ai-qa/run-events";
 import { seedFixedAssets } from "./seed-processor.js";
+import { processAgentJob } from "./agent-job-processor.js";
 
 /**
  * 执行 worker（阶段 1）。
@@ -36,6 +37,7 @@ const connection = {
 
 export const runsQueue = new Queue("runs", { connection });
 export const seedQueue = new Queue("seed-fixed-assets", { connection });
+export const agentJobsQueue = new Queue("agent-jobs", { connection });
 
 const runWorker = new BullWorker(
   "runs",
@@ -47,6 +49,16 @@ const runWorker = new BullWorker(
   { connection, concurrency: 2 },
 );
 
+const agentJobWorker = new BullWorker(
+  "agent-jobs",
+  async (job) => {
+    if (job.name === "run") {
+      await processAgentJob(prisma, config, String(job.data.jobId));
+    }
+  },
+  { connection, concurrency: 1 },
+);
+
 const seedWorker = new BullWorker(
   "seed-fixed-assets",
   async (job) => {
@@ -55,7 +67,7 @@ const seedWorker = new BullWorker(
   { connection, concurrency: 1 },
 );
 
-for (const w of [runWorker, seedWorker]) {
+for (const w of [runWorker, agentJobWorker, seedWorker]) {
   w.on("failed", (job, err) => {
     console.error(`[queue:${w.name}] job ${job?.id} 失败:`, err.message);
   });
@@ -151,8 +163,10 @@ app.log.info(`worker ready on http://${host}:${port}`);
 const shutdown = async () => {
   clearInterval(reconciler);
   await runWorker.close();
+  await agentJobWorker.close();
   await seedWorker.close();
   await runsQueue.close();
+  await agentJobsQueue.close();
   await seedQueue.close();
   await app.close();
   await prisma.$disconnect();

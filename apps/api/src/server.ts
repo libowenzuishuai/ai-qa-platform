@@ -10,6 +10,7 @@ import { registerProjectRoutes } from "./routes-projects.js";
 import { registerRunRoutes } from "./routes-runs.js";
 import { registerAssetRoutes } from "./routes-assets.js";
 import { registerArtifactRoutes } from "./routes-artifacts.js";
+import { registerJobRoutes } from "./routes-jobs.js";
 import { sendApiError } from "./errors.js";
 
 const config = loadConfig();
@@ -33,6 +34,7 @@ const redisConnection = {
 
 const runsQueue = new Queue("runs", { connection: redisConnection });
 const seedQueue = new Queue("seed-fixed-assets", { connection: redisConnection });
+const agentJobsQueue = new Queue("agent-jobs", { connection: redisConnection });
 
 const artifactStore = new ArtifactStore(process.env.AIQA_ARTIFACT_DIR ?? "data/artifacts");
 
@@ -67,6 +69,7 @@ export async function buildServer() {
   registerAssetRoutes(app, prisma, seedQueue);
   registerRunRoutes(app, prisma, runsQueue, artifactStore);
   registerArtifactRoutes(app, prisma, artifactStore);
+  registerJobRoutes(app, prisma, agentJobsQueue);
 
   return app;
 }
@@ -80,6 +83,7 @@ const shutdown = async () => {
   await app.close();
   await runsQueue.close();
   await seedQueue.close();
+  await agentJobsQueue.close();
   await prisma.$disconnect();
   process.exit(0);
 };

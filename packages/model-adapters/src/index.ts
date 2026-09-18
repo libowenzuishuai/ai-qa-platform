@@ -1,5 +1,5 @@
 export { ModelError } from "./error.js";
-export { loadModelEnvConfig } from "./config.js";
+export { loadModelEnvConfig, requireChannelConfig } from "./config.js";
 export type { ModelChannelConfig, ModelEnvConfig } from "./config.js";
 export { parseWithRepairs, MAX_REPAIRS } from "./repairs.js";
 export { compileOutputSchema, validateAgainstSchema } from "./schema.js";

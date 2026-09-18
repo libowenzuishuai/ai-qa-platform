@@ -19,6 +19,9 @@ importers:
       '@ai-qa/evaluation':
         specifier: workspace:*
         version: link:../../packages/evaluation
+      '@ai-qa/model-adapters':
+        specifier: workspace:*
+        version: link:../../packages/model-adapters
       '@ai-qa/reporting':
         specifier: workspace:*
         version: link:../../packages/reporting
@@ -118,6 +121,9 @@ importers:
       '@ai-qa/evaluation':
         specifier: workspace:*
         version: link:../../packages/evaluation
+      '@ai-qa/model-adapters':
+        specifier: workspace:*
+        version: link:../../packages/model-adapters
       '@ai-qa/reporting':
         specifier: workspace:*
         version: link:../../packages/reporting
@@ -152,6 +158,9 @@ importers:
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.3)(jiti@2.7.0)(tsx@4.23.13)
 
   packages/artifact-store:
     dependencies:

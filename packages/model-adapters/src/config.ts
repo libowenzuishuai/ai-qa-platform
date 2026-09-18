@@ -60,3 +60,17 @@ export function loadModelEnvConfig(env: NodeJS.ProcessEnv = process.env): ModelE
     process.env = prev;
   }
 }
+
+/** 只加载一个通道（API 路由按需快速校验 real 配置，不动另一通道）。 */
+export function requireChannelConfig(
+  kind: "text" | "vision",
+  env: NodeJS.ProcessEnv = process.env,
+): ModelChannelConfig {
+  const prev = process.env;
+  process.env = env as NodeJS.ProcessEnv;
+  try {
+    return loadChannel(kind === "text" ? "AIQA_TEXT" : "AIQA_VISION");
+  } finally {
+    process.env = prev;
+  }
+}
