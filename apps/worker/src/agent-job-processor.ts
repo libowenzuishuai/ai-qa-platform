@@ -237,62 +237,62 @@ async function runRuleExtraction(
   }
 
   await commitJob(prisma, job, async (prisma) => {
-  // 持久化：Rule + RuleVersion(DRAFT) + Clarification；key → 真 id 映射。
-  const keyToRuleVersionId = new Map<string, string>(output.ruleDrafts.map((draft) => [draft.key, randomUUID()]));
-  for (const draft of output.ruleDrafts) {
-    const rule = await prisma.rule.create({ data: { projectId: job.projectId } });
-    const ruleVersion = await prisma.ruleVersion.create({
-      data: {
-        id: keyToRuleVersionId.get(draft.key)!,
-        ruleId: rule.id,
-        version: 1,
-        statement: draft.statement,
-        classification: draft.classification,
-        role: draft.role ?? null,
-        precondition: draft.precondition ?? null,
-        action: draft.action,
-        condition: draft.condition ?? null,
-        expectation: draft.expectation,
-        forbiddenBehaviors: draft.forbiddenBehaviors as never,
-        priority: draft.priority,
-        businessFields: draft.businessFields as never,
-        sources: draft.sources as never,
-        conflictsWith: draft.conflictsWith.map((key) => keyToRuleVersionId.get(key)!) as never,
-        reviewStatus: "DRAFT",
-        origin: "model",
-        promptVersion: REFERENCE_PROMPT_VERSION,
-      },
-    });
-    await prisma.rule.update({ where: { id: rule.id }, data: { currentVersionId: ruleVersion.id } });
-    keyToRuleVersionId.set(draft.key, ruleVersion.id);
-  }
-  const clarificationIds: string[] = [];
-  for (const clarification of output.clarifications) {
-    const ruleVersionIds = clarification.ruleDraftKeys
-      .map((key) => keyToRuleVersionId.get(key))
-      .filter((id): id is string => Boolean(id));
-    if (ruleVersionIds.length === 0) continue; // 引用已由联合校验保证存在。
-    const row = await prisma.clarification.create({
-      data: {
-        projectId: job.projectId,
-        ruleVersionIds,
-        kind: clarification.kind,
-        question: clarification.question,
-      },
-    });
-    clarificationIds.push(row.id);
-  }
+    // 持久化：Rule + RuleVersion(DRAFT) + Clarification；key → 真 id 映射。
+    const keyToRuleVersionId = new Map<string, string>(output.ruleDrafts.map((draft) => [draft.key, randomUUID()]));
+    for (const draft of output.ruleDrafts) {
+      const rule = await prisma.rule.create({ data: { projectId: job.projectId } });
+      const ruleVersion = await prisma.ruleVersion.create({
+        data: {
+          id: keyToRuleVersionId.get(draft.key)!,
+          ruleId: rule.id,
+          version: 1,
+          statement: draft.statement,
+          classification: draft.classification,
+          role: draft.role ?? null,
+          precondition: draft.precondition ?? null,
+          action: draft.action,
+          condition: draft.condition ?? null,
+          expectation: draft.expectation,
+          forbiddenBehaviors: draft.forbiddenBehaviors as never,
+          priority: draft.priority,
+          businessFields: draft.businessFields as never,
+          sources: draft.sources as never,
+          conflictsWith: draft.conflictsWith.map((key) => keyToRuleVersionId.get(key)!) as never,
+          reviewStatus: "DRAFT",
+          origin: "model",
+          promptVersion: REFERENCE_PROMPT_VERSION,
+        },
+      });
+      await prisma.rule.update({ where: { id: rule.id }, data: { currentVersionId: ruleVersion.id } });
+      keyToRuleVersionId.set(draft.key, ruleVersion.id);
+    }
+    const clarificationIds: string[] = [];
+    for (const clarification of output.clarifications) {
+      const ruleVersionIds = clarification.ruleDraftKeys
+        .map((key) => keyToRuleVersionId.get(key))
+        .filter((id): id is string => Boolean(id));
+      if (ruleVersionIds.length === 0) continue; // 引用已由联合校验保证存在。
+      const row = await prisma.clarification.create({
+        data: {
+          projectId: job.projectId,
+          ruleVersionIds,
+          kind: clarification.kind,
+          question: clarification.question,
+        },
+      });
+      clarificationIds.push(row.id);
+    }
 
-  const result = {
-    documentVersionIds: request.documentVersionIds,
-    ruleVersionIds: [...keyToRuleVersionId.values()],
-    clarificationIds,
-    unparsedSpanIds: output.unparsedRanges.map((r) => r.spanId),
-  };
-  await prisma.job.update({
-    where: { id: job.id },
-    data: { status: "SUCCEEDED", result: result as never, finishedAt: new Date() },
-  });
+    const result = {
+      documentVersionIds: request.documentVersionIds,
+      ruleVersionIds: [...keyToRuleVersionId.values()],
+      clarificationIds,
+      unparsedSpanIds: output.unparsedRanges.map((r) => r.spanId),
+    };
+    await prisma.job.update({
+      where: { id: job.id },
+      data: { status: "SUCCEEDED", result: result as never, finishedAt: new Date() },
+    });
   });
 }
 
@@ -393,50 +393,50 @@ async function runCaseGeneration(prisma: PrismaClient, job: JobRow): Promise<voi
   }
 
   await commitJob(prisma, job, async (prisma) => {
-  const caseVersionIds: string[] = [];
-  for (const draft of output.caseDrafts) {
-    const testCase = await prisma.testCase.create({ data: { projectId: job.projectId } });
-    const normalized = TestCaseVersionSchema.parse({
-      ...draft, id: randomUUID(), caseId: testCase.id, version: 1,
-      steps: draft.steps.map((step) => ({ ...step, id: randomUUID() })),
-      approvalStatus: "DRAFT", origin: "model", promptVersion: REFERENCE_PROMPT_VERSION,
-      createdAt: new Date().toISOString(),
-    });
-    const caseVersion = await prisma.testCaseVersion.create({
-      data: {
-        id: normalized.id,
-        caseId: testCase.id,
-        version: 1,
-        title: draft.title,
-        description: draft.description ?? null,
-        ruleVersionIds: draft.ruleVersionIds,
-        roles: draft.roles,
-        preconditions: draft.preconditions as never,
-        dataSpec: draft.dataSpec as never,
-        steps: normalized.steps as never,
-        assertions: draft.assertions as never,
-        cleanup: draft.cleanup as never,
-        priority: draft.priority,
-        approvalStatus: "DRAFT",
-        origin: "model",
-        promptVersion: REFERENCE_PROMPT_VERSION,
-        projectId: job.projectId,
-      },
-    });
-    await prisma.testCase.update({
-      where: { id: testCase.id },
-      data: { currentVersionId: caseVersion.id },
-    });
-    caseVersionIds.push(caseVersion.id);
-  }
+    const caseVersionIds: string[] = [];
+    for (const draft of output.caseDrafts) {
+      const testCase = await prisma.testCase.create({ data: { projectId: job.projectId } });
+      const normalized = TestCaseVersionSchema.parse({
+        ...draft, id: randomUUID(), caseId: testCase.id, version: 1,
+        steps: draft.steps.map((step) => ({ ...step, id: randomUUID() })),
+        approvalStatus: "DRAFT", origin: "model", promptVersion: REFERENCE_PROMPT_VERSION,
+        createdAt: new Date().toISOString(),
+      });
+      const caseVersion = await prisma.testCaseVersion.create({
+        data: {
+          id: normalized.id,
+          caseId: testCase.id,
+          version: 1,
+          title: draft.title,
+          description: draft.description ?? null,
+          ruleVersionIds: draft.ruleVersionIds,
+          roles: draft.roles,
+          preconditions: draft.preconditions as never,
+          dataSpec: draft.dataSpec as never,
+          steps: normalized.steps as never,
+          assertions: draft.assertions as never,
+          cleanup: draft.cleanup as never,
+          priority: draft.priority,
+          approvalStatus: "DRAFT",
+          origin: "model",
+          promptVersion: REFERENCE_PROMPT_VERSION,
+          projectId: job.projectId,
+        },
+      });
+      await prisma.testCase.update({
+        where: { id: testCase.id },
+        data: { currentVersionId: caseVersion.id },
+      });
+      caseVersionIds.push(caseVersion.id);
+    }
 
-  const result = {
-    caseVersionIds,
-    blockedRequirementCount: output.blockedRequirements.length,
-  };
-  await prisma.job.update({
-    where: { id: job.id },
-    data: { status: "SUCCEEDED", result: result as never, finishedAt: new Date() },
-  });
+    const result = {
+      caseVersionIds,
+      blockedRequirementCount: output.blockedRequirements.length,
+    };
+    await prisma.job.update({
+      where: { id: job.id },
+      data: { status: "SUCCEEDED", result: result as never, finishedAt: new Date() },
+    });
   });
 }

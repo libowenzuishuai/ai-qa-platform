@@ -11,7 +11,7 @@ let offline = true;
 const add = vi.fn(async () => { if (offline) throw new Error('Redis unavailable'); return {} as never; });
 beforeAll(async()=>{
  env=await createTestEnv('stage2api');
- const user=await env.prisma.user.create({data:{username:'stage2-test',displayName:'Test',passwordHash:'unused'}});
+ const user=await env.prisma.user.create({data:{username:'stage2-test',displayName:'Test',passwordHash:'unused',platformRole:'LEAD'}});
  const project=await env.prisma.project.create({data:{name:'stage2 API'}});projectId=project.id;
  await env.prisma.projectMembership.create({data:{projectId,userId:user.id,role:'LEAD'}});
  await env.prisma.session.create({data:{id:'stage2-session',userId:user.id,expiresAt:new Date(Date.now()+600000)}});

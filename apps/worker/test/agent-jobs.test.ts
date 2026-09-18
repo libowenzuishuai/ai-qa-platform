@@ -454,3 +454,25 @@ it("中途写入失败回滚所有资产，重试不会留下半套规则",async
  expect((await env.prisma.job.findUniqueOrThrow({where:{id:job.id}})).status).toBe("SUCCEEDED");
  expect(await env.prisma.rule.count({where:{projectId:job.projectId}})).toBe(3);
 });
+
+it("运行超过一个心跳周期时续租，保持同一执行所有权", async()=>{
+ const job=await extractionJob();const entered=latch(),resume=latch();
+ const client=env.prisma.$extends({query:{modelInvocation:{async create({args,query}){
+   entered.release();await resume.promise;return query(args);
+ }}}}) as unknown as PrismaClient;
+ const pending=processAgentJob(client,cfg(),job.id);
+ await entered.promise;
+ const before=await env.prisma.job.findUniqueOrThrow({where:{id:job.id}});
+ try {
+   const deadline=Date.now()+13000;
+   let updated=before;
+   while(updated.updatedAt.getTime()===before.updatedAt.getTime() && Date.now()<deadline){
+     await new Promise(r=>setTimeout(r,200));
+     updated=await env.prisma.job.findUniqueOrThrow({where:{id:job.id}});
+   }
+   expect(updated.updatedAt.getTime()).toBeGreaterThan(before.updatedAt.getTime());
+   expect(updated.startedAt).toEqual(before.startedAt);
+   expect(updated.status).toBe("RUNNING");
+ } finally {resume.release();await pending;}
+ expect((await env.prisma.job.findUniqueOrThrow({where:{id:job.id}})).status).toBe("SUCCEEDED");
+},20000);
