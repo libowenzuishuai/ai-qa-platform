@@ -34,7 +34,7 @@ export function layout(title: string, body: string): string {
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${title} · AI 测试平台</title><style>${STYLE}</style></head>
-<body><header><b>AI 测试人员平台</b><span class="muted" style="color:#9fb0dd">阶段 1 · 固定用例执行</span>
+<body><header><b>AI 测试人员平台</b><span class="muted" style="color:#9fb0dd">业务资料 · 测试审阅 · 运行验收</span>
 <nav style="margin-left:auto"><a href="/">项目</a><a href="/runs">运行</a></nav></header>
 <main>${body}</main></body></html>`;
 }
@@ -105,7 +105,7 @@ export function launcherPage(data: LauncherData, error?: string): string {
     .join("");
   return layout(
     data.project.name,
-    `<h1>${data.project.name}</h1>
+    `<h1>${data.project.name}</h1><p><a href="/projects/${data.project.id}/review">打开资料与测试审阅工作台</a></p>
     ${error ? `<div class="error-box">${error}</div>` : ""}
     <div class="card">
       <h2>启动测试</h2>

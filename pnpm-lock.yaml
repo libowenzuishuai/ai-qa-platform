@@ -149,6 +149,9 @@ importers:
         specifier: ^3.25.0
         version: 3.25.76
     devDependencies:
+      '@fastify/cookie':
+        specifier: ^11.1.2
+        version: 11.1.2
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.3

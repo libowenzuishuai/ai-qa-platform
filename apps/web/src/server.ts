@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
+import { registerWorkbenchRoutes } from "./workbench.js";
 import formbody from "@fastify/formbody";
 import { randomBytes } from "node:crypto";
 import { API_BASE, ApiError, api } from "./api.js";
@@ -28,6 +29,7 @@ const HOST = process.env.WEB_HOST ?? "127.0.0.1";
 const app = Fastify({ logger: { level: process.env.WEB_LOG_LEVEL ?? "warn" } });
 await app.register(cookie);
 await app.register(formbody);
+registerWorkbenchRoutes(app);
 
 function sid(req: { cookies: Record<string, string | undefined> }): string | undefined {
   return req.cookies["web_sid"];
@@ -304,5 +306,5 @@ app.get("/api/runs/:id/events", async (req, reply) => {
   return reply;
 });
 
-await app.listen({ port: PORT, host: HOST });
-console.log(`web ready on http://${HOST}:${PORT}`);
+const address = await app.listen({ port: PORT, host: HOST });
+console.log(`web ready on ${address}`);

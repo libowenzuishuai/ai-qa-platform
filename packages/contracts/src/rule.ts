@@ -87,3 +87,10 @@ export const Clarification = z.object({
   createdAt: IsoDateTime,
 });
 export type Clarification = z.infer<typeof Clarification>;
+
+/** 平台确认澄清；确认后不可覆盖已批准规则的依据。 */
+export const ClarificationResolveRequest = z.object({
+  answer: z.string().trim().min(1).max(10000),
+  answerSource: z.string().trim().min(1).max(2000),
+}).strict();
+export type ClarificationResolveRequest = z.infer<typeof ClarificationResolveRequest>;

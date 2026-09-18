@@ -111,7 +111,7 @@ services:
     depends_on:
       - api
 
-  # 可选 Python 智能服务；B/C 未实现时对应能力返回 503，不伪装生成成功。
+  # Python 智能服务：上传解析需要启用本 profile；C 正式生成未实现时返回 503。
   intelligence:
     profiles: ["intelligence"]
     build: ./services/intelligence

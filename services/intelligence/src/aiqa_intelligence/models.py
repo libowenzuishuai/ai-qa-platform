@@ -62,13 +62,22 @@ class Gateway:
         return await self._complete(request, "TEXT", messages, wire)
 
     async def describe_image(self, request: VisionModelRequest) -> ModelResponse:
+        wire = request.model_dump(mode="json", exclude_none=True)
+        validate_shape("VisionModelRequest", wire)
+        if self.mode == "mock":
+            return await self._complete(request, "VISION", [], wire)
+        data = self.artifacts.read(wire["imageStorageKey"])
+        return await self.describe_image_bytes(request, data)
+
+    async def describe_image_bytes(
+        self, request: VisionModelRequest, data: bytes
+    ) -> ModelResponse:
         import base64
 
         wire = request.model_dump(mode="json", exclude_none=True)
         validate_shape("VisionModelRequest", wire)
         if self.mode == "mock":
             return await self._complete(request, "VISION", [], wire)
-        data = self.artifacts.read(wire["imageStorageKey"])
         if data.startswith(b"\x89PNG\r\n\x1a\n"):
             mime = "image/png"
         elif data.startswith(b"\xff\xd8\xff"):
@@ -129,6 +138,11 @@ class Gateway:
                 "messages": messages,
                 "response_format": {"type": "json_object"},
             }
+            if channel == "VISION":
+                # Bounded transcription output, shared across images and PDF pages.
+                body["max_tokens"] = 4096
+                if model == "kimi-k2.6":
+                    body["thinking"] = {"type": "disabled"}
             for source, target in [
                 ("temperature", "temperature"),
                 ("maxOutputTokens", "max_tokens"),
@@ -156,6 +170,8 @@ class Gateway:
                 raise ServiceError("DEPENDENCY_UNAVAILABLE", "模型服务返回错误", 503)
             try:
                 data = res.json()
+                if data["choices"][0].get("finish_reason") not in (None, "stop"):
+                    raise ValueError("Model output was truncated or interrupted")
                 raw = data["choices"][0]["message"]["content"]
                 parsed = json.loads(raw)
                 request_id = res.headers.get("x-request-id") or data.get("id")

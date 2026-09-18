@@ -32,7 +32,9 @@ export type JobStatus = z.infer<typeof JobStatus>;
  * 页数上限（文本 PDF ≤200 页）由解析器执行并以 PARSE_FAILED/coverageSummary 体现。
  */
 export const DocumentParseJobRequest = z.object({
-  title: z.string().min(1),
+  title: z.string().trim().min(1).max(200),
+  documentId: EntityId.optional(),
+  mode: RunMode.default("mock"),
   declaredFormat: DocumentFormat,
   fileSizeBytes: z
     .number()
@@ -100,6 +102,7 @@ export type CaseGenerationJobResult = z.infer<typeof CaseGenerationJobResult>;
 const JobEnvelopeBase = z.object({
   jobId: EntityId,
   status: JobStatus,
+  mode: RunMode.optional(),
   createdAt: IsoDateTime,
   startedAt: IsoDateTime.nullable(),
   finishedAt: IsoDateTime.nullable(),

@@ -12,7 +12,11 @@
 - TS worker 的 Python 调用开关，以及规则/用例结果返回后的二次校验和事务落库。
 - 两端共用 19 个合法/反例契约样例；Python 和实际 HTTP 测试；生成物漂移检查 CI。
 
-**尚未实现**：正式文档解析算法、正式 agents 管线、文档上传与 DOCUMENT_PARSE 作业接线、完整审阅页面。对应 Python 模块 `ready=False` 并明确返回 503，不生成假成功结果。
+**B 首版已实现**：Markdown/TXT、结构化 DOCX、逐页文字 PDF 与图片视觉网关接入；`DocumentParser.ready=True`。已追加 Kimi 2.6 整页 PDF 视觉识别及真实模型小样验证；复杂表格等限制见服务 README。
+
+**A 平台接线已实现**：上传/版本登记、DOCUMENT_PARSE 作业、解析文件与来源落库、澄清回答与规则批准、最小审阅页面；详见 [平台工作台](stage2-platform-workbench.md)。
+
+**尚未实现**：C 正式 agents 管线、现场执行计划绑定、完整用例编辑/批准流程及真实模型全链路验收。C 模块仍 `ready=False` 并明确返回 503。
 
 现有参考模式仍可用。选择 Python 后，服务或模块不可用就失败，不回退 reference/mock。模块完成验收后再显式切换默认配置。
 
@@ -21,8 +25,8 @@
 | 人 | 独占主要目录 | 本轮任务 | 不重复实现 |
 |---|---|---|---|
 | A / 李博闻 | `apps/api`、`apps/worker`、`apps/web`；Python 的 app/context/models/storage/contracts | 上传/解析作业接线、平台审阅和澄清、版本/证据落库、集成验收；维护公共契约和模型网关 | 不代替 B/C 开发解析或生成算法 |
-| B / 原泽菲 | `services/intelligence/src/aiqa_intelligence/doc_ingestion`、`tests/doc_ingestion` | Python 文档解析、OCR/表格/来源定位，返回 ParsedDocumentBundle | 不建作业队列、不写数据库、不另做模型 SDK |
-| C / 李琪双 | `services/intelligence/src/aiqa_intelligence/agents`、`tests/agents` | 规则提取、冲突澄清草稿、用例生成、提示词/分块/覆盖分析 | 不写 API/worker、不分配 DB 版本 ID、不重写浏览器执行器 |
+| B / 原泽菲 | `services/intelligence/src/aiqa_intelligence/doc_ingestion`、`tests/doc_ingestion` | Python 文档解析、视觉识别/表格/来源定位，返回 ParsedDocumentBundle | 不建作业队列、不写数据库、不另做模型 SDK |
+| C / 李琦双 | `services/intelligence/src/aiqa_intelligence/agents`、`tests/agents` | 规则提取、冲突澄清草稿、用例生成、提示词/分块/覆盖分析 | 不写 API/worker、不分配 DB 版本 ID、不重写浏览器执行器 |
 
 公共契约、依赖锁文件和服务入口由 A 汇总修改。B/C 增加依赖时同时说明用途及许可证/运行要求，由 A 合并锁文件；不要各自升级全项目依赖。
 
@@ -52,7 +56,9 @@ async def parse_document(self, input: DocumentParseInput, context: RequestContex
 6. 原 `f07f928` 评审 B1–B4 的反例在 Python 新实现中全部通过。
 7. 默认测试不调用付费模型；完成后设置 `ready=True`。
 
-旧 TS 分支保留供参考，不合入主干；迁移样例与测试意图，不复制错误实现。
+`phase2/doc-ingestion` 至 `6ed386f` 的提交历史与修正意图已合入并迁为 Python 实现；主干不保留第二套 TS 解析代码。详见 [本次评审](reviews/doc-ingestion-6ed386f.md)。
+
+B 的 `802f141` 已保留历史并追加整页 Kimi 视觉识别修正，见 [验收记录](reviews/pdf-kimi-vision-2026-09-18.md)。B 下一步先同步 main，继续精细图片文字框、复杂/嵌套表格与代表性资料识别评测；不要重复实现本次全页视觉链路。定位契约变更先与 A 对齐。
 
 ## 4. C：从这里开始
 
@@ -88,13 +94,13 @@ async def generate_cases(self, input: CaseGenerationInput, context: RequestConte
 
 按顺序：
 
-1. 实现上传文件 → 文档/版本登记 → DOCUMENT_PARSE 入队；接入已提供的 `/v1/documents/parse` 客户端；验证实际大小/校验和与项目归属。
-2. 将 B 返回的 bundle 写入 `bundles/{documentVersionId}/bundle.json`，来源片段/解析状态落库；文件写入和数据库提交失败可恢复，失败不留下可用假产物。
-3. 补澄清回答与批准闭环。用例生成只传相关、已确认的澄清来源，不能继续传未解决记录。
-4. 补最小资料/规则/用例审阅页面，展示模拟模式、失败原因和显式重试入口。
-5. B/C 合入后跑完整 HTTP→队列→Python→资产落库→审阅流程，再做独立的真实 Kimi 验证。
+1. 【已实现】上传文件 → 文档/版本登记 → DOCUMENT_PARSE 入队；接入已提供的 `/v1/documents/parse` 客户端；验证实际大小/校验和与项目归属。
+2. 【已实现】B 返回的 bundle 按执行租约写入唯一文件，通过数据库 bundleStorageKey/checksum 发布；来源片段、解析状态与作业终态事务提交。旧固定 bundle.json 仅兼容历史种子。
+3. 【已实现】澄清回答与批准闭环。用例生成只传相关、已确认的澄清来源，不能继续传未解决记录。
+4. 【已实现】最小资料/规则/用例审阅页面，展示模拟模式、失败原因和显式重试入口。
+5. 【接线已验收，真实生成待 C】真实 HTTP→队列→Python 文档解析→资产落库→浏览器审阅已验收；规则/用例使用明确标注的 C 协议替身。待 C 合入后再做正式算法及真实 Kimi 验证。
 
-本次完成的是跨语言基建和交接，不把以上五项标为已完成。
+A 当前可独立完成的平台接线已交付；后续继续现场绑定和正式模型验收。生产数据迁移与启动说明见平台工作台文档。
 
 ## 6. 契约与接线纪律
 

@@ -10,6 +10,8 @@ import { registerProjectRoutes } from "./routes-projects.js";
 import { registerRunRoutes } from "./routes-runs.js";
 import { registerAssetRoutes } from "./routes-assets.js";
 import { registerArtifactRoutes } from "./routes-artifacts.js";
+import { registerDocumentRoutes } from "./routes-documents.js";
+import { registerReviewRoutes } from "./routes-review.js";
 import { registerJobRoutes } from "./routes-jobs.js";
 import { sendApiError } from "./errors.js";
 
@@ -70,6 +72,8 @@ export async function buildServer() {
   registerRunRoutes(app, prisma, runsQueue, artifactStore);
   registerArtifactRoutes(app, prisma, artifactStore);
   registerJobRoutes(app, prisma, agentJobsQueue);
+  registerDocumentRoutes(app, prisma, agentJobsQueue, artifactStore);
+  registerReviewRoutes(app, prisma);
 
   return app;
 }

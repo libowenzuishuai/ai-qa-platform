@@ -9,6 +9,7 @@ import {
   RuleExtractionJobRequest,
 } from "@ai-qa/contracts";
 import { requireChannelConfig } from "@ai-qa/model-adapters";
+import { reviewRule } from "./routes-review.js";
 import { ApiError } from "./errors.js";
 import { requireAuth, requireProjectAccess } from "./auth.js";
 
@@ -100,6 +101,7 @@ export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jo
           field: "documentVersionIds",
         });
       }
+      if (body.mode === "real" && row.mode !== "real" && ["PNG", "JPEG", "PDF_TEXT", "PDF_SCANNED"].includes(row.format)) throw new ApiError("VALIDATION_ERROR", "模拟视觉转录不能用于真实规则提取");
       if (row.parseStatus === "NEEDS_OCR") {
         throw new ApiError("NEEDS_OCR", "该文档版本需要 OCR，不能直接提取规则", { documentVersionId: docId });
       }
@@ -145,6 +147,11 @@ export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jo
       }
     }
 
+    if (await prisma.clarification.count({ where: { projectId, ruleVersionIds: { hasSome: body.ruleVersionIds }, resolvedAt: null } })) {
+      throw new ApiError("CONFLICT", "选定规则仍有未解决澄清");
+    }
+    if (body.mode === "real" && rules.some(r => r.origin === "model" && r.generationMode !== "real")) throw new ApiError("VALIDATION_ERROR", "模拟或模式未核验的规则不能用于真实用例生成");
+
     return createJobEnqueued(reply, projectId, "CASE_GENERATION", body as never, {
       ruleVersionIds: [...body.ruleVersionIds].sort(),
       mode: body.mode,
@@ -158,11 +165,18 @@ export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jo
     const job = await prisma.job.findUnique({ where: { id } });
     if (!job) throw new ApiError("NOT_FOUND", "作业不存在");
     await requireProjectAccess(prisma, req, job.projectId, "LEAD");
-    const changed = await prisma.job.updateMany({
+    const changed = await prisma.$transaction(async tx => {
+    const changed = await tx.job.updateMany({
       where: { id, status: "FAILED" },
       data: { status: "QUEUED", startedAt: null, finishedAt: null, error: Prisma.DbNull, result: Prisma.DbNull },
     });
     if (!changed.count) throw new ApiError("CONFLICT", "仅失败作业允许重试");
+    if (job.kind === "DOCUMENT_PARSE") {
+      const request = z.object({ documentVersionId: z.string() }).parse(job.request);
+      await tx.documentVersion.updateMany({ where: { id: request.documentVersionId, document: { projectId: job.projectId }, parseStatus: "FAILED" }, data: { parseStatus: "PENDING" } });
+    }
+    return changed;
+    });
     // 新队列 ID 避免遗留 BullMQ failed 记录占住旧 ID；兜底仍由对账负责。
     try {
       await jobQueue.add("run", { jobId: id }, { removeOnComplete: true, removeOnFail: 200 });
@@ -179,10 +193,11 @@ export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jo
     const envelope = JobEnvelope.safeParse({
       jobId: job.id,
       kind: job.kind,
+      mode: (job.request as { mode?: string }).mode,
       status: job.status,
-      createdAt: job.createdAt,
-      startedAt: job.startedAt,
-      finishedAt: job.finishedAt,
+      createdAt: job.createdAt.toISOString(),
+      startedAt: job.startedAt?.toISOString() ?? null,
+      finishedAt: job.finishedAt?.toISOString() ?? null,
       result: job.result ?? null,
       error: job.error ?? null,
     });
@@ -194,38 +209,5 @@ export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jo
     return envelope.data;
   });
 
-  // ---------- 规则批准（解锁用例生成）----------
-  app.post("/api/rule-versions/:id/approve", async (req) => {
-    const auth = requireAuth(req);
-    const { id } = z.object({ id: z.string() }).parse(req.params);
-    const ruleVersion = await prisma.ruleVersion.findUnique({
-      where: { id },
-      include: { rule: { select: { projectId: true } } },
-    });
-    if (!ruleVersion) throw new ApiError("NOT_FOUND", "规则版本不存在");
-    await requireProjectAccess(prisma, req, ruleVersion.rule.projectId, "LEAD");
-
-    // CAS：仅 DRAFT/NEEDS_REVIEW → APPROVED。
-    const updated = await prisma.ruleVersion.updateMany({
-      where: { id, reviewStatus: { in: ["DRAFT", "NEEDS_REVIEW"] } },
-      data: { reviewStatus: "APPROVED", reviewedBy: auth.username, reviewedAt: new Date() },
-    });
-    if (updated.count === 0) {
-      const current = await prisma.ruleVersion.findUniqueOrThrow({ where: { id }, select: { reviewStatus: true } });
-      if (current.reviewStatus === "APPROVED") {
-        return { ok: true, id, reviewStatus: "APPROVED", note: "已批准（幂等）" };
-      }
-      throw new ApiError("CONFLICT", `当前状态 ${current.reviewStatus} 不允许批准`);
-    }
-    await prisma.auditEvent.create({
-      data: {
-        actorId: auth.userId,
-        action: "ruleVersion.approve",
-        entityType: "RuleVersion",
-        entityId: id,
-        afterRef: JSON.stringify({ reviewStatus: "APPROVED" }),
-      },
-    });
-    return { ok: true, id, reviewStatus: "APPROVED" };
-  });
+  app.post("/api/rule-versions/:id/approve", req => reviewRule(prisma, req, "APPROVED"));
 }
