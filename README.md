@@ -1,5 +1,6 @@
 # AI 测试人员平台
 
+> 阶段二采用 **TypeScript 平台 + Python 智能服务**。三人开工请先读 [分工与接口清单](docs/stage2-python-handoff.md)，Python 启动见 [服务说明](services/intelligence/README.md)。当前完成基建，正式解析/生成算法待 B/C 实现。
 根据版本化产品资料（PRD、业务说明、原型）形成有依据的规则与用例，在多人
 开发合并后的 Web 测试环境中独立执行验收测试，输出可追溯报告、缺陷与复测。
 

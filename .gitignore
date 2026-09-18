@@ -23,6 +23,13 @@ apps/api/prisma/*.db
 # 系统文件
 .DS_Store
 
+# Python intelligent service
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*.egg-info/
+
 # Claude 本地会话配置
 .claude/
 

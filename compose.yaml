@@ -44,6 +44,7 @@ services:
     environment:
       DATABASE_URL: postgresql://aiqa:aiqa_dev_password@postgres:5432/aiqa?schema=public
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env}
+      AIQA_INTELLIGENCE_BACKEND: ${AIQA_INTELLIGENCE_BACKEND:-reference}
       API_HOST: 0.0.0.0
       API_PORT: "7300"
       SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
@@ -67,6 +68,10 @@ services:
     working_dir: /app/apps/worker
     command: sh -c "node dist/server.js"
     environment:
+      AIQA_INTELLIGENCE_BACKEND: ${AIQA_INTELLIGENCE_BACKEND:-reference}
+      AIQA_INTELLIGENCE_URL: http://intelligence:7500
+      AIQA_INTELLIGENCE_TOKEN: ${AIQA_INTELLIGENCE_TOKEN:-}
+      AIQA_INTELLIGENCE_TIMEOUT_MS: ${AIQA_INTELLIGENCE_TIMEOUT_MS:-120000}
       WORKER_HOST: 0.0.0.0
       WORKER_PORT: "7200"
       REDIS_URL: redis://redis:6379/0
@@ -105,6 +110,26 @@ services:
       - ./node_modules:/app/node_modules:ro
     depends_on:
       - api
+
+  # 可选 Python 智能服务；B/C 未实现时对应能力返回 503，不伪装生成成功。
+  intelligence:
+    profiles: ["intelligence"]
+    build: ./services/intelligence
+    environment:
+      AIQA_INTELLIGENCE_TOKEN: ${AIQA_INTELLIGENCE_TOKEN:-}
+      AIQA_ARTIFACT_DIR: /data/artifacts
+      AIQA_TEXT_PROVIDER: ${AIQA_TEXT_PROVIDER:-moonshot}
+      AIQA_TEXT_BASE_URL: ${AIQA_TEXT_BASE_URL:-https://api.moonshot.cn/v1}
+      AIQA_TEXT_MODEL: ${AIQA_TEXT_MODEL:-}
+      AIQA_TEXT_API_KEY: ${AIQA_TEXT_API_KEY:-}
+      AIQA_VISION_PROVIDER: ${AIQA_VISION_PROVIDER:-moonshot}
+      AIQA_VISION_BASE_URL: ${AIQA_VISION_BASE_URL:-https://api.moonshot.cn/v1}
+      AIQA_VISION_MODEL: ${AIQA_VISION_MODEL:-}
+      AIQA_VISION_API_KEY: ${AIQA_VISION_API_KEY:-}
+    ports:
+      - "127.0.0.1:7500:7500"
+    volumes:
+      - artifacts:/data/artifacts:ro
 
   # demo-app 为纯 JS 依赖：直接复用宿主 node_modules（挂载仓库）。
   # api/worker 依赖 Prisma 原生引擎，容器化需要可访问 npm registry 的网络

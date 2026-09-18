@@ -1,0 +1,1587 @@
+{
+  "$ref": "#/definitions/IntelligenceContracts",
+  "definitions": {
+    "ParsedDocumentBundle": {
+      "type": "object",
+      "properties": {
+        "documentVersionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]*$"
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "MARKDOWN",
+            "TXT",
+            "DOCX",
+            "PDF_TEXT",
+            "PDF_SCANNED",
+            "PNG",
+            "JPEG"
+          ]
+        },
+        "parseStatus": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "PARSING",
+            "PARSED",
+            "FAILED",
+            "NEEDS_OCR"
+          ]
+        },
+        "parserVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "heading",
+                  "paragraph",
+                  "table",
+                  "listItem",
+                  "image"
+                ]
+              },
+              "text": {
+                "type": "string"
+              },
+              "page": {
+                "type": "integer"
+              },
+              "imageStorageKey": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "text"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "spans": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+              },
+              "documentVersionId": {
+                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+              },
+              "locator": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "markdown-line"
+                      },
+                      "startLine": {
+                        "type": "integer"
+                      },
+                      "endLine": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "startLine",
+                      "endLine"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "markdown-heading"
+                      },
+                      "path": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "minItems": 1
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "path"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "docx-paragraph"
+                      },
+                      "paragraphIndex": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "paragraphIndex"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "docx-cell"
+                      },
+                      "tableIndex": {
+                        "type": "integer"
+                      },
+                      "row": {
+                        "type": "integer"
+                      },
+                      "col": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "tableIndex",
+                      "row",
+                      "col"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "pdf-page"
+                      },
+                      "page": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "page"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "image-region"
+                      },
+                      "bbox": {
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        },
+                        "minItems": 4,
+                        "maxItems": 4
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "bbox"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "quotedText": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "extractionQuality": {
+                "type": "string",
+                "enum": [
+                  "GOOD",
+                  "LOW",
+                  "UNPARSED"
+                ],
+                "default": "GOOD"
+              }
+            },
+            "required": [
+              "id",
+              "documentVersionId",
+              "locator",
+              "quotedText"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "coverageSummary": {
+          "type": "object",
+          "properties": {
+            "totalBlocks": {
+              "type": "integer"
+            },
+            "goodSpans": {
+              "type": "integer"
+            },
+            "lowSpans": {
+              "type": "integer"
+            },
+            "unparsedSpans": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "totalBlocks",
+            "goodSpans",
+            "lowSpans",
+            "unparsedSpans"
+          ],
+          "additionalProperties": false
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "documentVersionId",
+        "format",
+        "parseStatus",
+        "parserVersion",
+        "blocks",
+        "spans",
+        "coverageSummary"
+      ],
+      "additionalProperties": false
+    },
+    "RuleExtractionInput": {
+      "type": "object",
+      "properties": {
+        "projectGlossary": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "term": {
+                "type": "string"
+              },
+              "definition": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "term",
+              "definition"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "documentVersions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ParsedDocumentBundle"
+          },
+          "minItems": 1
+        },
+        "images": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "storageKey": {
+                "type": "string"
+              },
+              "spanId": {
+                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+              }
+            },
+            "required": [
+              "storageKey",
+              "spanId"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "promptVersion": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "documentVersions",
+        "promptVersion"
+      ],
+      "additionalProperties": false
+    },
+    "RuleExtractionOutput": {
+      "type": "object",
+      "properties": {
+        "ruleDrafts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "pattern": "^rule-draft-\\d{2,}$"
+              },
+              "statement": {
+                "type": "string",
+                "minLength": 1
+              },
+              "classification": {
+                "type": "string",
+                "enum": [
+                  "EXPLICIT",
+                  "INFERRED",
+                  "UNKNOWN"
+                ]
+              },
+              "role": {
+                "type": "string"
+              },
+              "precondition": {
+                "type": "string"
+              },
+              "action": {
+                "type": "string",
+                "minLength": 1
+              },
+              "condition": {
+                "type": "string"
+              },
+              "expectation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "forbiddenBehaviors": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "P0",
+                  "P1",
+                  "P2"
+                ],
+                "default": "P1"
+              },
+              "businessFields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "operator": {
+                      "type": "string",
+                      "enum": [
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "eq",
+                        "neq",
+                        "in",
+                        "between",
+                        "contains"
+                      ]
+                    },
+                    "value": {
+                      "type": [
+                        "string",
+                        "number",
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "unit": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "key"
+                  ],
+                  "additionalProperties": false
+                },
+                "default": []
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "documentVersionId": {
+                      "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                    },
+                    "sourceSpanIds": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                      },
+                      "minItems": 1
+                    }
+                  },
+                  "required": [
+                    "documentVersionId",
+                    "sourceSpanIds"
+                  ],
+                  "additionalProperties": false
+                },
+                "default": []
+              },
+              "conflictsWith": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              }
+            },
+            "required": [
+              "key",
+              "statement",
+              "classification",
+              "action",
+              "expectation"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "clarifications": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ruleDraftKeys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1
+              },
+              "question": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "MISSING_INFO",
+                  "CONFLICT",
+                  "AMBIGUITY"
+                ]
+              }
+            },
+            "required": [
+              "ruleDraftKeys",
+              "question",
+              "kind"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "unparsedRanges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "spanId": {
+                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "TABLE_DEGRADED",
+                  "LOW_QUALITY_IMAGE",
+                  "IRRELEVANT",
+                  "OTHER"
+                ]
+              }
+            },
+            "required": [
+              "spanId",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "ruleDrafts",
+        "clarifications",
+        "unparsedRanges"
+      ],
+      "additionalProperties": false
+    },
+    "CaseGenerationInput": {
+      "type": "object",
+      "properties": {
+        "approvedRuleVersions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+              },
+              "ruleId": {
+                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "statement": {
+                "type": "string",
+                "minLength": 1
+              },
+              "classification": {
+                "$ref": "#/definitions/RuleExtractionOutput/properties/ruleDrafts/items/properties/classification"
+              },
+              "role": {
+                "type": "string",
+                "minLength": 1
+              },
+              "precondition": {
+                "type": "string"
+              },
+              "action": {
+                "type": "string",
+                "minLength": 1
+              },
+              "condition": {
+                "type": "string"
+              },
+              "expectation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "forbiddenBehaviors": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "P0",
+                  "P1",
+                  "P2"
+                ],
+                "default": "P1"
+              },
+              "businessFields": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/RuleExtractionOutput/properties/ruleDrafts/items/properties/businessFields/items"
+                },
+                "default": []
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "documentVersionId": {
+                      "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                    },
+                    "sourceSpanIds": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                      },
+                      "minItems": 1
+                    }
+                  },
+                  "required": [
+                    "documentVersionId",
+                    "sourceSpanIds"
+                  ],
+                  "additionalProperties": false
+                },
+                "default": []
+              },
+              "conflictsWith": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                },
+                "default": []
+              },
+              "reviewStatus": {
+                "type": "string",
+                "enum": [
+                  "DRAFT",
+                  "NEEDS_REVIEW",
+                  "APPROVED",
+                  "REJECTED",
+                  "SUPERSEDED"
+                ],
+                "default": "DRAFT"
+              },
+              "supersedesId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "origin": {
+                "type": "string",
+                "enum": [
+                  "manual",
+                  "model"
+                ]
+              },
+              "promptVersion": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "reviewedBy": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "reviewedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "createdAt": {
+                "$ref": "#/definitions/CaseGenerationInput/properties/approvedRuleVersions/items/properties/reviewedAt/anyOf/0"
+              }
+            },
+            "required": [
+              "id",
+              "ruleId",
+              "version",
+              "statement",
+              "classification",
+              "action",
+              "expectation",
+              "origin",
+              "createdAt"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "clarificationSources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+              },
+              "ruleVersionIds": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                },
+                "minItems": 1
+              },
+              "question": {
+                "type": "string",
+                "minLength": 1
+              },
+              "answer": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "answerSource": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "resolvedBy": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "resolvedAt": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/CaseGenerationInput/properties/approvedRuleVersions/items/properties/reviewedAt/anyOf/0"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "createdAt": {
+                "$ref": "#/definitions/CaseGenerationInput/properties/approvedRuleVersions/items/properties/reviewedAt/anyOf/0"
+              }
+            },
+            "required": [
+              "id",
+              "ruleVersionIds",
+              "question",
+              "createdAt"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "fixtureCapabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+          },
+          "default": []
+        },
+        "executorCapabilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "promptVersion": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "approvedRuleVersions",
+        "roles",
+        "promptVersion"
+      ],
+      "additionalProperties": false
+    },
+    "CaseGenerationOutput": {
+      "type": "object",
+      "properties": {
+        "caseDrafts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": {
+                "type": "string"
+              },
+              "ruleVersionIds": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                },
+                "minItems": 1
+              },
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "minItems": 1
+              },
+              "preconditions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "dataSpec": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "strategy": {
+                        "type": "string",
+                        "const": "fixture"
+                      },
+                      "fixtureId": {
+                        "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                      },
+                      "params": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": [
+                            "string",
+                            "number",
+                            "boolean"
+                          ]
+                        },
+                        "default": {}
+                      }
+                    },
+                    "required": [
+                      "strategy",
+                      "fixtureId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "strategy": {
+                        "type": "string",
+                        "const": "create"
+                      },
+                      "note": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "strategy",
+                      "note"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "steps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "action": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "expectedResult": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "role",
+                    "action"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1
+              },
+              "assertions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                    },
+                    "description": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "ui.text",
+                        "ui.element",
+                        "ui.state",
+                        "data.value",
+                        "api.response",
+                        "download.content",
+                        "visual"
+                      ]
+                    },
+                    "required": {
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "ruleVersionId": {
+                      "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                    },
+                    "operator": {
+                      "type": "string",
+                      "enum": [
+                        "equals",
+                        "notEquals",
+                        "contains",
+                        "notContains",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "matches",
+                        "exists",
+                        "notExists"
+                      ]
+                    },
+                    "expected": {
+                      "type": [
+                        "string",
+                        "number",
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "unit": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "description",
+                    "kind",
+                    "ruleVersionId",
+                    "operator"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1
+              },
+              "cleanup": {
+                "type": "object",
+                "properties": {
+                  "strategy": {
+                    "type": "string",
+                    "enum": [
+                      "namespace",
+                      "fixture",
+                      "manual"
+                    ]
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "strategy"
+                ],
+                "additionalProperties": false
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "P0",
+                  "P1",
+                  "P2"
+                ],
+                "default": "P1"
+              },
+              "dimensions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "HAPPY_PATH",
+                    "INVALID_INPUT",
+                    "BOUNDARY",
+                    "PERMISSION",
+                    "STATE",
+                    "CROSS_MODULE",
+                    "PERSISTENCE"
+                  ]
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "title",
+              "ruleVersionIds",
+              "roles",
+              "dataSpec",
+              "steps",
+              "assertions",
+              "cleanup",
+              "dimensions"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "coverageMap": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ruleVersionId": {
+                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+              },
+              "caseCount": {
+                "type": "integer"
+              },
+              "dimensionsCovered": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "ruleVersionId",
+              "caseCount",
+              "dimensionsCovered"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "blockedRequirements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ruleVersionId": {
+                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "MISSING_LOGIN",
+                  "MISSING_FIXTURE",
+                  "INSUFFICIENT_INFO",
+                  "OUT_OF_EXECUTOR_CAPABILITY"
+                ]
+              },
+              "detail": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "ruleVersionId",
+              "reason",
+              "detail"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "caseDrafts",
+        "coverageMap",
+        "blockedRequirements"
+      ],
+      "additionalProperties": false
+    },
+    "ModelResponse": {
+      "type": "object",
+      "properties": {
+        "parsedJson": {},
+        "rawText": {
+          "type": "string"
+        },
+        "repairsApplied": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "code-fence",
+              "trailing-comma",
+              "truncated-json",
+              "bom"
+            ]
+          },
+          "default": []
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "moonshot",
+            "mock"
+          ]
+        },
+        "model": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "usage": {
+          "type": "object",
+          "properties": {
+            "inputTokens": {
+              "type": "integer"
+            },
+            "outputTokens": {
+              "type": "integer"
+            },
+            "estimatedCost": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "inputTokens",
+            "outputTokens"
+          ],
+          "additionalProperties": false
+        },
+        "latencyMs": {
+          "type": "integer"
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "SUCCESS",
+            "INVALID_OUTPUT",
+            "TIMEOUT",
+            "PROVIDER_ERROR"
+          ]
+        }
+      },
+      "required": [
+        "rawText",
+        "provider",
+        "model",
+        "requestId",
+        "usage",
+        "latencyMs",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "TextModelRequest": {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "enum": [
+            "RULE_EXTRACTION",
+            "CASE_GENERATION",
+            "VISION_DESCRIBE"
+          ]
+        },
+        "system": {
+          "type": "string"
+        },
+        "user": {
+          "type": "string"
+        },
+        "outputSchema": {},
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "maxOutputTokens": {
+          "type": "integer"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 600000
+        }
+      },
+      "required": [
+        "purpose",
+        "system",
+        "user",
+        "timeoutMs"
+      ],
+      "additionalProperties": false
+    },
+    "VisionModelRequest": {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "const": "VISION_DESCRIBE"
+        },
+        "imageStorageKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outputSchema": {},
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 600000
+        }
+      },
+      "required": [
+        "purpose",
+        "imageStorageKey",
+        "hint",
+        "timeoutMs"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentParseInput": {
+      "type": "object",
+      "properties": {
+        "documentVersionId": {
+          "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+        },
+        "format": {
+          "$ref": "#/definitions/ParsedDocumentBundle/properties/format"
+        },
+        "storageKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "checksum": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "fileSizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20971520
+        }
+      },
+      "required": [
+        "documentVersionId",
+        "format",
+        "storageKey",
+        "checksum",
+        "fileSizeBytes"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentParseRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "requestId": {
+          "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "real",
+            "mock"
+          ]
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 600000
+        },
+        "input": {
+          "$ref": "#/definitions/DocumentParseInput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "timeoutMs",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentParseResponse": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "requestId": {
+          "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "real",
+            "mock"
+          ]
+        },
+        "invocations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/InvocationRecord"
+          }
+        },
+        "output": {
+          "$ref": "#/definitions/ParsedDocumentBundle"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "invocations",
+        "output"
+      ],
+      "additionalProperties": false
+    },
+    "RuleExtractionRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/DocumentParseRequest/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+        },
+        "mode": {
+          "$ref": "#/definitions/DocumentParseRequest/properties/mode"
+        },
+        "timeoutMs": {
+          "$ref": "#/definitions/DocumentParseRequest/properties/timeoutMs"
+        },
+        "input": {
+          "$ref": "#/definitions/RuleExtractionInput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "timeoutMs",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "RuleExtractionResponse": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/DocumentParseResponse/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+        },
+        "mode": {
+          "$ref": "#/definitions/DocumentParseResponse/properties/mode"
+        },
+        "invocations": {
+          "$ref": "#/definitions/DocumentParseResponse/properties/invocations"
+        },
+        "output": {
+          "$ref": "#/definitions/RuleExtractionOutput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "invocations",
+        "output"
+      ],
+      "additionalProperties": false
+    },
+    "CaseGenerationRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/DocumentParseRequest/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+        },
+        "mode": {
+          "$ref": "#/definitions/DocumentParseRequest/properties/mode"
+        },
+        "timeoutMs": {
+          "$ref": "#/definitions/DocumentParseRequest/properties/timeoutMs"
+        },
+        "input": {
+          "$ref": "#/definitions/CaseGenerationInput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "timeoutMs",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "CaseGenerationResponse": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/DocumentParseResponse/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+        },
+        "mode": {
+          "$ref": "#/definitions/DocumentParseResponse/properties/mode"
+        },
+        "invocations": {
+          "$ref": "#/definitions/DocumentParseResponse/properties/invocations"
+        },
+        "output": {
+          "$ref": "#/definitions/CaseGenerationOutput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "invocations",
+        "output"
+      ],
+      "additionalProperties": false
+    },
+    "InvocationRecord": {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "$ref": "#/definitions/TextModelRequest/properties/purpose"
+        },
+        "promptVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "response": {
+          "$ref": "#/definitions/ModelResponse"
+        }
+      },
+      "required": [
+        "purpose",
+        "promptVersion",
+        "response"
+      ],
+      "additionalProperties": false
+    },
+    "IntelligenceContracts": {
+      "type": "object",
+      "properties": {
+        "ParsedDocumentBundle": {
+          "$ref": "#/definitions/ParsedDocumentBundle"
+        },
+        "RuleExtractionInput": {
+          "$ref": "#/definitions/RuleExtractionInput"
+        },
+        "RuleExtractionOutput": {
+          "$ref": "#/definitions/RuleExtractionOutput"
+        },
+        "CaseGenerationInput": {
+          "$ref": "#/definitions/CaseGenerationInput"
+        },
+        "CaseGenerationOutput": {
+          "$ref": "#/definitions/CaseGenerationOutput"
+        },
+        "ModelResponse": {
+          "$ref": "#/definitions/ModelResponse"
+        },
+        "TextModelRequest": {
+          "$ref": "#/definitions/TextModelRequest"
+        },
+        "VisionModelRequest": {
+          "$ref": "#/definitions/VisionModelRequest"
+        },
+        "DocumentParseInput": {
+          "$ref": "#/definitions/DocumentParseInput"
+        },
+        "DocumentParseRequest": {
+          "$ref": "#/definitions/DocumentParseRequest"
+        },
+        "DocumentParseResponse": {
+          "$ref": "#/definitions/DocumentParseResponse"
+        },
+        "RuleExtractionRequest": {
+          "$ref": "#/definitions/RuleExtractionRequest"
+        },
+        "RuleExtractionResponse": {
+          "$ref": "#/definitions/RuleExtractionResponse"
+        },
+        "CaseGenerationRequest": {
+          "$ref": "#/definitions/CaseGenerationRequest"
+        },
+        "CaseGenerationResponse": {
+          "$ref": "#/definitions/CaseGenerationResponse"
+        },
+        "InvocationRecord": {
+          "$ref": "#/definitions/InvocationRecord"
+        }
+      },
+      "required": [
+        "ParsedDocumentBundle",
+        "RuleExtractionInput",
+        "RuleExtractionOutput",
+        "CaseGenerationInput",
+        "CaseGenerationOutput",
+        "ModelResponse",
+        "TextModelRequest",
+        "VisionModelRequest",
+        "DocumentParseInput",
+        "DocumentParseRequest",
+        "DocumentParseResponse",
+        "RuleExtractionRequest",
+        "RuleExtractionResponse",
+        "CaseGenerationRequest",
+        "CaseGenerationResponse",
+        "InvocationRecord"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

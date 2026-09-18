@@ -11,9 +11,11 @@ Redis/BullMQ 调度 worker → Playwright 真实浏览器执行（七动作、�
 上下文、命名空间数据隔离、连接层网络策略）→ 持久化步骤/断言/截图/trace →
 SSE 实时进度（数据库原子序号）→ 报告（FR-10 严格验收、证据完整性复核）。
 
+**跨语言基建已实现**：Python 智能服务骨架、生成契约/类型、模型与只读文件接口、TS worker 调用及共同反例校验已落地。B/C 的正式算法未实现，服务明确返回未就绪；迁移期间默认 reference。分工与后续任务见 [开工清单](stage2-python-handoff.md)。
+
 **阶段 2 已实现**：契约与三套样例、Moonshot 文本/视觉与 mock 适配器、规则提取/用例生成作业 API 与参考管线。新作业具备可靠落库、补投、心跳、失联失败与显式重试；资产和成功状态在事务中提交。用例仍为 DRAFT，不代表已经可自动执行。
 
-**阶段 2 评审**：A 通道七项修复与验证见 [修复记录](reviews/stage2-a-fixes-2026-09-18.md)。B 通道 `phase2/doc-ingestion` 的 `f07f928` 尚未合入，原因见 [解析库评审](reviews/doc-ingestion-f07f928.md)。C 的正式 agents 包尚未合入。此前真实 Kimi 测试记录不等于本次复测，本次未调用真实模型。
+**阶段 2 评审**：A 通道七项修复与验证见 [修复记录](reviews/stage2-a-fixes-2026-09-18.md)。B 通道 `phase2/doc-ingestion` 的 `f07f928` 尚未合入，原因见 [解析库评审](reviews/doc-ingestion-f07f928.md)。C 的正式 Python agents 实现尚未合入。此前真实 Kimi 测试记录不等于本次复测，本次未调用真实模型。
 
 **未实现**（后续阶段）：完整 AI 自动生成测试闭环（文档上传解析接线、正式生成管线、审阅界面与现场绑定，阶段 2+）、
 Midscene 视觉步骤、apiCheck/downloadCheck 执行、attemptNo>1 重试（unstable）、

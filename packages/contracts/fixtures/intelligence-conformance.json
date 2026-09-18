@@ -1,0 +1,2876 @@
+[
+  {
+    "name": "01-explicit-prd",
+    "kind": "rules",
+    "input": {
+      "projectGlossary": [],
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-v-01",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "fixture-manual-1",
+          "blocks": [
+            {
+              "id": "blk-01-1",
+              "kind": "heading",
+              "text": "采购审批系统需求"
+            },
+            {
+              "id": "blk-01-2",
+              "kind": "heading",
+              "text": "1. 概述"
+            },
+            {
+              "id": "blk-01-3",
+              "kind": "paragraph",
+              "text": "本系统用于管理采购申请的创建、提交与审批流程，覆盖申请人与部门主管两类角色。"
+            },
+            {
+              "id": "blk-01-4",
+              "kind": "heading",
+              "text": "2. 审批规则"
+            },
+            {
+              "id": "blk-01-5",
+              "kind": "paragraph",
+              "text": "订单金额超过 5000.00 元的采购单必须提交部门主管审批。订单金额不超过 5000.00 元的采购单直接进入付款待办。"
+            },
+            {
+              "id": "blk-01-6",
+              "kind": "heading",
+              "text": "3. 角色权限"
+            },
+            {
+              "id": "blk-01-7",
+              "kind": "paragraph",
+              "text": "申请人可以创建并提交采购单。部门主管可以审批采购单。申请人不可审批自己提交的采购单。"
+            },
+            {
+              "id": "blk-01-8",
+              "kind": "heading",
+              "text": "4. 数据要求"
+            },
+            {
+              "id": "blk-01-9",
+              "kind": "paragraph",
+              "text": "采购单金额以分为单位存储，精确到分。金额展示时保留两位小数。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "span-01-1",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "采购审批系统需求",
+                  "2. 审批规则"
+                ]
+              },
+              "quotedText": "审批规则",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-2",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 9,
+                "endLine": 9
+              },
+              "quotedText": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-3",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 13,
+                "endLine": 13
+              },
+              "quotedText": "申请人不可审批自己提交的采购单",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-4",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 17,
+                "endLine": 17
+              },
+              "quotedText": "采购单金额以分为单位存储，精确到分",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 9,
+            "goodSpans": 4,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          },
+          "warnings": []
+        }
+      ],
+      "images": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "forbiddenBehaviors": [],
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "forbiddenBehaviors": [],
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "valid": true
+  },
+  {
+    "name": "02-conflict-prd",
+    "kind": "rules",
+    "input": {
+      "projectGlossary": [],
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-v-02",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "fixture-manual-1",
+          "blocks": [
+            {
+              "id": "blk-02-1",
+              "kind": "heading",
+              "text": "差旅报销系统需求"
+            },
+            {
+              "id": "blk-02-2",
+              "kind": "heading",
+              "text": "2.1 金额修改"
+            },
+            {
+              "id": "blk-02-3",
+              "kind": "paragraph",
+              "text": "报销单提交审批后，申请人仍可修改报销金额。"
+            },
+            {
+              "id": "blk-02-4",
+              "kind": "heading",
+              "text": "4.2 金额锁定"
+            },
+            {
+              "id": "blk-02-5",
+              "kind": "paragraph",
+              "text": "报销单进入审批流程后，报销金额锁定，任何角色不可修改。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "span-02-1",
+              "documentVersionId": "doc-v-02",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "差旅报销系统需求",
+                  "2.1 金额修改"
+                ]
+              },
+              "quotedText": "金额修改",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-02-2",
+              "documentVersionId": "doc-v-02",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 5,
+                "endLine": 5
+              },
+              "quotedText": "报销单提交审批后，申请人仍可修改报销金额",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-02-3",
+              "documentVersionId": "doc-v-02",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "差旅报销系统需求",
+                  "4.2 金额锁定"
+                ]
+              },
+              "quotedText": "金额锁定",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-02-4",
+              "documentVersionId": "doc-v-02",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 9,
+                "endLine": 9
+              },
+              "quotedText": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 5,
+            "goodSpans": 4,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          },
+          "warnings": []
+        }
+      ],
+      "images": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "forbiddenBehaviors": [],
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-02",
+              "sourceSpanIds": [
+                "span-02-2"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "forbiddenBehaviors": [],
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-02",
+              "sourceSpanIds": [
+                "span-02-4"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "valid": true
+  },
+  {
+    "name": "03-missing-boundary",
+    "kind": "rules",
+    "input": {
+      "projectGlossary": [],
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-v-03",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "fixture-manual-1",
+          "blocks": [
+            {
+              "id": "blk-03-1",
+              "kind": "heading",
+              "text": "采购审批需求（边界缺失）"
+            },
+            {
+              "id": "blk-03-2",
+              "kind": "heading",
+              "text": "审批规则"
+            },
+            {
+              "id": "blk-03-3",
+              "kind": "paragraph",
+              "text": "高额采购订单需提交主管审批。审批通过后订单进入付款待办。"
+            },
+            {
+              "id": "blk-03-4",
+              "kind": "heading",
+              "text": "角色"
+            },
+            {
+              "id": "blk-03-5",
+              "kind": "paragraph",
+              "text": "申请人提交订单，主管审批订单。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "span-03-1",
+              "documentVersionId": "doc-v-03",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "采购审批需求（边界缺失）",
+                  "审批规则"
+                ]
+              },
+              "quotedText": "审批规则",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-03-2",
+              "documentVersionId": "doc-v-03",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 4,
+                "endLine": 4
+              },
+              "quotedText": "高额采购订单需提交主管审批",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-03-3",
+              "documentVersionId": "doc-v-03",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 4,
+                "endLine": 4
+              },
+              "quotedText": "审批通过后订单进入付款待办",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 5,
+            "goodSpans": 3,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          },
+          "warnings": []
+        }
+      ],
+      "images": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "高额采购订单需提交主管审批（金额边界未定义）",
+          "classification": "UNKNOWN",
+          "role": "申请人",
+          "action": "提交采购订单",
+          "expectation": "高额订单进入待审批（高额的具体金额边界待澄清）",
+          "forbiddenBehaviors": [],
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-03",
+              "sourceSpanIds": [
+                "span-03-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "审批通过后订单进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "主管",
+          "action": "审批采购订单",
+          "expectation": "订单进入付款待办",
+          "forbiddenBehaviors": [],
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-03",
+              "sourceSpanIds": [
+                "span-03-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01"
+          ],
+          "question": "“高额采购订单”的金额边界是多少（含/不含边界值）？低于边界的订单如何处理？",
+          "kind": "MISSING_INFO"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "valid": true
+  },
+  {
+    "name": "invented-span",
+    "kind": "rules",
+    "input": {
+      "projectGlossary": [],
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-v-01",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "fixture-manual-1",
+          "blocks": [
+            {
+              "id": "blk-01-1",
+              "kind": "heading",
+              "text": "采购审批系统需求"
+            },
+            {
+              "id": "blk-01-2",
+              "kind": "heading",
+              "text": "1. 概述"
+            },
+            {
+              "id": "blk-01-3",
+              "kind": "paragraph",
+              "text": "本系统用于管理采购申请的创建、提交与审批流程，覆盖申请人与部门主管两类角色。"
+            },
+            {
+              "id": "blk-01-4",
+              "kind": "heading",
+              "text": "2. 审批规则"
+            },
+            {
+              "id": "blk-01-5",
+              "kind": "paragraph",
+              "text": "订单金额超过 5000.00 元的采购单必须提交部门主管审批。订单金额不超过 5000.00 元的采购单直接进入付款待办。"
+            },
+            {
+              "id": "blk-01-6",
+              "kind": "heading",
+              "text": "3. 角色权限"
+            },
+            {
+              "id": "blk-01-7",
+              "kind": "paragraph",
+              "text": "申请人可以创建并提交采购单。部门主管可以审批采购单。申请人不可审批自己提交的采购单。"
+            },
+            {
+              "id": "blk-01-8",
+              "kind": "heading",
+              "text": "4. 数据要求"
+            },
+            {
+              "id": "blk-01-9",
+              "kind": "paragraph",
+              "text": "采购单金额以分为单位存储，精确到分。金额展示时保留两位小数。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "span-01-1",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "采购审批系统需求",
+                  "2. 审批规则"
+                ]
+              },
+              "quotedText": "审批规则",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-2",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 9,
+                "endLine": 9
+              },
+              "quotedText": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-3",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 13,
+                "endLine": 13
+              },
+              "quotedText": "申请人不可审批自己提交的采购单",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-4",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 17,
+                "endLine": 17
+              },
+              "quotedText": "采购单金额以分为单位存储，精确到分",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 9,
+            "goodSpans": 4,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          },
+          "warnings": []
+        }
+      ],
+      "images": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "forbiddenBehaviors": [],
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "missing"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "forbiddenBehaviors": [],
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "valid": false
+  },
+  {
+    "name": "cross-document",
+    "kind": "rules",
+    "input": {
+      "projectGlossary": [],
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-v-01",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "fixture-manual-1",
+          "blocks": [
+            {
+              "id": "blk-01-1",
+              "kind": "heading",
+              "text": "采购审批系统需求"
+            },
+            {
+              "id": "blk-01-2",
+              "kind": "heading",
+              "text": "1. 概述"
+            },
+            {
+              "id": "blk-01-3",
+              "kind": "paragraph",
+              "text": "本系统用于管理采购申请的创建、提交与审批流程，覆盖申请人与部门主管两类角色。"
+            },
+            {
+              "id": "blk-01-4",
+              "kind": "heading",
+              "text": "2. 审批规则"
+            },
+            {
+              "id": "blk-01-5",
+              "kind": "paragraph",
+              "text": "订单金额超过 5000.00 元的采购单必须提交部门主管审批。订单金额不超过 5000.00 元的采购单直接进入付款待办。"
+            },
+            {
+              "id": "blk-01-6",
+              "kind": "heading",
+              "text": "3. 角色权限"
+            },
+            {
+              "id": "blk-01-7",
+              "kind": "paragraph",
+              "text": "申请人可以创建并提交采购单。部门主管可以审批采购单。申请人不可审批自己提交的采购单。"
+            },
+            {
+              "id": "blk-01-8",
+              "kind": "heading",
+              "text": "4. 数据要求"
+            },
+            {
+              "id": "blk-01-9",
+              "kind": "paragraph",
+              "text": "采购单金额以分为单位存储，精确到分。金额展示时保留两位小数。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "span-01-1",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "采购审批系统需求",
+                  "2. 审批规则"
+                ]
+              },
+              "quotedText": "审批规则",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-2",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 9,
+                "endLine": 9
+              },
+              "quotedText": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-3",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 13,
+                "endLine": 13
+              },
+              "quotedText": "申请人不可审批自己提交的采购单",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-4",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 17,
+                "endLine": 17
+              },
+              "quotedText": "采购单金额以分为单位存储，精确到分",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 9,
+            "goodSpans": 4,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          },
+          "warnings": []
+        }
+      ],
+      "images": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "forbiddenBehaviors": [],
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "elsewhere",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "forbiddenBehaviors": [],
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "valid": false
+  },
+  {
+    "name": "quote-not-in-document",
+    "kind": "rules",
+    "input": {
+      "projectGlossary": [],
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-v-01",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "fixture-manual-1",
+          "blocks": [
+            {
+              "id": "blk-01-1",
+              "kind": "heading",
+              "text": "采购审批系统需求"
+            },
+            {
+              "id": "blk-01-2",
+              "kind": "heading",
+              "text": "1. 概述"
+            },
+            {
+              "id": "blk-01-3",
+              "kind": "paragraph",
+              "text": "本系统用于管理采购申请的创建、提交与审批流程，覆盖申请人与部门主管两类角色。"
+            },
+            {
+              "id": "blk-01-4",
+              "kind": "heading",
+              "text": "2. 审批规则"
+            },
+            {
+              "id": "blk-01-5",
+              "kind": "paragraph",
+              "text": "订单金额超过 5000.00 元的采购单必须提交部门主管审批。订单金额不超过 5000.00 元的采购单直接进入付款待办。"
+            },
+            {
+              "id": "blk-01-6",
+              "kind": "heading",
+              "text": "3. 角色权限"
+            },
+            {
+              "id": "blk-01-7",
+              "kind": "paragraph",
+              "text": "申请人可以创建并提交采购单。部门主管可以审批采购单。申请人不可审批自己提交的采购单。"
+            },
+            {
+              "id": "blk-01-8",
+              "kind": "heading",
+              "text": "4. 数据要求"
+            },
+            {
+              "id": "blk-01-9",
+              "kind": "paragraph",
+              "text": "采购单金额以分为单位存储，精确到分。金额展示时保留两位小数。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "span-01-1",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "采购审批系统需求",
+                  "2. 审批规则"
+                ]
+              },
+              "quotedText": "fabricated quote",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-2",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 9,
+                "endLine": 9
+              },
+              "quotedText": "fabricated quote",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-3",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 13,
+                "endLine": 13
+              },
+              "quotedText": "fabricated quote",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-4",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 17,
+                "endLine": 17
+              },
+              "quotedText": "fabricated quote",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 9,
+            "goodSpans": 4,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          },
+          "warnings": []
+        }
+      ],
+      "images": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "forbiddenBehaviors": [],
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "forbiddenBehaviors": [],
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "valid": false
+  },
+  {
+    "name": "duplicate-draft-key",
+    "kind": "rules",
+    "input": {
+      "projectGlossary": [],
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-v-01",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "fixture-manual-1",
+          "blocks": [
+            {
+              "id": "blk-01-1",
+              "kind": "heading",
+              "text": "采购审批系统需求"
+            },
+            {
+              "id": "blk-01-2",
+              "kind": "heading",
+              "text": "1. 概述"
+            },
+            {
+              "id": "blk-01-3",
+              "kind": "paragraph",
+              "text": "本系统用于管理采购申请的创建、提交与审批流程，覆盖申请人与部门主管两类角色。"
+            },
+            {
+              "id": "blk-01-4",
+              "kind": "heading",
+              "text": "2. 审批规则"
+            },
+            {
+              "id": "blk-01-5",
+              "kind": "paragraph",
+              "text": "订单金额超过 5000.00 元的采购单必须提交部门主管审批。订单金额不超过 5000.00 元的采购单直接进入付款待办。"
+            },
+            {
+              "id": "blk-01-6",
+              "kind": "heading",
+              "text": "3. 角色权限"
+            },
+            {
+              "id": "blk-01-7",
+              "kind": "paragraph",
+              "text": "申请人可以创建并提交采购单。部门主管可以审批采购单。申请人不可审批自己提交的采购单。"
+            },
+            {
+              "id": "blk-01-8",
+              "kind": "heading",
+              "text": "4. 数据要求"
+            },
+            {
+              "id": "blk-01-9",
+              "kind": "paragraph",
+              "text": "采购单金额以分为单位存储，精确到分。金额展示时保留两位小数。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "span-01-1",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "采购审批系统需求",
+                  "2. 审批规则"
+                ]
+              },
+              "quotedText": "审批规则",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-2",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 9,
+                "endLine": 9
+              },
+              "quotedText": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-3",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 13,
+                "endLine": 13
+              },
+              "quotedText": "申请人不可审批自己提交的采购单",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-4",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 17,
+                "endLine": 17
+              },
+              "quotedText": "采购单金额以分为单位存储，精确到分",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 9,
+            "goodSpans": 4,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          },
+          "warnings": []
+        }
+      ],
+      "images": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "forbiddenBehaviors": [],
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "forbiddenBehaviors": [],
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "valid": false
+  },
+  {
+    "name": "explicit-without-source",
+    "kind": "rules",
+    "input": {
+      "projectGlossary": [],
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-v-01",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "fixture-manual-1",
+          "blocks": [
+            {
+              "id": "blk-01-1",
+              "kind": "heading",
+              "text": "采购审批系统需求"
+            },
+            {
+              "id": "blk-01-2",
+              "kind": "heading",
+              "text": "1. 概述"
+            },
+            {
+              "id": "blk-01-3",
+              "kind": "paragraph",
+              "text": "本系统用于管理采购申请的创建、提交与审批流程，覆盖申请人与部门主管两类角色。"
+            },
+            {
+              "id": "blk-01-4",
+              "kind": "heading",
+              "text": "2. 审批规则"
+            },
+            {
+              "id": "blk-01-5",
+              "kind": "paragraph",
+              "text": "订单金额超过 5000.00 元的采购单必须提交部门主管审批。订单金额不超过 5000.00 元的采购单直接进入付款待办。"
+            },
+            {
+              "id": "blk-01-6",
+              "kind": "heading",
+              "text": "3. 角色权限"
+            },
+            {
+              "id": "blk-01-7",
+              "kind": "paragraph",
+              "text": "申请人可以创建并提交采购单。部门主管可以审批采购单。申请人不可审批自己提交的采购单。"
+            },
+            {
+              "id": "blk-01-8",
+              "kind": "heading",
+              "text": "4. 数据要求"
+            },
+            {
+              "id": "blk-01-9",
+              "kind": "paragraph",
+              "text": "采购单金额以分为单位存储，精确到分。金额展示时保留两位小数。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "span-01-1",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "采购审批系统需求",
+                  "2. 审批规则"
+                ]
+              },
+              "quotedText": "审批规则",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-2",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 9,
+                "endLine": 9
+              },
+              "quotedText": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-3",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 13,
+                "endLine": 13
+              },
+              "quotedText": "申请人不可审批自己提交的采购单",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-4",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 17,
+                "endLine": 17
+              },
+              "quotedText": "采购单金额以分为单位存储，精确到分",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 9,
+            "goodSpans": 4,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          },
+          "warnings": []
+        }
+      ],
+      "images": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "forbiddenBehaviors": [],
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "forbiddenBehaviors": [],
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "valid": false
+  },
+  {
+    "name": "one-sided-conflict",
+    "kind": "rules",
+    "input": {
+      "projectGlossary": [],
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-v-02",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "fixture-manual-1",
+          "blocks": [
+            {
+              "id": "blk-02-1",
+              "kind": "heading",
+              "text": "差旅报销系统需求"
+            },
+            {
+              "id": "blk-02-2",
+              "kind": "heading",
+              "text": "2.1 金额修改"
+            },
+            {
+              "id": "blk-02-3",
+              "kind": "paragraph",
+              "text": "报销单提交审批后，申请人仍可修改报销金额。"
+            },
+            {
+              "id": "blk-02-4",
+              "kind": "heading",
+              "text": "4.2 金额锁定"
+            },
+            {
+              "id": "blk-02-5",
+              "kind": "paragraph",
+              "text": "报销单进入审批流程后，报销金额锁定，任何角色不可修改。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "span-02-1",
+              "documentVersionId": "doc-v-02",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "差旅报销系统需求",
+                  "2.1 金额修改"
+                ]
+              },
+              "quotedText": "金额修改",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-02-2",
+              "documentVersionId": "doc-v-02",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 5,
+                "endLine": 5
+              },
+              "quotedText": "报销单提交审批后，申请人仍可修改报销金额",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-02-3",
+              "documentVersionId": "doc-v-02",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "差旅报销系统需求",
+                  "4.2 金额锁定"
+                ]
+              },
+              "quotedText": "金额锁定",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-02-4",
+              "documentVersionId": "doc-v-02",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 9,
+                "endLine": 9
+              },
+              "quotedText": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 5,
+            "goodSpans": 4,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          },
+          "warnings": []
+        }
+      ],
+      "images": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "forbiddenBehaviors": [],
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-02",
+              "sourceSpanIds": [
+                "span-02-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "forbiddenBehaviors": [],
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-02",
+              "sourceSpanIds": [
+                "span-02-4"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "valid": false
+  },
+  {
+    "name": "unknown-clarification-key",
+    "kind": "rules",
+    "input": {
+      "projectGlossary": [],
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-v-02",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "fixture-manual-1",
+          "blocks": [
+            {
+              "id": "blk-02-1",
+              "kind": "heading",
+              "text": "差旅报销系统需求"
+            },
+            {
+              "id": "blk-02-2",
+              "kind": "heading",
+              "text": "2.1 金额修改"
+            },
+            {
+              "id": "blk-02-3",
+              "kind": "paragraph",
+              "text": "报销单提交审批后，申请人仍可修改报销金额。"
+            },
+            {
+              "id": "blk-02-4",
+              "kind": "heading",
+              "text": "4.2 金额锁定"
+            },
+            {
+              "id": "blk-02-5",
+              "kind": "paragraph",
+              "text": "报销单进入审批流程后，报销金额锁定，任何角色不可修改。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "span-02-1",
+              "documentVersionId": "doc-v-02",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "差旅报销系统需求",
+                  "2.1 金额修改"
+                ]
+              },
+              "quotedText": "金额修改",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-02-2",
+              "documentVersionId": "doc-v-02",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 5,
+                "endLine": 5
+              },
+              "quotedText": "报销单提交审批后，申请人仍可修改报销金额",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-02-3",
+              "documentVersionId": "doc-v-02",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "差旅报销系统需求",
+                  "4.2 金额锁定"
+                ]
+              },
+              "quotedText": "金额锁定",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-02-4",
+              "documentVersionId": "doc-v-02",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 9,
+                "endLine": 9
+              },
+              "quotedText": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 5,
+            "goodSpans": 4,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          },
+          "warnings": []
+        }
+      ],
+      "images": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "修改已提交审批的报销单金额",
+          "expectation": "修改成功",
+          "forbiddenBehaviors": [],
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-02",
+              "sourceSpanIds": [
+                "span-02-2"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "action": "修改审批流程中的报销单金额",
+          "expectation": "修改被拒绝",
+          "forbiddenBehaviors": [],
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-02",
+              "sourceSpanIds": [
+                "span-02-4"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "missing"
+          ],
+          "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "valid": false
+  },
+  {
+    "name": "coverage-count-mismatch",
+    "kind": "rules",
+    "input": {
+      "projectGlossary": [],
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-v-01",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "fixture-manual-1",
+          "blocks": [
+            {
+              "id": "blk-01-1",
+              "kind": "heading",
+              "text": "采购审批系统需求"
+            },
+            {
+              "id": "blk-01-2",
+              "kind": "heading",
+              "text": "1. 概述"
+            },
+            {
+              "id": "blk-01-3",
+              "kind": "paragraph",
+              "text": "本系统用于管理采购申请的创建、提交与审批流程，覆盖申请人与部门主管两类角色。"
+            },
+            {
+              "id": "blk-01-4",
+              "kind": "heading",
+              "text": "2. 审批规则"
+            },
+            {
+              "id": "blk-01-5",
+              "kind": "paragraph",
+              "text": "订单金额超过 5000.00 元的采购单必须提交部门主管审批。订单金额不超过 5000.00 元的采购单直接进入付款待办。"
+            },
+            {
+              "id": "blk-01-6",
+              "kind": "heading",
+              "text": "3. 角色权限"
+            },
+            {
+              "id": "blk-01-7",
+              "kind": "paragraph",
+              "text": "申请人可以创建并提交采购单。部门主管可以审批采购单。申请人不可审批自己提交的采购单。"
+            },
+            {
+              "id": "blk-01-8",
+              "kind": "heading",
+              "text": "4. 数据要求"
+            },
+            {
+              "id": "blk-01-9",
+              "kind": "paragraph",
+              "text": "采购单金额以分为单位存储，精确到分。金额展示时保留两位小数。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "span-01-1",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "采购审批系统需求",
+                  "2. 审批规则"
+                ]
+              },
+              "quotedText": "审批规则",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-2",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 9,
+                "endLine": 9
+              },
+              "quotedText": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-3",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 13,
+                "endLine": 13
+              },
+              "quotedText": "申请人不可审批自己提交的采购单",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-4",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 17,
+                "endLine": 17
+              },
+              "quotedText": "采购单金额以分为单位存储，精确到分",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 9,
+            "goodSpans": 999,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          },
+          "warnings": []
+        }
+      ],
+      "images": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "forbiddenBehaviors": [],
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "forbiddenBehaviors": [],
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "valid": false
+  },
+  {
+    "name": "span-document-mismatch",
+    "kind": "rules",
+    "input": {
+      "projectGlossary": [],
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-v-01",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "fixture-manual-1",
+          "blocks": [
+            {
+              "id": "blk-01-1",
+              "kind": "heading",
+              "text": "采购审批系统需求"
+            },
+            {
+              "id": "blk-01-2",
+              "kind": "heading",
+              "text": "1. 概述"
+            },
+            {
+              "id": "blk-01-3",
+              "kind": "paragraph",
+              "text": "本系统用于管理采购申请的创建、提交与审批流程，覆盖申请人与部门主管两类角色。"
+            },
+            {
+              "id": "blk-01-4",
+              "kind": "heading",
+              "text": "2. 审批规则"
+            },
+            {
+              "id": "blk-01-5",
+              "kind": "paragraph",
+              "text": "订单金额超过 5000.00 元的采购单必须提交部门主管审批。订单金额不超过 5000.00 元的采购单直接进入付款待办。"
+            },
+            {
+              "id": "blk-01-6",
+              "kind": "heading",
+              "text": "3. 角色权限"
+            },
+            {
+              "id": "blk-01-7",
+              "kind": "paragraph",
+              "text": "申请人可以创建并提交采购单。部门主管可以审批采购单。申请人不可审批自己提交的采购单。"
+            },
+            {
+              "id": "blk-01-8",
+              "kind": "heading",
+              "text": "4. 数据要求"
+            },
+            {
+              "id": "blk-01-9",
+              "kind": "paragraph",
+              "text": "采购单金额以分为单位存储，精确到分。金额展示时保留两位小数。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "span-01-1",
+              "documentVersionId": "other",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "采购审批系统需求",
+                  "2. 审批规则"
+                ]
+              },
+              "quotedText": "审批规则",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-2",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 9,
+                "endLine": 9
+              },
+              "quotedText": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-3",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 13,
+                "endLine": 13
+              },
+              "quotedText": "申请人不可审批自己提交的采购单",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-4",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 17,
+                "endLine": 17
+              },
+              "quotedText": "采购单金额以分为单位存储，精确到分",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 9,
+            "goodSpans": 4,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          },
+          "warnings": []
+        }
+      ],
+      "images": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单进入待审批状态",
+          "forbiddenBehaviors": [],
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交采购单",
+          "expectation": "采购单直接进入付款待办",
+          "forbiddenBehaviors": [],
+          "priority": "P0",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "lte",
+              "value": 500000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "审批采购单",
+          "expectation": "审批被拒绝",
+          "forbiddenBehaviors": [
+            "申请人执行审批操作"
+          ],
+          "priority": "P0",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [],
+      "unparsedRanges": []
+    },
+    "valid": false
+  },
+  {
+    "name": "case-valid",
+    "kind": "cases",
+    "input": {
+      "approvedRuleVersions": [
+        {
+          "id": "rule-v1",
+          "ruleId": "rule-1",
+          "version": 1,
+          "statement": "approval",
+          "classification": "INFERRED",
+          "role": "applicant",
+          "action": "submit",
+          "expectation": "pending",
+          "forbiddenBehaviors": [],
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [],
+          "conflictsWith": [],
+          "reviewStatus": "APPROVED",
+          "supersedesId": null,
+          "origin": "manual",
+          "promptVersion": null,
+          "reviewedBy": null,
+          "reviewedAt": null,
+          "createdAt": "2026-09-18T00:00:00Z"
+        }
+      ],
+      "clarificationSources": [],
+      "roles": [
+        "applicant"
+      ],
+      "fixtureCapabilities": [
+        "fixture-1"
+      ],
+      "executorCapabilities": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "caseDrafts": [
+        {
+          "title": "approval",
+          "ruleVersionIds": [
+            "rule-v1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "preconditions": [],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "UI"
+          },
+          "steps": [
+            {
+              "role": "applicant",
+              "action": "submit"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "status",
+              "kind": "ui.text",
+              "required": true,
+              "ruleVersionId": "rule-v1",
+              "operator": "equals",
+              "expected": "pending"
+            }
+          ],
+          "cleanup": {
+            "strategy": "namespace"
+          },
+          "priority": "P1",
+          "dimensions": [
+            "HAPPY_PATH"
+          ]
+        }
+      ],
+      "coverageMap": [
+        {
+          "ruleVersionId": "rule-v1",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "HAPPY_PATH"
+          ]
+        }
+      ],
+      "blockedRequirements": []
+    },
+    "valid": true
+  },
+  {
+    "name": "case-foreign-rule",
+    "kind": "cases",
+    "input": {
+      "approvedRuleVersions": [
+        {
+          "id": "rule-v1",
+          "ruleId": "rule-1",
+          "version": 1,
+          "statement": "approval",
+          "classification": "INFERRED",
+          "role": "applicant",
+          "action": "submit",
+          "expectation": "pending",
+          "forbiddenBehaviors": [],
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [],
+          "conflictsWith": [],
+          "reviewStatus": "APPROVED",
+          "supersedesId": null,
+          "origin": "manual",
+          "promptVersion": null,
+          "reviewedBy": null,
+          "reviewedAt": null,
+          "createdAt": "2026-09-18T00:00:00Z"
+        }
+      ],
+      "clarificationSources": [],
+      "roles": [
+        "applicant"
+      ],
+      "fixtureCapabilities": [
+        "fixture-1"
+      ],
+      "executorCapabilities": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "caseDrafts": [
+        {
+          "title": "approval",
+          "ruleVersionIds": [
+            "other"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "preconditions": [],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "UI"
+          },
+          "steps": [
+            {
+              "role": "applicant",
+              "action": "submit"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "status",
+              "kind": "ui.text",
+              "required": true,
+              "ruleVersionId": "rule-v1",
+              "operator": "equals",
+              "expected": "pending"
+            }
+          ],
+          "cleanup": {
+            "strategy": "namespace"
+          },
+          "priority": "P1",
+          "dimensions": [
+            "HAPPY_PATH"
+          ]
+        }
+      ],
+      "coverageMap": [
+        {
+          "ruleVersionId": "rule-v1",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "HAPPY_PATH"
+          ]
+        }
+      ],
+      "blockedRequirements": []
+    },
+    "valid": false
+  },
+  {
+    "name": "case-forged-role",
+    "kind": "cases",
+    "input": {
+      "approvedRuleVersions": [
+        {
+          "id": "rule-v1",
+          "ruleId": "rule-1",
+          "version": 1,
+          "statement": "approval",
+          "classification": "INFERRED",
+          "role": "applicant",
+          "action": "submit",
+          "expectation": "pending",
+          "forbiddenBehaviors": [],
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [],
+          "conflictsWith": [],
+          "reviewStatus": "APPROVED",
+          "supersedesId": null,
+          "origin": "manual",
+          "promptVersion": null,
+          "reviewedBy": null,
+          "reviewedAt": null,
+          "createdAt": "2026-09-18T00:00:00Z"
+        }
+      ],
+      "clarificationSources": [],
+      "roles": [
+        "applicant"
+      ],
+      "fixtureCapabilities": [
+        "fixture-1"
+      ],
+      "executorCapabilities": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "caseDrafts": [
+        {
+          "title": "approval",
+          "ruleVersionIds": [
+            "rule-v1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "preconditions": [],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "UI"
+          },
+          "steps": [
+            {
+              "role": "admin",
+              "action": "submit"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "status",
+              "kind": "ui.text",
+              "required": true,
+              "ruleVersionId": "rule-v1",
+              "operator": "equals",
+              "expected": "pending"
+            }
+          ],
+          "cleanup": {
+            "strategy": "namespace"
+          },
+          "priority": "P1",
+          "dimensions": [
+            "HAPPY_PATH"
+          ]
+        }
+      ],
+      "coverageMap": [
+        {
+          "ruleVersionId": "rule-v1",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "HAPPY_PATH"
+          ]
+        }
+      ],
+      "blockedRequirements": []
+    },
+    "valid": false
+  },
+  {
+    "name": "case-invented-fixture",
+    "kind": "cases",
+    "input": {
+      "approvedRuleVersions": [
+        {
+          "id": "rule-v1",
+          "ruleId": "rule-1",
+          "version": 1,
+          "statement": "approval",
+          "classification": "INFERRED",
+          "role": "applicant",
+          "action": "submit",
+          "expectation": "pending",
+          "forbiddenBehaviors": [],
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [],
+          "conflictsWith": [],
+          "reviewStatus": "APPROVED",
+          "supersedesId": null,
+          "origin": "manual",
+          "promptVersion": null,
+          "reviewedBy": null,
+          "reviewedAt": null,
+          "createdAt": "2026-09-18T00:00:00Z"
+        }
+      ],
+      "clarificationSources": [],
+      "roles": [
+        "applicant"
+      ],
+      "fixtureCapabilities": [
+        "fixture-1"
+      ],
+      "executorCapabilities": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "caseDrafts": [
+        {
+          "title": "approval",
+          "ruleVersionIds": [
+            "rule-v1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "preconditions": [],
+          "dataSpec": {
+            "strategy": "fixture",
+            "fixtureId": "other",
+            "params": {}
+          },
+          "steps": [
+            {
+              "role": "applicant",
+              "action": "submit"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "status",
+              "kind": "ui.text",
+              "required": true,
+              "ruleVersionId": "rule-v1",
+              "operator": "equals",
+              "expected": "pending"
+            }
+          ],
+          "cleanup": {
+            "strategy": "namespace"
+          },
+          "priority": "P1",
+          "dimensions": [
+            "HAPPY_PATH"
+          ]
+        }
+      ],
+      "coverageMap": [
+        {
+          "ruleVersionId": "rule-v1",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "HAPPY_PATH"
+          ]
+        }
+      ],
+      "blockedRequirements": []
+    },
+    "valid": false
+  },
+  {
+    "name": "case-missing-coverage",
+    "kind": "cases",
+    "input": {
+      "approvedRuleVersions": [
+        {
+          "id": "rule-v1",
+          "ruleId": "rule-1",
+          "version": 1,
+          "statement": "approval",
+          "classification": "INFERRED",
+          "role": "applicant",
+          "action": "submit",
+          "expectation": "pending",
+          "forbiddenBehaviors": [],
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [],
+          "conflictsWith": [],
+          "reviewStatus": "APPROVED",
+          "supersedesId": null,
+          "origin": "manual",
+          "promptVersion": null,
+          "reviewedBy": null,
+          "reviewedAt": null,
+          "createdAt": "2026-09-18T00:00:00Z"
+        }
+      ],
+      "clarificationSources": [],
+      "roles": [
+        "applicant"
+      ],
+      "fixtureCapabilities": [
+        "fixture-1"
+      ],
+      "executorCapabilities": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "caseDrafts": [
+        {
+          "title": "approval",
+          "ruleVersionIds": [
+            "rule-v1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "preconditions": [],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "UI"
+          },
+          "steps": [
+            {
+              "role": "applicant",
+              "action": "submit"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "status",
+              "kind": "ui.text",
+              "required": true,
+              "ruleVersionId": "rule-v1",
+              "operator": "equals",
+              "expected": "pending"
+            }
+          ],
+          "cleanup": {
+            "strategy": "namespace"
+          },
+          "priority": "P1",
+          "dimensions": [
+            "HAPPY_PATH"
+          ]
+        }
+      ],
+      "coverageMap": [],
+      "blockedRequirements": []
+    },
+    "valid": false
+  },
+  {
+    "name": "case-numeric-without-unit",
+    "kind": "cases",
+    "input": {
+      "approvedRuleVersions": [
+        {
+          "id": "rule-v1",
+          "ruleId": "rule-1",
+          "version": 1,
+          "statement": "approval",
+          "classification": "INFERRED",
+          "role": "applicant",
+          "action": "submit",
+          "expectation": "pending",
+          "forbiddenBehaviors": [],
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [],
+          "conflictsWith": [],
+          "reviewStatus": "APPROVED",
+          "supersedesId": null,
+          "origin": "manual",
+          "promptVersion": null,
+          "reviewedBy": null,
+          "reviewedAt": null,
+          "createdAt": "2026-09-18T00:00:00Z"
+        }
+      ],
+      "clarificationSources": [],
+      "roles": [
+        "applicant"
+      ],
+      "fixtureCapabilities": [
+        "fixture-1"
+      ],
+      "executorCapabilities": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "caseDrafts": [
+        {
+          "title": "approval",
+          "ruleVersionIds": [
+            "rule-v1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "preconditions": [],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "UI"
+          },
+          "steps": [
+            {
+              "role": "applicant",
+              "action": "submit"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "status",
+              "kind": "ui.text",
+              "required": true,
+              "ruleVersionId": "rule-v1",
+              "operator": "gt",
+              "expected": 500000
+            }
+          ],
+          "cleanup": {
+            "strategy": "namespace"
+          },
+          "priority": "P1",
+          "dimensions": [
+            "HAPPY_PATH"
+          ]
+        }
+      ],
+      "coverageMap": [
+        {
+          "ruleVersionId": "rule-v1",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "HAPPY_PATH"
+          ]
+        }
+      ],
+      "blockedRequirements": []
+    },
+    "valid": false
+  },
+  {
+    "name": "case-unapproved-rule",
+    "kind": "cases",
+    "input": {
+      "approvedRuleVersions": [
+        {
+          "id": "rule-v1",
+          "ruleId": "rule-1",
+          "version": 1,
+          "statement": "approval",
+          "classification": "INFERRED",
+          "role": "applicant",
+          "action": "submit",
+          "expectation": "pending",
+          "forbiddenBehaviors": [],
+          "priority": "P1",
+          "businessFields": [],
+          "sources": [],
+          "conflictsWith": [],
+          "reviewStatus": "DRAFT",
+          "supersedesId": null,
+          "origin": "manual",
+          "promptVersion": null,
+          "reviewedBy": null,
+          "reviewedAt": null,
+          "createdAt": "2026-09-18T00:00:00Z"
+        }
+      ],
+      "clarificationSources": [],
+      "roles": [
+        "applicant"
+      ],
+      "fixtureCapabilities": [
+        "fixture-1"
+      ],
+      "executorCapabilities": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "caseDrafts": [
+        {
+          "title": "approval",
+          "ruleVersionIds": [
+            "rule-v1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "preconditions": [],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "UI"
+          },
+          "steps": [
+            {
+              "role": "applicant",
+              "action": "submit"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "status",
+              "kind": "ui.text",
+              "required": true,
+              "ruleVersionId": "rule-v1",
+              "operator": "equals",
+              "expected": "pending"
+            }
+          ],
+          "cleanup": {
+            "strategy": "namespace"
+          },
+          "priority": "P1",
+          "dimensions": [
+            "HAPPY_PATH"
+          ]
+        }
+      ],
+      "coverageMap": [
+        {
+          "ruleVersionId": "rule-v1",
+          "caseCount": 1,
+          "dimensionsCovered": [
+            "HAPPY_PATH"
+          ]
+        }
+      ],
+      "blockedRequirements": []
+    },
+    "valid": false
+  }
+]

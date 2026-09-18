@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { Queue, Worker } from "bullmq";
 import type { PrismaClient } from "@prisma/client";
 import { reconcileAgentJobs } from "../src/agent-job-recovery.js";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -476,3 +476,35 @@ it("运行超过一个心跳周期时续租，保持同一执行所有权", asyn
  } finally {resume.release();await pending;}
  expect((await env.prisma.job.findUniqueOrThrow({where:{id:job.id}})).status).toBe("SUCCEEDED");
 },20000);
+
+it("Python 输出经平台联合校验后落库，调用记录保留实际提示词版本", async()=>{
+ const job=await extractionJob();
+ const docId=(job.request as {documentVersionIds:string[]}).documentVersionIds[0]!;
+ const output=rebaseGolden(loadFixture("01-explicit-prd","expected-rule-drafts.json"),docId);
+ const fetch=vi.spyOn(globalThis,"fetch").mockResolvedValue(new Response(JSON.stringify({
+  schemaVersion:"1.0",requestId:job.id,mode:"mock",output,invocations:[{purpose:"RULE_EXTRACTION",promptVersion:"agents-v1",response:{
+   parsedJson:output,rawText:JSON.stringify(output),repairsApplied:[],provider:"mock",model:"mock",requestId:"py-model-1",
+   usage:{inputTokens:1,outputTokens:2},latencyMs:1,outcome:"SUCCESS",
+  }}],
+ }),{status:200}));
+ try {await processAgentJob(env.prisma,{...cfg(),intelligenceBackend:"python",intelligenceUrl:"http://python.invalid",intelligenceToken:"fake-test"},job.id);}
+ finally {fetch.mockRestore();}
+ const done=await env.prisma.job.findUniqueOrThrow({where:{id:job.id}});
+ expect(done.status).toBe("SUCCEEDED");
+ expect(await env.prisma.ruleVersion.count({where:{rule:{projectId:job.projectId},promptVersion:"agents-v1"}})).toBe(3);
+ expect(await env.prisma.modelInvocation.count({where:{projectId:job.projectId,promptVersion:"agents-v1",requestId:"py-model-1"}})).toBe(1);
+});
+it("Python 传回伪造来源也被平台阻断，不能写入草稿", async()=>{
+ const job=await extractionJob();
+ const docId=(job.request as {documentVersionIds:string[]}).documentVersionIds[0]!;
+ const output=rebaseGolden(loadFixture("01-explicit-prd","expected-rule-drafts.json"),docId) as any;
+ output.ruleDrafts[0].sources[0].sourceSpanIds=["fabricated-python-span"];
+ const fetch=vi.spyOn(globalThis,"fetch").mockResolvedValue(new Response(JSON.stringify({
+  schemaVersion:"1.0",requestId:job.id,mode:"mock",output,invocations:[],
+ }),{status:200}));
+ try {await processAgentJob(env.prisma,{...cfg(),intelligenceBackend:"python",intelligenceUrl:"http://python.invalid",intelligenceToken:"fake-test"},job.id);}
+ finally {fetch.mockRestore();}
+ const done=await env.prisma.job.findUniqueOrThrow({where:{id:job.id}});
+ expect(done.status).toBe("FAILED");expect((done.error as any).code).toBe("MODEL_OUTPUT_INVALID");
+ expect(await env.prisma.rule.count({where:{projectId:job.projectId}})).toBe(0);
+});

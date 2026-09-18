@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aiqa-intelligence"
+version = "0.1.0"
+description = "AI QA document parsing and agent service; platform owns persistence and jobs"
+requires-python = ">=3.11"
+dependencies = ["fastapi==0.141.1", "uvicorn==0.53.0", "httpx==0.28.1", "pydantic==2.13.5", "jsonschema==4.26.0"]
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1", "datamodel-code-generator==0.82.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+aiqa_intelligence = ["contracts/*.json"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

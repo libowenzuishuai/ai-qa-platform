@@ -1,0 +1,25 @@
+name: Intelligence contracts and Python
+on:
+  push:
+  pull_request:
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pnpm install --frozen-lockfile
+      - run: python -m venv services/intelligence/.venv
+      - run: services/intelligence/.venv/bin/python -m pip install -r services/intelligence/requirements-dev.lock
+      - run: pnpm contracts:check
+      - run: services/intelligence/.venv/bin/python services/intelligence/scripts/generate_models.py --check
+      - run: pnpm test:contracts
+      - run: pnpm test:intelligence
