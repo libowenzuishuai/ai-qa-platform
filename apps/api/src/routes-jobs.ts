@@ -101,7 +101,7 @@ export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jo
           field: "documentVersionIds",
         });
       }
-      if (body.mode === "real" && row.mode !== "real" && ["PNG", "JPEG"].includes(row.format)) throw new ApiError("VALIDATION_ERROR", "模拟视觉转录不能用于真实规则提取");
+      if (body.mode === "real" && row.mode !== "real" && ["PNG", "JPEG", "PDF_TEXT", "PDF_SCANNED"].includes(row.format)) throw new ApiError("VALIDATION_ERROR", "模拟视觉转录不能用于真实规则提取");
       if (row.parseStatus === "NEEDS_OCR") {
         throw new ApiError("NEEDS_OCR", "该文档版本需要 OCR，不能直接提取规则", { documentVersionId: docId });
       }

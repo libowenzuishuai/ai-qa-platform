@@ -45,17 +45,48 @@ def _child(sender, data, document_id, format):
         sender.close()
 
 
+def _render_child(sender, data, page):
+    from .pdf_images import render_page
+
+    try:
+        # Bound native decoding memory on Linux; wall time is bounded on all OSes.
+        import sys
+
+        if sys.platform == "linux":
+            import resource
+
+            resource.setrlimit(resource.RLIMIT_AS, (1024**3, 1024**3))
+        try:
+            sender.send({"image": render_page(data, page)})
+        except Exception:
+            sender.send({"error": "PDF 页面无法渲染或超过资源限制"})
+    finally:
+        sender.close()
+
+
 class ParseRunner:
     def __init__(self):
         self.slots = asyncio.Semaphore(2)
 
     async def run(self, data: bytes, document_id: str, format: str) -> dict:
+        return await self._execute(_child, (data, document_id, format))
+
+    async def render(self, data: bytes, page: int) -> bytes:
+        try:
+            result = await asyncio.wait_for(
+                self._execute(_render_child, (data, page)), 15
+            )
+        except TimeoutError as exc:
+            raise ServiceError("MODEL_TIMEOUT", "PDF 页面渲染超时", 504) from exc
+        if "error" in result:
+            raise ServiceError("VALIDATION_ERROR", result["error"])
+        return result["image"]
+
+    async def _execute(self, target, args) -> dict:
         async with self.slots:
             ctx = multiprocessing.get_context("spawn")
             receiver, sender = ctx.Pipe(duplex=False)
-            process = ctx.Process(
-                target=_child, args=(sender, data, document_id, format), daemon=True
-            )
+            process = ctx.Process(target=target, args=(sender, *args), daemon=True)
             try:
                 process.start()
                 sender.close()

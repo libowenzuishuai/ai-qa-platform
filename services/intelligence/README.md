@@ -21,7 +21,7 @@ pnpm dev:intelligence
 
 服务监听 `127.0.0.1:7500`。以上令牌只用于本机开发示例；共享/部署环境使用自己的令牌。服务不自动读取根 `.env`，凭据由进程环境注入，避免测试意外调用付费模型。
 
-需要模型时设置现有 `AIQA_TEXT_*` / `AIQA_VISION_*` 环境变量。只有显式 real 调用会访问 Moonshot；mock 查表未命中直接失败。Python 网关目前严格 JSON 解析（修复次数为 0），不修改业务正文；网络协议用 mock transport 测试，尚未做真实 Kimi 验证。
+需要模型时设置现有 `AIQA_TEXT_*` / `AIQA_VISION_*` 环境变量。只有显式 real 调用会访问 Moonshot；mock 查表未命中直接失败。Python 网关目前严格 JSON 解析（修复次数为 0），不修改业务正文；网络协议用 mock transport 测试。2026-09-18 已完成 Kimi 2.6 真实文本连通和两页 PDF 视觉识别验证，见 [验收记录](../../docs/reviews/pdf-kimi-vision-2026-09-18.md)；这不代表 C 的生成算法已验收。
 
 ## API 与 worker 切换
 
@@ -51,12 +51,13 @@ NEEDS_OCR 是合法解析结果，HTTP 200 返回对应 bundle；下游规则提
 
 - Markdown/TXT：UTF-8 原文与真实行号，标题/列表均有来源；Markdown 表格、代码块、图片/HTML 源文本标为 LOW，绝不加载外部资源。TXT 行号沿用契约的 markdown-line 定位。
 - DOCX：正文段落索引保留空段落；表格按零起始 tableIndex/row/col 定位，合并单元格记录主单元格。段落编号只计正文直接段落、表格编号只计正文直接表格。嵌套表格、图片、修订、页眉页脚等遗漏有警告/可定位的 UNPARSED 记录，不宣称完整解析。
-- PDF：按真实页号提取文字；空白或无法提取文字的页保留 UNPARSED。全部无文字时返回 PDF_SCANNED/NEEDS_OCR；混合文档保留可读文字与遗漏页。对含嵌入图像的无文字层页面尝试视觉 OCR（`pdf-page` + LOW）；无嵌入图像的空白/扫描页仍 NEEDS_OCR。复杂表格和多栏阅读顺序尚未实现。
+- PDF：先读取真实页数/文字层，再将每一页完整渲染为 PNG，交给 Kimi 2.6 视觉模型；包含扫描页、同页多图、文字与图片混排以及矢量图形。不使用独立 OCR 引擎。模型全文保留为 `pdf-page` + LOW，扫描源保留 PDF_SCANNED 格式。模型表示识别不完整、无有效输出、渲染失败或超过页数预算时，均留下 UNPARSED 片段及具体页码警告；已有文字层只作为明确标记的局部回退。PARSED 表示有可用正文，不等于无遗漏，应同时查看 coverageSummary。
 - PNG/JPEG：验证真实文件/格式/像素后走共享视觉网关。全文保留，整图归一化 bbox=[0,0,1,1]、LOW；无有效转录返回 NEEDS_OCR。凭据缺失/超时继续返回明确错误，不包装成解析成功。
+- 视觉预算：每文档最多 20 页模型请求，每页最多 4096 输出 token，每次调用 60 秒、整份文档 120 秒（外层 HTTP/worker 更短预算优先）。模型返回 length/content_filter 等未完成响应即拒绝；不把截断 JSON 当有效正文。页面渲染最多 2048 像素长边、约 419 万像素、16 MB PNG、单页渲染 15 秒。正文总上限在模型回填后仍强制执行。Kimi 2.6 视觉请求关闭思考，使用 JSON mode。
 - 上限：源文件 20 MB，PDF 200 页，提取文本 200 万字符/20000 块，图片 2000 万像素且单帧，视觉文本 10 万字符；DOCX 解压总量 64 MB/2000 条目，单 XML 16 MB。超限显式失败，不静默截断。
-- CPU 解析每个服务进程最多两个子进程，请求超时/取消时终止实际子进程。服务部署使用只读证据目录和容器资源上限；本版没有做生产负载验收。
+- CPU 解析每个服务进程最多两个子进程，请求超时/取消时终止实际子进程，整页渲染共用这两个名额。Linux 渲染子进程另限地址空间 1 GiB；其他系统依赖部署内存限制。服务部署使用只读证据目录和容器资源上限；本版没有做生产负载验收。
 
-`pnpm test:doc-ingestion` 运行解析回归；依赖 pypdf（BSD-3-Clause）、python-docx（MIT）、Pillow（MIT-CMU）、defusedxml（PSF），lxml（BSD）为 DOCX 间接依赖。版本固定在 pyproject 和 requirements-dev.lock。扫描 OCR 不额外安装系统工具。
+`pnpm test:doc-ingestion` 运行解析回归；依赖 pypdf（BSD-3-Clause）、pypdfium2（Apache-2.0/BSD-3-Clause，含 PDFium 第三方许可证）、python-docx（MIT）、Pillow（MIT-CMU）、defusedxml（PSF），lxml（BSD）为 DOCX 间接依赖。版本固定在 pyproject 和 requirements-dev.lock。PDFium wheel 提供本地页面渲染，不额外安装 Tesseract/PaddleOCR 等引擎。
 
 ## 开发入口
 
@@ -93,3 +94,16 @@ docker compose --profile intelligence up --build intelligence
 ```
 
 容器内 worker 使用 `http://intelligence:7500`，证据目录只读挂载。Dockerfile 已提供，本轮仅验证本地进程路径；镜像构建/部署单独验收。不要挂载整个仓库或给 Python 配置数据库权限。
+
+## 显式真实模型验收
+
+默认测试全部离线，不读取 `.env.local`，不会调用付费模型。手动验收只发送脚本生成的两页合成 PDF：
+
+```sh
+PYTHONPATH=services/intelligence/src services/intelligence/.venv/bin/python \
+  services/intelligence/scripts/verify_kimi_vision.py --env-file .env.local
+```
+
+本地 `.env.local`（已被 Git 忽略）使用 `AIQA_VISION_PROVIDER=moonshot`、`AIQA_VISION_BASE_URL=https://api.moonshot.cn/v1`、`AIQA_VISION_MODEL=kimi-k2.6` 和自己的 `AIQA_VISION_API_KEY`。服务启动时将这些变量注入进程环境；脚本的 `--env-file` 不会自动影响其他进程。若本机设置了 SOCKS `ALL_PROXY` 但没有安装对应 httpx 可选依赖，可仅在该次命令前使用 `env -u ALL_PROXY -u all_proxy`；无需修改全局代理。
+
+PDF/图片的 mock 或模式未知解析产物都不能进入 real 规则提取，API 和 worker 会重复检查。旧状态名 `NEEDS_OCR` 为兼容协议保留，界面含义是“待识别/人工复核”，不代表采用了 OCR 引擎。

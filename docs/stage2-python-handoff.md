@@ -12,7 +12,7 @@
 - TS worker 的 Python 调用开关，以及规则/用例结果返回后的二次校验和事务落库。
 - 两端共用 19 个合法/反例契约样例；Python 和实际 HTTP 测试；生成物漂移检查 CI。
 
-**B 首版已实现**：Markdown/TXT、结构化 DOCX、逐页文字 PDF 与图片视觉网关接入；`DocumentParser.ready=True`。扫描 OCR、复杂表格等限制见服务 README。
+**B 首版已实现**：Markdown/TXT、结构化 DOCX、逐页文字 PDF 与图片视觉网关接入；`DocumentParser.ready=True`。已追加 Kimi 2.6 整页 PDF 视觉识别及真实模型小样验证；复杂表格等限制见服务 README。
 
 **A 平台接线已实现**：上传/版本登记、DOCUMENT_PARSE 作业、解析文件与来源落库、澄清回答与规则批准、最小审阅页面；详见 [平台工作台](stage2-platform-workbench.md)。
 
@@ -25,7 +25,7 @@
 | 人 | 独占主要目录 | 本轮任务 | 不重复实现 |
 |---|---|---|---|
 | A / 李博闻 | `apps/api`、`apps/worker`、`apps/web`；Python 的 app/context/models/storage/contracts | 上传/解析作业接线、平台审阅和澄清、版本/证据落库、集成验收；维护公共契约和模型网关 | 不代替 B/C 开发解析或生成算法 |
-| B / 原泽菲 | `services/intelligence/src/aiqa_intelligence/doc_ingestion`、`tests/doc_ingestion` | Python 文档解析、OCR/表格/来源定位，返回 ParsedDocumentBundle | 不建作业队列、不写数据库、不另做模型 SDK |
+| B / 原泽菲 | `services/intelligence/src/aiqa_intelligence/doc_ingestion`、`tests/doc_ingestion` | Python 文档解析、视觉识别/表格/来源定位，返回 ParsedDocumentBundle | 不建作业队列、不写数据库、不另做模型 SDK |
 | C / 李琦双 | `services/intelligence/src/aiqa_intelligence/agents`、`tests/agents` | 规则提取、冲突澄清草稿、用例生成、提示词/分块/覆盖分析 | 不写 API/worker、不分配 DB 版本 ID、不重写浏览器执行器 |
 
 公共契约、依赖锁文件和服务入口由 A 汇总修改。B/C 增加依赖时同时说明用途及许可证/运行要求，由 A 合并锁文件；不要各自升级全项目依赖。
@@ -58,7 +58,7 @@ async def parse_document(self, input: DocumentParseInput, context: RequestContex
 
 `phase2/doc-ingestion` 至 `6ed386f` 的提交历史与修正意图已合入并迁为 Python 实现；主干不保留第二套 TS 解析代码。详见 [本次评审](reviews/doc-ingestion-6ed386f.md)。
 
-B 下一步从更新后的 main 开 `phase2/python-doc-ingestion`：扫描 PDF OCR、精细图片文字框、复杂/嵌套表格与遗漏覆盖率。先与 A 对齐定位契约，不沿旧 TS 包继续写。
+B 的 `802f141` 已保留历史并追加整页 Kimi 视觉识别修正，见 [验收记录](reviews/pdf-kimi-vision-2026-09-18.md)。B 下一步先同步 main，继续精细图片文字框、复杂/嵌套表格与代表性资料识别评测；不要重复实现本次全页视觉链路。定位契约变更先与 A 对齐。
 
 ## 4. C：从这里开始
 

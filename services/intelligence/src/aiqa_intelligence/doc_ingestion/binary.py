@@ -30,12 +30,12 @@ def parse_pdf(data: bytes, bundle: Bundle):
         else:
             bundle.add("", locator, quality="UNPARSED", page=number)
             bundle.warn(
-                f"PDF 第 {number} 页未提取到文字：可能为空白或扫描页，需要检查/OCR"
+                f"PDF 第 {number} 页未提取到文字：可能为空白或扫描页，需要模型识别/人工复核"
             )
     has_text = any(b["text"].strip() for b in bundle.blocks)
     bundle.format = "PDF_TEXT" if has_text else "PDF_SCANNED"
     if not has_text:
-        bundle.warn("未提取到文字层；将尝试对含嵌入图像的页面执行 OCR")
+        bundle.warn("未提取到文字层；将尝试整页视觉大模型识别")
     return "PARSED" if has_text else "NEEDS_OCR"
 
 

@@ -26,6 +26,7 @@ from aiqa_intelligence.doc_ingestion.service import (
     DocumentParser,
     VISION_HINT,
     VISION_SCHEMA,
+    page_vision_request,
 )
 from aiqa_intelligence.errors import ServiceError
 from aiqa_intelligence.models import Gateway
@@ -364,24 +365,17 @@ def test_cancellation_terminates_actual_parser_child():
     asyncio.run(cancel())
 
 
-def register_pdf_ocr_mocks(gateway, pages: dict[int, str], storage_key: str = "source"):
+def register_pdf_ocr_mocks(gateway, pages: dict[int, str], input):
     for page, text in pages.items():
         gateway.register_mock(
-            VisionModelRequest(
-                purpose="VISION_DESCRIBE",
-                imageStorageKey=f"{storage_key}#page-{page}",
-                hint=VISION_HINT,
-                outputSchema=VISION_SCHEMA,
-                timeoutMs=60_000,
-            ),
-            {"text": text},
+            page_vision_request(input, page), {"text": text, "complete": True}
         )
 
 
 def parse_pdf_with_ocr(tmp_path, pdf_data, pages: dict[int, str], *, format="PDF_TEXT"):
     input = input_for(tmp_path, pdf_data, format)
     gateway = Gateway("mock", ArtifactReader(tmp_path), "test", [])
-    register_pdf_ocr_mocks(gateway, pages)
+    register_pdf_ocr_mocks(gateway, pages, input)
     context = RequestContext("req", "mock", ArtifactReader(tmp_path), gateway)
     result = asyncio.run(DocumentParser().parse_document(input, context)).model_dump(
         mode="json", exclude_unset=True
@@ -390,20 +384,20 @@ def parse_pdf_with_ocr(tmp_path, pdf_data, pages: dict[int, str], *, format="PDF
     return result
 
 
-def test_scanned_pdf_ocr_promotes_needs_ocr_to_parsed(tmp_path):
+def test_scanned_pdf_vision_preserves_source_format(tmp_path):
     body = parse_pdf_with_ocr(
         tmp_path, scanned_pdf(["金额超过 5000 元须审批"]), {1: "金额超过 5000 元须审批"}
     )
     assert body["parseStatus"] == "PARSED"
-    assert body["format"] == "PDF_TEXT"
+    assert body["format"] == "PDF_SCANNED"
     assert body["spans"][0]["quotedText"] == "金额超过 5000 元须审批"
     assert body["spans"][0]["extractionQuality"] == "LOW"
     assert body["spans"][0]["locator"] == {"kind": "pdf-page", "page": 1}
     assert body["coverageSummary"]["lowSpans"] == 1
-    assert any("嵌入图像 OCR" in w for w in body["warnings"])
+    assert any("视觉大模型" in w for w in body["warnings"])
 
 
-def test_mixed_pdf_ocr_fills_only_empty_page(tmp_path):
+def test_mixed_pdf_vision_covers_every_page(tmp_path):
     mixed = scanned_pdf(["SecondScan"])
     writer = PdfWriter()
     writer.add_page(PdfReader(BytesIO(pdf(["FirstPage"]))).pages[0])
@@ -411,17 +405,17 @@ def test_mixed_pdf_ocr_fills_only_empty_page(tmp_path):
     output = BytesIO()
     writer.write(output)
     body = parse_pdf_with_ocr(
-        tmp_path, output.getvalue(), {2: "SecondScan"}
+        tmp_path, output.getvalue(), {1: "FirstPage", 2: "SecondScan"}
     )
     assert body["parseStatus"] == "PARSED"
-    assert body["spans"][0]["extractionQuality"] == "GOOD"
+    assert body["spans"][0]["extractionQuality"] == "LOW"
     assert body["spans"][0]["quotedText"].strip() == "FirstPage"
     assert body["spans"][1]["extractionQuality"] == "LOW"
     assert body["spans"][1]["quotedText"] == "SecondScan"
     assert body["coverageSummary"] == {
         "totalBlocks": 2,
-        "goodSpans": 1,
-        "lowSpans": 1,
+        "goodSpans": 0,
+        "lowSpans": 2,
         "unparsedSpans": 0,
     }
 

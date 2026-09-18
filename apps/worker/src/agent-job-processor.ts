@@ -196,7 +196,7 @@ async function runRuleExtraction(
   for (const documentVersionId of request.documentVersionIds) {
     const doc = await prisma.documentVersion.findUnique({ where: { id: documentVersionId }, include: { document: true } });
     if (!doc || doc.document.projectId !== job.projectId || doc.parseStatus !== "PARSED") throw Object.assign(new Error("文档不属于项目或未解析"), { code: "VALIDATION_ERROR" });
-    if (request.mode === "real" && doc.mode !== "real" && ["PNG", "JPEG"].includes(doc.format)) throw Object.assign(new Error("模拟视觉转录不能用于真实规则提取"), { code: "VALIDATION_ERROR" });
+    if (request.mode === "real" && doc.mode !== "real" && ["PNG", "JPEG", "PDF_TEXT", "PDF_SCANNED"].includes(doc.format)) throw Object.assign(new Error("模拟视觉转录不能用于真实规则提取"), { code: "VALIDATION_ERROR" });
     const key = doc.bundleStorageKey ?? bundleStorageKey(documentVersionId);
     if (doc.fileSizeBytes !== null && (!doc.bundleStorageKey || !store.verify(key, doc.bundleChecksum))) throw Object.assign(new Error("解析产物缺失或被篡改"), { code: "VALIDATION_ERROR" });
     let raw: string;

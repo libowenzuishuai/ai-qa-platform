@@ -275,3 +275,28 @@ it("上传入队失败仍可靠登记，对账补投后正常解析", async () =
   } finally { worker.resume(); }
   expect((await waitJob(id!)).status).toBe("SUCCEEDED");
 });
+
+it("模拟或模式未知的 PDF 视觉产物：API 和 worker 都拒绝进入真实规则生成", async () => {
+  const source = await env.prisma.document.create({ data: { projectId, title: "PDF 模式边界" } });
+  let version = 0;
+  for (const format of ["PDF_TEXT", "PDF_SCANNED"]) {
+    for (const mode of ["mock", "unknown"]) {
+      const doc = await env.prisma.documentVersion.create({ data: {
+        documentId: source.id, version: ++version, format, mode, parseStatus: "PARSED", checksum: "test-only", storageKey: "test-only",
+      } });
+      const response = await post(`/api/projects/${projectId}/rule-extractions`, { documentVersionIds: [doc.id], mode: "real" });
+      expect(response.statusCode).toBe(422);
+      expect(response.json().message).toContain("模拟视觉");
+      // Bypass HTTP and deliver a job directly: the worker repeats the check.
+      const job = await env.prisma.job.create({ data: { projectId, kind: "RULE_EXTRACTION", fingerprint: `pdf-mode-${doc.id}`,
+        request: { documentVersionIds: [doc.id], mode: "real" } } });
+      const invocations = await env.prisma.modelInvocation.count();
+      await processAgentJob(env.prisma, cfg(), job.id);
+      const result = await env.prisma.job.findUniqueOrThrow({ where: { id: job.id } });
+      expect(result.status).toBe("FAILED");
+      expect((result.error as any).code).toBe("VALIDATION_ERROR");
+      expect((result.error as any).message).toContain("模拟视觉");
+      expect(await env.prisma.modelInvocation.count()).toBe(invocations);
+    }
+  }
+});

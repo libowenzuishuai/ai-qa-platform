@@ -138,6 +138,11 @@ class Gateway:
                 "messages": messages,
                 "response_format": {"type": "json_object"},
             }
+            if channel == "VISION":
+                # Bounded transcription output, shared across images and PDF pages.
+                body["max_tokens"] = 4096
+                if model == "kimi-k2.6":
+                    body["thinking"] = {"type": "disabled"}
             for source, target in [
                 ("temperature", "temperature"),
                 ("maxOutputTokens", "max_tokens"),
@@ -165,6 +170,8 @@ class Gateway:
                 raise ServiceError("DEPENDENCY_UNAVAILABLE", "模型服务返回错误", 503)
             try:
                 data = res.json()
+                if data["choices"][0].get("finish_reason") not in (None, "stop"):
+                    raise ValueError("Model output was truncated or interrupted")
                 raw = data["choices"][0]["message"]["content"]
                 parsed = json.loads(raw)
                 request_id = res.headers.get("x-request-id") or data.get("id")

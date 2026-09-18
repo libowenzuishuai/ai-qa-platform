@@ -15,7 +15,7 @@ SSE 实时进度（数据库原子序号）→ 报告（FR-10 严格验收、证
 
 **阶段 2 已实现**：契约与三套样例、Moonshot 文本/视觉与 mock 适配器、规则提取/用例生成作业 API 与参考管线。新作业具备可靠落库、补投、心跳、失联失败与显式重试；资产和成功状态在事务中提交。用例仍为 DRAFT，不代表已经可自动执行。
 
-**阶段 2 评审**：A 通道七项修复与验证见 [修复记录](reviews/stage2-a-fixes-2026-09-18.md)。B 通道 `phase2/doc-ingestion` 至 `6ed386f` 已按 Python 架构迁移并修复合入，首版范围与未实现能力见 [最新解析库评审](reviews/doc-ingestion-6ed386f.md)；[初版评审](reviews/doc-ingestion-f07f928.md) 仅作为历史记录。C 的正式 Python agents 实现尚未合入。此前真实 Kimi 测试记录不等于本次复测，本次未调用真实模型。
+**阶段 2 评审**：A 通道七项修复与验证见 [修复记录](reviews/stage2-a-fixes-2026-09-18.md)。B 通道 `phase2/doc-ingestion` 至 `6ed386f` 已按 Python 架构迁移并修复合入，首版范围与未实现能力见 [最新解析库评审](reviews/doc-ingestion-6ed386f.md)；[初版评审](reviews/doc-ingestion-f07f928.md) 仅作为历史记录。C 的正式 Python agents 实现尚未合入。本次 B 增量已真实调用 Kimi 2.6：文本连通及两页合成 PDF 视觉识别通过；正式规则/用例生成的真实模型闭环仍未验收，详见 [PDF 视觉验收](reviews/pdf-kimi-vision-2026-09-18.md)。
 
 **A 新增交付**：文档上传/版本登记与解析作业、解析产物校验和与来源落库、澄清回答/规则批准约束、资料/用例审阅和失败重试页面。真实浏览器与 Python 解析联调通过，C 使用测试专用协议替身。详见 [平台工作台](stage2-platform-workbench.md)。
 

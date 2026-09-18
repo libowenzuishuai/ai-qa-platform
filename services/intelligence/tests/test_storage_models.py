@@ -118,3 +118,65 @@ def test_real_http_protocol_without_external_network(tmp_path, monkeypatch):
         )
     )
     assert result.usage.inputTokens == 3 and result.requestId == "r-1"
+
+
+@pytest.mark.parametrize("finish_reason", ["stop", "length", "content_filter"])
+def test_kimi_vision_budget_and_truncated_json_rejected(
+    tmp_path, monkeypatch, finish_reason
+):
+    import json
+    import base64
+    from io import BytesIO
+    from PIL import Image
+
+    for name, value in {
+        "PROVIDER": "moonshot",
+        "BASE_URL": "https://model.invalid/v1",
+        "MODEL": "kimi-k2.6",
+        "API_KEY": "test-only",
+    }.items():
+        monkeypatch.setenv("AIQA_VISION_" + name, value)
+    image = BytesIO()
+    Image.new("RGB", (10, 10), "red").save(image, format="PNG")
+    original = httpx.AsyncClient
+
+    def handle(request):
+        body = json.loads(request.content)
+        assert body["model"] == "kimi-k2.6"
+        assert body["max_tokens"] == 4096
+        assert body["thinking"] == {"type": "disabled"}
+        url = body["messages"][0]["content"][1]["image_url"]["url"]
+        assert base64.b64decode(url.split(",", 1)[1]) == image.getvalue()
+        return httpx.Response(
+            200,
+            json={
+                "id": "vision-r",
+                "choices": [
+                    {
+                        "finish_reason": finish_reason,
+                        "message": {"content": '{"text":"ok"}'},
+                    }
+                ],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 4},
+            },
+        )
+
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda **kwargs: original(transport=httpx.MockTransport(handle), **kwargs),
+    )
+    gateway = Gateway("real", ArtifactReader(tmp_path), "test", [])
+    request = VisionModelRequest(
+        purpose="VISION_DESCRIBE",
+        imageStorageKey="source#page=1",
+        hint="read",
+        timeoutMs=1000,
+    )
+    if finish_reason == "stop":
+        result = asyncio.run(gateway.describe_image_bytes(request, image.getvalue()))
+        assert result.requestId == "vision-r" and result.usage.inputTokens == 10
+    else:
+        with pytest.raises(ServiceError) as error:
+            asyncio.run(gateway.describe_image_bytes(request, image.getvalue()))
+        assert error.value.code == "MODEL_OUTPUT_INVALID"
