@@ -1,6 +1,6 @@
 # AI 测试人员平台
 
-> 阶段二采用 **TypeScript 平台 + Python 智能服务**。三人开工请先读 [分工与接口清单](docs/stage2-python-handoff.md)，Python 启动见 [服务说明](services/intelligence/README.md)。B 首版 Python 文档解析已实现；C 正式生成算法与平台上传/解析作业接线待完成。
+> 阶段二采用 **TypeScript 平台 + Python 智能服务**。三人开工请先读 [分工与接口清单](docs/stage2-python-handoff.md)，Python 启动见 [服务说明](services/intelligence/README.md)。B 首版 Python 文档解析已实现；A 上传/解析/审阅平台接线已完成；C 正式生成算法与现场执行绑定待完成。
 根据版本化产品资料（PRD、业务说明、原型）形成有依据的规则与用例，在多人
 开发合并后的 Web 测试环境中独立执行验收测试，输出可追溯报告、缺陷与复测。
 
@@ -112,3 +112,5 @@ docker compose down -v        # 连同数据库卷一起删除（谨慎）
 ## 产品设计与路线
 
 完整定位、模块设计、Harness 与代码测试规划、三人分工见 [产品设计与开发路线](docs/product-design-and-roadmap.md)。
+
+资料上传、规则审阅与作业恢复的接口、升级和验收说明见 [阶段二平台工作台](docs/stage2-platform-workbench.md)。

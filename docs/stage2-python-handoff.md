@@ -14,7 +14,9 @@
 
 **B 首版已实现**：Markdown/TXT、结构化 DOCX、逐页文字 PDF 与图片视觉网关接入；`DocumentParser.ready=True`。扫描 OCR、复杂表格等限制见服务 README。
 
-**尚未实现**：正式 agents 管线、文档上传与 DOCUMENT_PARSE 作业接线、完整审阅页面。C 模块仍 `ready=False` 并明确返回 503。
+**A 平台接线已实现**：上传/版本登记、DOCUMENT_PARSE 作业、解析文件与来源落库、澄清回答与规则批准、最小审阅页面；详见 [平台工作台](stage2-platform-workbench.md)。
+
+**尚未实现**：C 正式 agents 管线、现场执行计划绑定、完整用例编辑/批准流程及真实模型全链路验收。C 模块仍 `ready=False` 并明确返回 503。
 
 现有参考模式仍可用。选择 Python 后，服务或模块不可用就失败，不回退 reference/mock。模块完成验收后再显式切换默认配置。
 
@@ -92,13 +94,13 @@ async def generate_cases(self, input: CaseGenerationInput, context: RequestConte
 
 按顺序：
 
-1. 实现上传文件 → 文档/版本登记 → DOCUMENT_PARSE 入队；接入已提供的 `/v1/documents/parse` 客户端；验证实际大小/校验和与项目归属。
-2. 将 B 返回的 bundle 写入 `bundles/{documentVersionId}/bundle.json`，来源片段/解析状态落库；文件写入和数据库提交失败可恢复，失败不留下可用假产物。
-3. 补澄清回答与批准闭环。用例生成只传相关、已确认的澄清来源，不能继续传未解决记录。
-4. 补最小资料/规则/用例审阅页面，展示模拟模式、失败原因和显式重试入口。
-5. B/C 合入后跑完整 HTTP→队列→Python→资产落库→审阅流程，再做独立的真实 Kimi 验证。
+1. 【已实现】上传文件 → 文档/版本登记 → DOCUMENT_PARSE 入队；接入已提供的 `/v1/documents/parse` 客户端；验证实际大小/校验和与项目归属。
+2. 【已实现】B 返回的 bundle 按执行租约写入唯一文件，通过数据库 bundleStorageKey/checksum 发布；来源片段、解析状态与作业终态事务提交。旧固定 bundle.json 仅兼容历史种子。
+3. 【已实现】澄清回答与批准闭环。用例生成只传相关、已确认的澄清来源，不能继续传未解决记录。
+4. 【已实现】最小资料/规则/用例审阅页面，展示模拟模式、失败原因和显式重试入口。
+5. 【接线已验收，真实生成待 C】真实 HTTP→队列→Python 文档解析→资产落库→浏览器审阅已验收；规则/用例使用明确标注的 C 协议替身。待 C 合入后再做正式算法及真实 Kimi 验证。
 
-当前已完成跨语言基建与 B 首版解析；以上五项平台集成工作仍未完成。
+A 当前可独立完成的平台接线已交付；后续继续现场绑定和正式模型验收。生产数据迁移与启动说明见平台工作台文档。
 
 ## 6. 契约与接线纪律
 

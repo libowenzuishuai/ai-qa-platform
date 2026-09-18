@@ -19,6 +19,7 @@ import {
   MoonshotTextAdapter,
   requireChannelConfig,
 } from "@ai-qa/model-adapters";
+import { runDocumentParse, markDocumentFailed } from "./document-job.js";
 import { callIntelligence } from "./intelligence-client.js";
 import type { WorkerConfig } from "./config.js";
 import {
@@ -41,7 +42,7 @@ import {
 
 type JobError = { code: string; message: string; requestId: string; details?: unknown };
 
-async function failJob(prisma: PrismaClient, job: JobRow, err: unknown): Promise<void> {
+async function failJob(prisma: PrismaClient, job: JobRow & { kind: string }, err: unknown): Promise<void> {
   const error: JobError =
     err instanceof Error && "code" in err && typeof (err as { code?: unknown }).code === "string"
       ? {
@@ -53,13 +54,16 @@ async function failJob(prisma: PrismaClient, job: JobRow, err: unknown): Promise
             : {}),
         }
       : { code: "INTERNAL", message: String(err).slice(0, 500), requestId: job.id };
-  await prisma.job.updateMany({
+  await prisma.$transaction(async tx => {
+  const changed = await tx.job.updateMany({
     where: ownedJob(job),
     data: {
       status: "FAILED",
       error: error as never,
       finishedAt: new Date(),
     },
+  });
+  if (changed.count) await markDocumentFailed(tx, job);
   });
 }
 
@@ -142,7 +146,9 @@ export async function processAgentJob(
   heartbeat.unref();
   try {
     const store = new ArtifactStore(config.artifactDir);
-    if (job.kind === "RULE_EXTRACTION") {
+    if (job.kind === "DOCUMENT_PARSE") {
+      await runDocumentParse(prisma, store, job, config, commitJob);
+    } else if (job.kind === "RULE_EXTRACTION") {
       await runRuleExtraction(prisma, store, job, config);
     } else if (job.kind === "CASE_GENERATION") {
       await runCaseGeneration(prisma, job, config);
@@ -188,9 +194,14 @@ async function runRuleExtraction(
   // 加载 bundle（artifact-store）+ 二验 PARSED。
   const bundles = [];
   for (const documentVersionId of request.documentVersionIds) {
+    const doc = await prisma.documentVersion.findUnique({ where: { id: documentVersionId }, include: { document: true } });
+    if (!doc || doc.document.projectId !== job.projectId || doc.parseStatus !== "PARSED") throw Object.assign(new Error("文档不属于项目或未解析"), { code: "VALIDATION_ERROR" });
+    if (request.mode === "real" && doc.mode !== "real" && ["PNG", "JPEG"].includes(doc.format)) throw Object.assign(new Error("模拟视觉转录不能用于真实规则提取"), { code: "VALIDATION_ERROR" });
+    const key = doc.bundleStorageKey ?? bundleStorageKey(documentVersionId);
+    if (doc.fileSizeBytes !== null && (!doc.bundleStorageKey || !store.verify(key, doc.bundleChecksum))) throw Object.assign(new Error("解析产物缺失或被篡改"), { code: "VALIDATION_ERROR" });
     let raw: string;
     try {
-      raw = store.read(bundleStorageKey(documentVersionId)).toString("utf8");
+      raw = store.read(key).toString("utf8");
     } catch {
       throw Object.assign(new Error(`bundle 不存在：${documentVersionId}`), {
         code: "VALIDATION_ERROR",
@@ -216,6 +227,7 @@ async function runRuleExtraction(
         details: { documentVersionId },
       });
     }
+    if (parsed.data.documentVersionId !== documentVersionId) throw Object.assign(new Error("解析版本引用不匹配"), { code: "VALIDATION_ERROR" });
     bundles.push(parsed.data);
   }
 
@@ -269,6 +281,7 @@ async function runRuleExtraction(
           conflictsWith: draft.conflictsWith.map((key) => keyToRuleVersionId.get(key)!) as never,
           reviewStatus: "DRAFT",
           origin: "model",
+          generationMode: request.mode,
           promptVersion: input.promptVersion,
         },
       });
@@ -327,6 +340,7 @@ export async function buildCaseGenerationJobInput(
 
   const approved = [];
   for (const row of ruleRows) {
+    if (row.rule.projectId !== projectId) throw Object.assign(new Error("规则不属于本项目"), { code: "VALIDATION_ERROR" });
     const parsed = RuleVersionSchema.safeParse({
       id: row.id,
       ruleId: row.ruleId,
@@ -361,15 +375,17 @@ export async function buildCaseGenerationJobInput(
   }
 
   const roles = [...new Set(approved.map((r) => r.role).filter((r): r is string => Boolean(r)))];
-  const clarificationRows = await prisma.clarification.findMany({
-    where: { projectId, resolvedAt: null },
-  });
+  if (!roles.length) throw Object.assign(new Error("规则没有确认的业务角色，无法生成用例"), { code: "VALIDATION_ERROR" });
+  const related = await prisma.clarification.findMany({ where: { projectId, ruleVersionIds: { hasSome: ruleVersionIds } } });
+  if (related.some(c => !c.resolvedAt || !c.answer?.trim() || !c.answerSource?.trim() || !c.resolvedBy)) throw Object.assign(new Error("选定规则仍有未确认的澄清"), { code: "VALIDATION_ERROR" });
+  const clarificationRows = related;
+
 
   return CaseGenerationInput.parse({
     approvedRuleVersions: approved,
     clarificationSources: clarificationRows.map((c) => ({
       id: c.id,
-      ruleVersionIds: c.ruleVersionIds,
+      ruleVersionIds: c.ruleVersionIds.filter(id => ruleVersionIds.includes(id)),
       question: c.question,
       answer: c.answer,
       answerSource: c.answerSource,
@@ -377,7 +393,7 @@ export async function buildCaseGenerationJobInput(
       resolvedAt: c.resolvedAt?.toISOString() ?? null,
       createdAt: c.createdAt.toISOString(),
     })),
-    roles: roles.length > 0 ? roles : ["applicant"],
+    roles,
     fixtureCapabilities: [],
     executorCapabilities: [...PHASE1_EXECUTOR_ACTIONS],
     promptVersion,
@@ -388,6 +404,7 @@ async function runCaseGeneration(prisma: PrismaClient, job: JobRow, config: Work
   const request = job.request as { ruleVersionIds: string[]; mode: "real" | "mock" };
   const adapter = config.intelligenceBackend === "python" ? null : adapterFor(request.mode);
 
+  if (request.mode === "real" && await prisma.ruleVersion.count({ where: { id: { in: request.ruleVersionIds }, origin: "model", OR: [{ generationMode: null }, { generationMode: { not: "real" } }] } })) throw Object.assign(new Error("模拟或模式未核验的规则不能用于真实用例生成"), { code: "VALIDATION_ERROR" });
   const input = await buildCaseGenerationJobInput(prisma, job.projectId, request.ruleVersionIds,
     config.intelligenceBackend === "python" ? "agents-v1" : REFERENCE_PROMPT_VERSION);
   const remote = config.intelligenceBackend === "python"
@@ -436,6 +453,7 @@ async function runCaseGeneration(prisma: PrismaClient, job: JobRow, config: Work
           priority: draft.priority,
           approvalStatus: "DRAFT",
           origin: "model",
+          generationMode: request.mode,
           promptVersion: input.promptVersion,
           projectId: job.projectId,
         },

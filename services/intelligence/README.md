@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-已提供服务、协议、生成类型、业务校验、模型网关、只读文件访问、测试与 TS 客户端。B 的首版 Python 文档解析已实现，`documentParse=true`；C 的规则/用例算法仍未实现，对应 capabilities=false、调用返回 503。文档上传与 DOCUMENT_PARSE 作业接线尚未完成。
+已提供服务、协议、生成类型、业务校验、模型网关、只读文件访问、测试与 TS 客户端。B 的首版 Python 文档解析已实现，`documentParse=true`；C 的规则/用例算法仍未实现，对应 capabilities=false、调用返回 503。文档上传与 DOCUMENT_PARSE 作业已接入平台，来源和解析文件由 worker 落库；最小审阅工作台已提供。
 
 ## 本地启动（从仓库根目录）
 
@@ -33,7 +33,7 @@ export AIQA_INTELLIGENCE_TOKEN='与 Python 服务相同的令牌'
 export AIQA_INTELLIGENCE_TIMEOUT_MS='120000'
 ```
 
-默认 `reference` 是迁移兼容模式，继续使用已存在的 TS 参考管线；Python 出错不会回退。C 完成前切换 Python 的规则/用例管线仍会得到“模块待实现”的明确失败。文档解析可通过内部 HTTP 单独调用。
+默认 `reference` 是迁移兼容模式，继续使用已存在的 TS 参考管线；Python 出错不会回退。C 完成前切换 Python 的规则/用例管线仍会得到“模块待实现”的明确失败。文档解析同时支持内部 HTTP 和平台上传作业，不受 reference 开关影响。
 
 ## 内部接口 v1
 

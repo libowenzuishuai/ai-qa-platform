@@ -121,6 +121,11 @@ model DocumentVersion {
   // PENDING / PARSING / PARSED / FAILED / NEEDS_OCR
   parseStatus     String
   parserVersion   String?
+  fileSizeBytes   Int?
+  bundleStorageKey String?
+  bundleChecksum  String?
+  parseWarnings   Json          @default("[]")
+  mode            String        @default("unknown")
   coverageSummary Json          @default("{}")
   createdAt       DateTime      @default(now())
   document        Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
@@ -180,6 +185,7 @@ model RuleVersion {
   supersedesId       String?
   // manual / model
   origin             String
+  generationMode     String?
   promptVersion      String?
   reviewedBy         String?
   reviewedAt         DateTime?
@@ -240,6 +246,7 @@ model TestCaseVersion {
   approvalStatus String   @default("DRAFT")
   supersedesId   String?
   origin         String
+  generationMode String?
   promptVersion  String?
   approvalHash   String?
   // 反规范化 projectId：支持 attempt 的同项目复合外键（评审 R6）

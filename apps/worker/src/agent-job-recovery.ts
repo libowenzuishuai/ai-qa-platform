@@ -1,3 +1,4 @@
+import { markDocumentFailed } from "./document-job.js";
 import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import type { Queue } from "bullmq";
@@ -9,15 +10,18 @@ export async function reconcileAgentJobs(prisma: PrismaClient, queue: Pick<Queue
   const now = new Date();
   const staleBefore = new Date(now.getTime() - AGENT_JOB_STALE_MS);
   const stale = await prisma.job.findMany({
-    where: { status: "RUNNING", updatedAt: { lt: staleBefore } }, select: { id: true }, take: 50,
+    where: { status: "RUNNING", updatedAt: { lt: staleBefore } }, select: { id: true, projectId: true, kind: true, request: true }, take: 50,
   });
   for (const job of stale) {
-    await prisma.job.updateMany({
+    await prisma.$transaction(async tx => {
+    const changed = await tx.job.updateMany({
       where: { id: job.id, status: "RUNNING", updatedAt: { lt: staleBefore } },
       data: {
         status: "FAILED", finishedAt: now,
         error: { code: "DEPENDENCY_UNAVAILABLE", message: "作业执行进程失联，请检查 worker 后重新发起", requestId: job.id },
       },
+    });
+    if (changed.count) await markDocumentFailed(tx, job);
     });
   }
   const pending = await prisma.job.findMany({

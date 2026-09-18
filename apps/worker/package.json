@@ -16,17 +16,18 @@
     "@ai-qa/artifact-store": "workspace:*",
     "@ai-qa/contracts": "workspace:*",
     "@ai-qa/evaluation": "workspace:*",
+    "@ai-qa/model-adapters": "workspace:*",
+    "@ai-qa/reporting": "workspace:*",
+    "@ai-qa/run-events": "workspace:*",
     "@ai-qa/test-runtime": "workspace:*",
     "@prisma/client": "^6.3.0",
     "bullmq": "^5.34.0",
     "fastify": "^5.2.0",
     "playwright": "^1.63.0",
-    "zod": "^3.25.0",
-    "@ai-qa/reporting": "workspace:*",
-    "@ai-qa/run-events": "workspace:*",
-    "@ai-qa/model-adapters": "workspace:*"
+    "zod": "^3.25.0"
   },
   "devDependencies": {
+    "@fastify/cookie": "^11.1.2",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",

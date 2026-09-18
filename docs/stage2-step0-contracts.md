@@ -1,5 +1,7 @@
 # 阶段 2 · 第 0 步落地清单（修订版 v2）：4 份契约 + 错误码 + 作业 body + 3 份 fixture
 
+> 2026-09-18 平台接线增补：上传元数据新增可选 documentId 和 mode（默认 mock）；JobEnvelope 新增可选 mode；新增 ClarificationResolveRequest。原有 Python 算法输入/输出字段不变。当前运行与文件发布方式见 [平台工作台](stage2-platform-workbench.md)。下文保留第 0 步设计记录。
+
 > 2026-09-18 架构更新：B/C 改用 Python，目录与开工安排以 [跨语言开工清单](stage2-python-handoff.md) 为准。本文保留原契约决策；不再按旧 TS 包路径扩展新算法。
 日期：2026-09-18 · 对齐仓库 `libowenzuishuai/ai-qa-platform` @ `2e9ff73`
 耗时预算：0.5–1 天 · **牵头人：李博闻** · 三人评审，合并即冻结。

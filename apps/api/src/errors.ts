@@ -62,6 +62,9 @@ export function sendApiError(
     } satisfies z.infer<typeof ApiErrorBody>);
     return;
   }
+  if ((error as { code?: string })?.code === "FST_ERR_CTP_BODY_TOO_LARGE") {
+    reply.code(413).send({ code: "VALIDATION_ERROR", message: "上传文件超过大小限制", requestId }); return;
+  }
   req.log.error({ err: error }, "内部错误");
   reply.code(500).send({
     code: "INTERNAL",
