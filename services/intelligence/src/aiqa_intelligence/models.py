@@ -62,13 +62,22 @@ class Gateway:
         return await self._complete(request, "TEXT", messages, wire)
 
     async def describe_image(self, request: VisionModelRequest) -> ModelResponse:
+        wire = request.model_dump(mode="json", exclude_none=True)
+        validate_shape("VisionModelRequest", wire)
+        if self.mode == "mock":
+            return await self._complete(request, "VISION", [], wire)
+        data = self.artifacts.read(wire["imageStorageKey"])
+        return await self.describe_image_bytes(request, data)
+
+    async def describe_image_bytes(
+        self, request: VisionModelRequest, data: bytes
+    ) -> ModelResponse:
         import base64
 
         wire = request.model_dump(mode="json", exclude_none=True)
         validate_shape("VisionModelRequest", wire)
         if self.mode == "mock":
             return await self._complete(request, "VISION", [], wire)
-        data = self.artifacts.read(wire["imageStorageKey"])
         if data.startswith(b"\x89PNG\r\n\x1a\n"):
             mime = "image/png"
         elif data.startswith(b"\xff\xd8\xff"):

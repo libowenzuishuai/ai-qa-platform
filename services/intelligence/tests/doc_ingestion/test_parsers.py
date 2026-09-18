@@ -9,8 +9,8 @@ from zipfile import ZipFile
 import pytest
 from docx import Document
 from fastapi.testclient import TestClient
-from PIL import Image
-from pypdf import PdfWriter
+from PIL import Image, ImageDraw
+from pypdf import PdfReader, PdfWriter
 from pypdf.generic import DictionaryObject, NameObject, DecodedStreamObject
 
 from aiqa_intelligence.app import create_app
@@ -18,10 +18,15 @@ from aiqa_intelligence.context import RequestContext
 from aiqa_intelligence.contracts.generated import (
     DocumentParseInput,
     ParsedDocumentBundle,
+    VisionModelRequest,
 )
 from aiqa_intelligence.contracts.validation import validate_bundle
 from aiqa_intelligence.doc_ingestion.runner import parse_bytes, ParseRunner
-from aiqa_intelligence.doc_ingestion.service import DocumentParser
+from aiqa_intelligence.doc_ingestion.service import (
+    DocumentParser,
+    VISION_HINT,
+    VISION_SCHEMA,
+)
 from aiqa_intelligence.errors import ServiceError
 from aiqa_intelligence.models import Gateway
 from aiqa_intelligence.storage import ArtifactReader
@@ -37,6 +42,24 @@ def parsed(data, format="MARKDOWN", document_id="doc-1"):
         if span["quotedText"] is not None:
             assert any(span["quotedText"] in b["text"] for b in body["blocks"])
     return body
+
+
+def image_pdf_page(label: str) -> bytes:
+    image = Image.new("RGB", (300, 100), "white")
+    ImageDraw.Draw(image).text((10, 40), label, fill="black")
+    buffer = BytesIO()
+    image.save(buffer, "PDF")
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def scanned_pdf(labels: list[str]) -> bytes:
+    writer = PdfWriter()
+    for label in labels:
+        writer.add_page(PdfReader(BytesIO(image_pdf_page(label))).pages[0])
+    output = BytesIO()
+    writer.write(output)
+    return output.getvalue()
 
 
 def pdf(pages):
@@ -222,6 +245,9 @@ class Vision:
         self.output, self.error, self.calls = output, error, 0
 
     async def describe_image(self, request):
+        return await self.describe_image_bytes(request, b"")
+
+    async def describe_image_bytes(self, request, data):
         self.calls += 1
         if self.error:
             raise self.error
@@ -336,6 +362,74 @@ def test_cancellation_terminates_actual_parser_child():
         assert (await runner.run(b"ok", "doc", "TXT"))["parseStatus"] == "PARSED"
 
     asyncio.run(cancel())
+
+
+def register_pdf_ocr_mocks(gateway, pages: dict[int, str], storage_key: str = "source"):
+    for page, text in pages.items():
+        gateway.register_mock(
+            VisionModelRequest(
+                purpose="VISION_DESCRIBE",
+                imageStorageKey=f"{storage_key}#page-{page}",
+                hint=VISION_HINT,
+                outputSchema=VISION_SCHEMA,
+                timeoutMs=60_000,
+            ),
+            {"text": text},
+        )
+
+
+def parse_pdf_with_ocr(tmp_path, pdf_data, pages: dict[int, str], *, format="PDF_TEXT"):
+    input = input_for(tmp_path, pdf_data, format)
+    gateway = Gateway("mock", ArtifactReader(tmp_path), "test", [])
+    register_pdf_ocr_mocks(gateway, pages)
+    context = RequestContext("req", "mock", ArtifactReader(tmp_path), gateway)
+    result = asyncio.run(DocumentParser().parse_document(input, context)).model_dump(
+        mode="json", exclude_unset=True
+    )
+    validate_bundle(result)
+    return result
+
+
+def test_scanned_pdf_ocr_promotes_needs_ocr_to_parsed(tmp_path):
+    body = parse_pdf_with_ocr(
+        tmp_path, scanned_pdf(["金额超过 5000 元须审批"]), {1: "金额超过 5000 元须审批"}
+    )
+    assert body["parseStatus"] == "PARSED"
+    assert body["format"] == "PDF_TEXT"
+    assert body["spans"][0]["quotedText"] == "金额超过 5000 元须审批"
+    assert body["spans"][0]["extractionQuality"] == "LOW"
+    assert body["spans"][0]["locator"] == {"kind": "pdf-page", "page": 1}
+    assert body["coverageSummary"]["lowSpans"] == 1
+    assert any("嵌入图像 OCR" in w for w in body["warnings"])
+
+
+def test_mixed_pdf_ocr_fills_only_empty_page(tmp_path):
+    mixed = scanned_pdf(["SecondScan"])
+    writer = PdfWriter()
+    writer.add_page(PdfReader(BytesIO(pdf(["FirstPage"]))).pages[0])
+    writer.add_page(PdfReader(BytesIO(mixed)).pages[0])
+    output = BytesIO()
+    writer.write(output)
+    body = parse_pdf_with_ocr(
+        tmp_path, output.getvalue(), {2: "SecondScan"}
+    )
+    assert body["parseStatus"] == "PARSED"
+    assert body["spans"][0]["extractionQuality"] == "GOOD"
+    assert body["spans"][0]["quotedText"].strip() == "FirstPage"
+    assert body["spans"][1]["extractionQuality"] == "LOW"
+    assert body["spans"][1]["quotedText"] == "SecondScan"
+    assert body["coverageSummary"] == {
+        "totalBlocks": 2,
+        "goodSpans": 1,
+        "lowSpans": 1,
+        "unparsedSpans": 0,
+    }
+
+
+def test_blank_pdf_without_embedded_image_stays_needs_ocr(tmp_path):
+    body = parse_pdf_with_ocr(tmp_path, pdf([None]), {})
+    assert body["parseStatus"] == "NEEDS_OCR"
+    assert body["coverageSummary"]["unparsedSpans"] == 1
 
 
 def test_original_b1_compressed_pdf_fixture():
