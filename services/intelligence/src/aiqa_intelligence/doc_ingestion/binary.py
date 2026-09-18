@@ -35,7 +35,7 @@ def parse_pdf(data: bytes, bundle: Bundle):
     has_text = any(b["text"].strip() for b in bundle.blocks)
     bundle.format = "PDF_TEXT" if has_text else "PDF_SCANNED"
     if not has_text:
-        bundle.warn("未提取到文字；本版不执行扫描 PDF OCR")
+        bundle.warn("未提取到文字层；将尝试对含嵌入图像的页面执行 OCR")
     return "PARSED" if has_text else "NEEDS_OCR"
 
 

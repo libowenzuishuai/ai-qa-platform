@@ -4,7 +4,7 @@ import hashlib
 
 MAX_TEXT_CHARS = 2_000_000
 MAX_BLOCKS = 20_000
-PARSER_VERSION = "python-doc-ingestion-1.0"
+PARSER_VERSION = "python-doc-ingestion-1.1"
 
 
 class ParseLimit(ValueError):
@@ -63,15 +63,19 @@ class Bundle:
             "blocks": self.blocks,
             "spans": self.spans,
             "warnings": self.warnings,
-            "coverageSummary": {
-                "totalBlocks": len(self.blocks),
-                **{
-                    field: sum(s["extractionQuality"] == quality for s in self.spans)
-                    for quality, field in [
-                        ("GOOD", "goodSpans"),
-                        ("LOW", "lowSpans"),
-                        ("UNPARSED", "unparsedSpans"),
-                    ]
-                },
-            },
+            "coverageSummary": coverage_summary(self.blocks, self.spans),
         }
+
+
+def coverage_summary(blocks: list[dict], spans: list[dict]) -> dict:
+    return {
+        "totalBlocks": len(blocks),
+        **{
+            field: sum(s["extractionQuality"] == quality for s in spans)
+            for quality, field in [
+                ("GOOD", "goodSpans"),
+                ("LOW", "lowSpans"),
+                ("UNPARSED", "unparsedSpans"),
+            ]
+        },
+    }

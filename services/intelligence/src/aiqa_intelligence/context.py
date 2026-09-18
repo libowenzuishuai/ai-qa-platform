@@ -12,6 +12,9 @@ from .storage import ArtifactReader
 class ModelGateway(Protocol):
     async def complete_text(self, request: TextModelRequest) -> ModelResponse: ...
     async def describe_image(self, request: VisionModelRequest) -> ModelResponse: ...
+    async def describe_image_bytes(
+        self, request: VisionModelRequest, data: bytes
+    ) -> ModelResponse: ...
 
 
 @dataclass
