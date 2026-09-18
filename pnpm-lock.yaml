@@ -204,6 +204,31 @@ importers:
         specifier: ^3.0.0
         version: 3.2.7(@types/node@22.20.3)(jiti@2.7.0)(tsx@4.23.13)
 
+  packages/model-adapters:
+    dependencies:
+      '@ai-qa/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      ajv:
+        specifier: ^8.17.0
+        version: 8.20.0
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.3
+      tsx:
+        specifier: ^4.19.0
+        version: 4.23.13
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.3)(jiti@2.7.0)(tsx@4.23.13)
+
   packages/reporting:
     dependencies:
       '@ai-qa/artifact-store':

@@ -429,3 +429,41 @@ $ pnpm --filter @ai-qa/api db:generate && pnpm typecheck       # 0 错误
 取消对账测试保持队列暂停，确认终态由对账推进。
 
 限制仍为 §21 所列项目；模型 API 未调用。
+
+---
+
+# 阶段 2 · A 通道验证记录（model-adapters）
+
+日期：2026-09-18 · 契约：packages/contracts/src/model-adapter.ts（4639073 冻结）
+
+## 22. 单元测试（23/23，fetch stub，零网络零密钥）
+
+```
+$ pnpm --filter @ai-qa/model-adapters test
+repairs 7（闭集修复 + ≤2 次 + 不可修复不伪造）
+moonshot 适配器 9（成功往返/usage/requestId 映射/schema 内嵌 json_object/
+  code-fence 修复/schema 不符 MODEL_OUTPUT_INVALID/非 JSON/401/5xx/超时/
+  视觉 base64 data URL/图片不可读）
+mock 确定性 4（同输入两次全等/查表 miss 抛/注册内容即校验 schema/视觉查表）
+real 配置纪律 3（缺 API_KEY 列出变量名/未设 provider 拒绝/mock 显式可用）
+```
+
+## 23. 真实 moonshot 冒烟（凭据运行时自 .env，未打印密钥）
+
+```
+$ pnpm --filter @ai-qa/model-adapters smoke:real
+PASS  text.completeText   — model=kimi-k2.6 usage={"inputTokens":64,"outputTokens":86}
+                            requestId=chatcmpl-6aacbf0a43d05be8a3860c32 latency=2378ms repairs=[]
+PASS  vision.describeImage — color=黑色 model=kimi-k2.6 usage={"inputTokens":61,"outputTokens":706}
+                            latency=18526ms
+```
+
+说明：文本通道输出通过给定 outputSchema 校验（零修复）；视觉通道输入为
+1×1 黑色 PNG，模型正确识别颜色，证明图片以 base64 data URL 进入请求。
+该冒烟只证明协议连通与结构化输出链路，不构成规则提取/用例生成的效果
+结论（那需要李琦双的 agents 管线接入后按 fixture 三件套评测）。
+
+## 24. 未执行项
+
+- 规则提取/用例生成的真实端到端效果（等 agents 包 + doc-ingestion 就绪）
+- 视觉通道在高分辨率截图上的稳定性与成本（现在只有最小图冒烟）
