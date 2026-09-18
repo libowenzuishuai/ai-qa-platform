@@ -1,6 +1,6 @@
 import type { ParsedBlock, SourceSpanRecord } from "@ai-qa/contracts";
+import { createBundleIds, type BundleIds } from "./ids.js";
 
-/** 按中英文句号分句。 */
 function splitSentences(text: string): string[] {
   return text
     .split(/(?<=[。；;！？!?])\s*/)
@@ -8,10 +8,15 @@ function splitSentences(text: string): string[] {
     .filter((s) => s.length > 0);
 }
 
+function stripTrailingPunct(text: string): string {
+  return text.replace(/[。；;！？!?]+$/, "");
+}
+
 /** DOCX/纯文本：段落索引定位（PRD FR-02 docx-paragraph）。 */
 export function parsePlainParagraphs(
   text: string,
   documentVersionId: string,
+  ids: BundleIds = createBundleIds(documentVersionId),
 ): { blocks: ParsedBlock[]; spans: SourceSpanRecord[] } {
   const paragraphs = text
     .split(/\n\s*\n/)
@@ -19,21 +24,21 @@ export function parsePlainParagraphs(
     .filter((p) => p.length > 0);
   const blocks: ParsedBlock[] = [];
   const spans: SourceSpanRecord[] = [];
-  let blockSeq = 0;
-  let spanSeq = 0;
 
   paragraphs.forEach((paragraph, paragraphIndex) => {
     blocks.push({
-      id: `${documentVersionId}-blk-${String(++blockSeq).padStart(2, "0")}`,
+      id: ids.nextBlockId(),
       kind: "paragraph",
       text: paragraph,
     });
-    for (const sentence of splitSentences(paragraph)) {
+    const sentences = splitSentences(paragraph);
+    const parts = sentences.length > 0 ? sentences : [paragraph];
+    for (const part of parts) {
       spans.push({
-        id: `${documentVersionId}-span-${String(++spanSeq).padStart(2, "0")}`,
+        id: ids.nextSpanId(),
         documentVersionId,
         locator: { kind: "docx-paragraph", paragraphIndex },
-        quotedText: sentence.replace(/[。；;！？!?]+$/, ""),
+        quotedText: stripTrailingPunct(part),
         extractionQuality: "GOOD",
       });
     }

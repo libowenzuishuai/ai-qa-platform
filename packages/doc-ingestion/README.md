@@ -10,7 +10,10 @@
 | DOCX | mammoth 提取文本，`docx-paragraph` 定位 |
 | PDF（有文本层） | `pdf-parse` 提取，`pdf-page` 定位 |
 | PDF（扫描/无文本） | `NEEDS_OCR`，禁止空文本 `PARSED` |
-| PNG / JPEG | 注入 `VisionModelAdapter` 则描述后解析；否则 `NEEDS_OCR` |
+| PNG / JPEG | 注入 `VisionModelAdapter` 则 `image-region` + LOW 质量 span；否则 `ok:true` + `NEEDS_OCR` bundle |
+
+`NEEDS_OCR` 返回 **带 bundle 的 `ok: true`**，供 DOCUMENT_PARSE 作业 `SUCCEEDED + parseStatus=NEEDS_OCR`（§6-4）。
+单文件 **20MB** 上限在 `parseDocument` 入口校验（`MAX_FILE_BYTES`）。
 
 ## 存储约定
 

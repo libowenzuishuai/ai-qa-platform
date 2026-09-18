@@ -1,4 +1,6 @@
-import type { ParsedBlock, SourceSpanRecord } from "@ai-qa/contracts";
+import type { ParsedBlock, SourceSpanRecord, SpanExtractionQuality } from "@ai-qa/contracts";
+import { createBundleIds, type BundleIds } from "./ids.js";
+
 /** h2+ 标题 quotedText：去掉「数字. 」前缀（对齐 fixture 手工写法）。 */
 function headingQuotedText(text: string): string {
   return text.replace(/^\d+\.\s*/, "").trim() || text;
@@ -12,9 +14,14 @@ function splitSentences(text: string): string[] {
     .filter((s) => s.length > 0);
 }
 
+function stripTrailingPunct(text: string): string {
+  return text.replace(/[。；;！？!?]+$/, "");
+}
+
 type MarkdownParseResult = {
   blocks: ParsedBlock[];
   spans: SourceSpanRecord[];
+  warnings: string[];
 };
 
 /**
@@ -24,16 +31,38 @@ type MarkdownParseResult = {
 export function parseMarkdownText(
   source: string,
   documentVersionId: string,
+  ids: BundleIds = createBundleIds(documentVersionId),
 ): MarkdownParseResult {
   const lines = source.replace(/\r\n/g, "\n").split("\n");
   const blocks: ParsedBlock[] = [];
   const spans: SourceSpanRecord[] = [];
+  const warnings: string[] = [];
   let docTitle = "";
-  let blockSeq = 0;
-  let spanSeq = 0;
 
-  const nextBlockId = () => `${documentVersionId}-blk-${String(++blockSeq).padStart(2, "0")}`;
-  const nextSpanId = () => `${documentVersionId}-span-${String(++spanSeq).padStart(2, "0")}`;
+  const pushSpan = (
+    locator: SourceSpanRecord["locator"],
+    quotedText: string,
+    quality: SpanExtractionQuality = "GOOD",
+  ) => {
+    spans.push({
+      id: ids.nextSpanId(),
+      documentVersionId,
+      locator,
+      quotedText,
+      extractionQuality: quality,
+    });
+  };
+
+  const pushLineSpans = (lineNum: number, text: string) => {
+    const sentences = splitSentences(text);
+    const parts = sentences.length > 0 ? sentences : [text];
+    for (const part of parts) {
+      pushSpan(
+        { kind: "markdown-line", startLine: lineNum, endLine: lineNum },
+        stripTrailingPunct(part),
+      );
+    }
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const lineNum = i + 1;
@@ -41,57 +70,63 @@ export function parseMarkdownText(
     const trimmed = line.trim();
     if (!trimmed) continue;
 
+    if (trimmed.startsWith("```")) {
+      warnings.push(`第 ${lineNum} 行：代码围栏暂未结构化解析，已跳过`);
+      continue;
+    }
+
     const h1 = trimmed.match(/^#\s+(.+)$/);
     if (h1) {
       docTitle = h1[1]!.trim();
-      blocks.push({ id: nextBlockId(), kind: "heading", text: docTitle });
+      blocks.push({ id: ids.nextBlockId(), kind: "heading", text: docTitle });
+      pushSpan({ kind: "markdown-heading", path: [docTitle] }, docTitle);
       continue;
     }
 
     const h2 = trimmed.match(/^##\s+(.+)$/);
     if (h2) {
       const text = h2[1]!.trim();
-      blocks.push({ id: nextBlockId(), kind: "heading", text });
-      if (docTitle) {
-        spans.push({
-          id: nextSpanId(),
-          documentVersionId,
-          locator: { kind: "markdown-heading", path: [docTitle, text] },
-          quotedText: headingQuotedText(text),
-          extractionQuality: "GOOD",
-        });
-      }
+      blocks.push({ id: ids.nextBlockId(), kind: "heading", text });
+      const path = docTitle ? [docTitle, text] : [text];
+      pushSpan({ kind: "markdown-heading", path }, headingQuotedText(text));
       continue;
     }
 
     const h3 = trimmed.match(/^#{3,6}\s+(.+)$/);
     if (h3) {
-      blocks.push({ id: nextBlockId(), kind: "heading", text: h3[1]!.trim() });
+      const text = h3[1]!.trim();
+      blocks.push({ id: ids.nextBlockId(), kind: "heading", text });
+      pushLineSpans(lineNum, text);
       continue;
     }
 
     if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-      blocks.push({ id: nextBlockId(), kind: "listItem", text: trimmed.slice(2).trim() });
+      const itemText = trimmed.slice(2).trim();
+      blocks.push({ id: ids.nextBlockId(), kind: "listItem", text: itemText });
+      pushLineSpans(lineNum, itemText);
       continue;
     }
 
-    blocks.push({ id: nextBlockId(), kind: "paragraph", text: trimmed });
-    for (const sentence of splitSentences(trimmed)) {
-      spans.push({
-        id: nextSpanId(),
-        documentVersionId,
-        locator: { kind: "markdown-line", startLine: lineNum, endLine: lineNum },
-        quotedText: sentence.replace(/[。；;！？!?]+$/, ""),
-        extractionQuality: "GOOD",
-      });
+    if (trimmed.includes("|") && trimmed.split("|").length >= 3) {
+      blocks.push({ id: ids.nextBlockId(), kind: "table", text: trimmed });
+      pushLineSpans(lineNum, trimmed);
+      warnings.push(`第 ${lineNum} 行：Markdown 表格暂未保留行列结构，已按行降级`);
+      continue;
     }
+
+    blocks.push({ id: ids.nextBlockId(), kind: "paragraph", text: trimmed });
+    pushLineSpans(lineNum, trimmed);
   }
 
-  return { blocks, spans };
+  if (blocks.length > 0 && spans.length === 0) {
+    warnings.push("文档有正文但未生成任何来源 span，请检查解析逻辑");
+  }
+
+  return { blocks, spans, warnings };
 }
 
 export function buildCoverageSummary(blocks: ParsedBlock[], spans: SourceSpanRecord[]) {
-  const count = (q: "GOOD" | "LOW" | "UNPARSED") =>
+  const count = (q: SpanExtractionQuality) =>
     spans.filter((s) => s.extractionQuality === q).length;
   return {
     totalBlocks: blocks.length,

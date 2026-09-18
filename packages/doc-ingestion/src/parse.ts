@@ -5,28 +5,35 @@ import {
   type VisionModelAdapter,
 } from "@ai-qa/contracts";
 import { extractDocxText } from "./docx.js";
+import { createBundleIds } from "./ids.js";
 import { buildCoverageSummary, parseMarkdownText } from "./markdown.js";
-import { PARSER_VERSION } from "./version.js";
 import { parsePlainParagraphs } from "./plain-text.js";
-import { extractPdfText } from "./pdf.js";
+import { extractPdfPages } from "./pdf.js";
+import { PARSER_VERSION } from "./version.js";
+import { extractVisionText, WHOLE_IMAGE_BBOX } from "./vision.js";
+
+/** PRD FR-02 / jobs.ts：单文件上限 20MB（解析入口早拒）。 */
+export const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
 export type ParseDocumentInput = {
   documentVersionId: string;
   format: DocumentFormat;
   data: Buffer;
-  /** PNG/JPEG 可选：注入视觉模型生成描述；未注入则 NEEDS_OCR。 */
+  /** PNG/JPEG 可选：注入视觉模型；未注入则 NEEDS_OCR bundle。 */
   vision?: VisionModelAdapter;
-  /** 图片写入 artifact-store 后的 storageKey（vision 输入）。 */
+  /** 图片 storageKey（vision 输入与 image block 引用）。 */
   imageStorageKey?: string;
 };
 
 export type ParseDocumentResult =
   | { ok: true; bundle: Bundle }
-  | { ok: false; parseStatus: "FAILED" | "NEEDS_OCR"; message: string; warnings?: string[] };
+  | { ok: false; parseStatus: "FAILED"; message: string; warnings?: string[] };
 
-function finalizeBundle(partial: Omit<Bundle, "parserVersion" | "coverageSummary" | "warnings"> & {
-  warnings?: string[];
-}): ParseDocumentResult {
+function finalizeBundle(
+  partial: Omit<Bundle, "parserVersion" | "coverageSummary" | "warnings"> & {
+    warnings?: string[];
+  },
+): ParseDocumentResult {
   const coverageSummary = buildCoverageSummary(partial.blocks, partial.spans);
   const candidate = {
     ...partial,
@@ -46,23 +53,36 @@ function finalizeBundle(partial: Omit<Bundle, "parserVersion" | "coverageSummary
   return { ok: true, bundle: parsed.data };
 }
 
-function textToBlocks(documentVersionId: string, text: string, page?: number) {
-  const { blocks, spans } = parseMarkdownText(text, documentVersionId);
-  if (page !== undefined) {
-    for (const block of blocks) {
-      block.page = page;
-    }
-  }
-  return { blocks, spans };
+function needsOcrBundle(
+  documentVersionId: string,
+  format: Extract<DocumentFormat, "PDF_SCANNED" | "PNG" | "JPEG">,
+  warnings: string[],
+): ParseDocumentResult {
+  return finalizeBundle({
+    documentVersionId,
+    format,
+    parseStatus: "NEEDS_OCR",
+    blocks: [],
+    spans: [],
+    warnings,
+  });
 }
 
 /** 主入口：按 format 解析并返回通过契约校验的 bundle。 */
 export async function parseDocument(input: ParseDocumentInput): Promise<ParseDocumentResult> {
   const { documentVersionId, format, data } = input;
 
+  if (data.length > MAX_FILE_BYTES) {
+    return {
+      ok: false,
+      parseStatus: "FAILED",
+      message: `文件大小 ${data.length} 超过上限 ${MAX_FILE_BYTES} 字节`,
+    };
+  }
+
   if (format === "MARKDOWN" || format === "TXT") {
     const text = data.toString("utf8");
-    const { blocks, spans } = parseMarkdownText(text, documentVersionId);
+    const { blocks, spans, warnings } = parseMarkdownText(text, documentVersionId);
     if (blocks.every((b) => !b.text.trim())) {
       return { ok: false, parseStatus: "FAILED", message: "文档无有效文本" };
     }
@@ -72,11 +92,17 @@ export async function parseDocument(input: ParseDocumentInput): Promise<ParseDoc
       parseStatus: "PARSED",
       blocks,
       spans,
+      warnings,
     });
   }
 
   if (format === "DOCX") {
-    const text = await extractDocxText(data);
+    let text: string;
+    try {
+      text = await extractDocxText(data);
+    } catch {
+      return { ok: false, parseStatus: "FAILED", message: "DOCX 解析失败（文件可能已损坏）" };
+    }
     if (!text.trim()) {
       return { ok: false, parseStatus: "FAILED", message: "DOCX 未提取到文本" };
     }
@@ -91,89 +117,124 @@ export async function parseDocument(input: ParseDocumentInput): Promise<ParseDoc
   }
 
   if (format === "PDF_TEXT" || format === "PDF_SCANNED") {
-    let text = "";
-    let nPages = 0;
+    let pages: Awaited<ReturnType<typeof extractPdfPages>>["pages"];
+    let nPages: number;
     try {
-      ({ text, nPages } = await extractPdfText(data));
+      ({ pages, nPages } = await extractPdfPages(data));
     } catch {
       return { ok: false, parseStatus: "FAILED", message: "PDF 解析失败" };
     }
-    if (!text.trim()) {
-      return {
-        ok: false,
-        parseStatus: "NEEDS_OCR",
-        message: "扫描 PDF 或无文本层，需要 OCR",
-        warnings: [`pages=${nPages}`],
-      };
+
+    const ids = createBundleIds(documentVersionId);
+    const blocks: Bundle["blocks"] = [];
+    const spans: Bundle["spans"] = [];
+    const warnings: string[] = [];
+
+    for (const { page, text } of pages) {
+      if (!text.trim()) {
+        warnings.push(`第 ${page} 页无文本层，可能为扫描页`);
+        spans.push({
+          id: ids.nextSpanId(),
+          documentVersionId,
+          locator: { kind: "pdf-page", page },
+          quotedText: null,
+          extractionQuality: "UNPARSED",
+        });
+        continue;
+      }
+      for (const line of text.split(/\n/).map((l) => l.trim()).filter(Boolean)) {
+        blocks.push({
+          id: ids.nextBlockId(),
+          kind: "paragraph",
+          text: line,
+          page,
+        });
+        spans.push({
+          id: ids.nextSpanId(),
+          documentVersionId,
+          locator: { kind: "pdf-page", page },
+          quotedText: line,
+          extractionQuality: "GOOD",
+        });
+      }
     }
-    const lines = text.split(/\r?\n/).filter((l) => l.trim());
-    const blocks = lines.map((line, i) => ({
-      id: `${documentVersionId}-blk-${String(i + 1).padStart(2, "0")}`,
-      kind: "paragraph" as const,
-      text: line.trim(),
-      page: Math.min(Math.floor(i / 40) + 1, nPages || 1),
-    }));
-    const spans = lines.map((line, i) => ({
-      id: `${documentVersionId}-span-${String(i + 1).padStart(2, "0")}`,
-      documentVersionId,
-      locator: { kind: "pdf-page" as const, page: Math.min(Math.floor(i / 40) + 1, nPages || 1) },
-      quotedText: line.trim(),
-      extractionQuality: "GOOD" as const,
-    }));
+
+    const hasText = blocks.some((b) => b.text.trim().length > 0);
+    if (!hasText) {
+      return needsOcrBundle(documentVersionId, "PDF_SCANNED", [
+        ...warnings,
+        `pages=${nPages}`,
+        "扫描 PDF 或无文本层，需要 OCR",
+      ]);
+    }
+
     return finalizeBundle({
       documentVersionId,
       format: "PDF_TEXT",
       parseStatus: "PARSED",
       blocks,
       spans,
+      warnings,
     });
   }
 
   if (format === "PNG" || format === "JPEG") {
     if (!input.vision || !input.imageStorageKey) {
-      return {
-        ok: false,
-        parseStatus: "NEEDS_OCR",
-        message: "图片解析需要视觉模型或未提供 imageStorageKey",
-      };
+      return needsOcrBundle(documentVersionId, format, [
+        "图片解析需要视觉模型或未提供 imageStorageKey",
+      ]);
     }
-    const response = await input.vision.describeImage({
-      purpose: "VISION_DESCRIBE",
-      imageStorageKey: input.imageStorageKey,
-      hint: "提取图片中的可见文字与结构，用于测试需求分析",
-      timeoutMs: 60_000,
-    });
-    if (response.outcome !== "SUCCESS" || typeof response.parsedJson !== "object") {
-      return {
-        ok: false,
-        parseStatus: "NEEDS_OCR",
-        message: "视觉模型未能识别图片文字",
-        warnings: [response.outcome],
-      };
+
+    let response;
+    try {
+      response = await input.vision.describeImage({
+        purpose: "VISION_DESCRIBE",
+        imageStorageKey: input.imageStorageKey,
+        hint: "提取图片中的可见文字，返回 JSON：{ \"text\": \"...\" }",
+        outputSchema: {
+          type: "object",
+          properties: { text: { type: "string" } },
+          required: ["text"],
+        },
+        timeoutMs: 60_000,
+      });
+    } catch {
+      return needsOcrBundle(documentVersionId, format, ["视觉模型调用失败"]);
     }
-    const description =
-      typeof (response.parsedJson as { text?: unknown }).text === "string"
-        ? (response.parsedJson as { text: string }).text
-        : response.rawText;
-    if (!description.trim()) {
-      return { ok: false, parseStatus: "NEEDS_OCR", message: "图片无可识别文字" };
+
+    const description = extractVisionText(response);
+    if (!description) {
+      return needsOcrBundle(documentVersionId, format, [
+        `视觉模型未能返回有效 text（outcome=${response.outcome}）`,
+      ]);
     }
-    const { blocks, spans } = textToBlocks(documentVersionId, description);
+
+    const ids = createBundleIds(documentVersionId);
+    const imageBlockId = ids.nextBlockId();
+    const spanId = ids.nextSpanId();
+
     return finalizeBundle({
       documentVersionId,
       format,
       parseStatus: "PARSED",
       blocks: [
         {
-          id: `${documentVersionId}-blk-01`,
+          id: imageBlockId,
           kind: "image",
           text: description.slice(0, 500),
           imageStorageKey: input.imageStorageKey,
         },
-        ...blocks,
       ],
-      spans,
-      warnings: ["图片文字来自视觉模型描述"],
+      spans: [
+        {
+          id: spanId,
+          documentVersionId,
+          locator: { kind: "image-region", bbox: [...WHOLE_IMAGE_BBOX] },
+          quotedText: description,
+          extractionQuality: "LOW",
+        },
+      ],
+      warnings: ["图片文字来自视觉模型描述，证据质量为 LOW（非逐字 OCR）"],
     });
   }
 

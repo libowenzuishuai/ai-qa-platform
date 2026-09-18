@@ -87,15 +87,15 @@ describe("parseDocument · 红线", () => {
     expect(result.parseStatus).toBe("FAILED");
   });
 
-  it("PNG 无 vision 返回 NEEDS_OCR", async () => {
+  it("PNG 无 vision 返回 NEEDS_OCR bundle", async () => {
     const result = await parseDocument({
       documentVersionId: "doc-img",
       format: "PNG",
       data: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
     });
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.parseStatus).toBe("NEEDS_OCR");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.bundle.parseStatus).toBe("NEEDS_OCR");
   });
 });
 
