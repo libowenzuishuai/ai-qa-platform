@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { createHash } from "node:crypto";
-import type { PrismaClient, Job } from "@prisma/client";
+import { Prisma, type PrismaClient, type Job } from "@prisma/client";
 import type { Queue } from "bullmq";
 import {
   CaseGenerationJobRequest,
@@ -27,7 +27,16 @@ import { requireAuth, requireProjectAccess } from "./auth.js";
 
 type JobKind = "RULE_EXTRACTION" | "CASE_GENERATION";
 
-export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jobQueue: Queue) {
+export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jobQueue: Pick<Queue, "add">) {
+  async function enqueue(job: Job) {
+    if (job.status !== "QUEUED") return;
+    try {
+      await jobQueue.add("run", { jobId: job.id }, { jobId: `job-${job.id}`, removeOnComplete: true, removeOnFail: 200 });
+    } catch {
+      // 作业已可靠落库；worker 对账负责补投，不丢弃用户已接受的请求。
+      app.log.warn({ jobId: job.id }, "作业入队失败，等待对账补投");
+    }
+  }
   async function createJobEnqueued(
     reply: import("fastify").FastifyReply,
     projectId: string,
@@ -43,6 +52,7 @@ export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jo
       where: { projectId_kind_fingerprint: { projectId, kind, fingerprint } },
     });
     if (existing) {
+      await enqueue(existing);
       // 幂等：同参数返回原 jobId。
       return reply.code(200).send({ jobId: existing.id, existed: true });
     }
@@ -57,11 +67,14 @@ export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jo
         const raced = await prisma.job.findUnique({
           where: { projectId_kind_fingerprint: { projectId, kind, fingerprint } },
         });
-        if (raced) return reply.code(200).send({ jobId: raced.id, existed: true });
+        if (raced) {
+          await enqueue(raced);
+          return reply.code(200).send({ jobId: raced.id, existed: true });
+        }
       }
       throw err;
     }
-    await jobQueue.add("run", { jobId: job.id }, { jobId: `job-${job.id}`, removeOnComplete: true, removeOnFail: 200 });
+    await enqueue(job);
     return reply.code(202).send({ jobId: job.id });
   }
 
@@ -136,6 +149,25 @@ export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jo
       ruleVersionIds: [...body.ruleVersionIds].sort(),
       mode: body.mode,
     });
+  });
+
+  // 失联失败后显式重试；不对模型调用自动重复计费。仅失败作业可重新排队。
+  app.post("/api/jobs/:id/retry", async (req, reply) => {
+    requireAuth(req);
+    const { id } = z.object({ id: z.string() }).parse(req.params);
+    const job = await prisma.job.findUnique({ where: { id } });
+    if (!job) throw new ApiError("NOT_FOUND", "作业不存在");
+    await requireProjectAccess(prisma, req, job.projectId, "LEAD");
+    const changed = await prisma.job.updateMany({
+      where: { id, status: "FAILED" },
+      data: { status: "QUEUED", startedAt: null, finishedAt: null, error: Prisma.DbNull, result: Prisma.DbNull },
+    });
+    if (!changed.count) throw new ApiError("CONFLICT", "仅失败作业允许重试");
+    // 新队列 ID 避免遗留 BullMQ failed 记录占住旧 ID；兜底仍由对账负责。
+    try {
+      await jobQueue.add("run", { jobId: id }, { removeOnComplete: true, removeOnFail: 200 });
+    } catch { app.log.warn({ jobId: id }, "重试入队失败，等待对账补投"); }
+    return reply.code(202).send({ jobId: id });
   });
 
   app.get("/api/jobs/:id", async (req) => {

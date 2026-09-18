@@ -56,6 +56,7 @@ describe("MoonshotTextAdapter（fetch stub）", () => {
     });
     const r = await adapter.completeText({
       ...baseReq,
+      maxOutputTokens: 7,
       outputSchema: { type: "object", properties: { ruleDrafts: { type: "array" } }, required: ["ruleDrafts"] },
     });
     expect(r.parsedJson).toEqual({ ruleDrafts: [] });
@@ -66,6 +67,7 @@ describe("MoonshotTextAdapter（fetch stub）", () => {
     expect(r.outcome).toBe("SUCCESS");
     // 请求侧：schema 内嵌 system + response_format json_object。
     const body = lastRequestBody(captured);
+    expect(body.max_tokens).toBe(7);
     expect(body.response_format).toEqual({ type: "json_object" });
     const messages = body.messages as Array<{ role: string; content: string }>;
     expect(messages[0]!.role).toBe("system");

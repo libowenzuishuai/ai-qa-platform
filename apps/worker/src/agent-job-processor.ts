@@ -1,4 +1,5 @@
-import type { PrismaClient } from "@prisma/client";
+import { randomUUID } from "node:crypto";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import {
   ParsedDocumentBundle,
   RuleExtractionInput,
@@ -8,6 +9,7 @@ import {
   CaseGenerationOutput,
   validateCaseGeneration,
   RuleVersion as RuleVersionSchema,
+  TestCaseVersion as TestCaseVersionSchema,
   type TextModelAdapter,
   type ModelResponse,
 } from "@ai-qa/contracts";
@@ -38,20 +40,20 @@ import {
 
 type JobError = { code: string; message: string; requestId: string; details?: unknown };
 
-async function failJob(prisma: PrismaClient, jobId: string, err: unknown): Promise<void> {
+async function failJob(prisma: PrismaClient, job: JobRow, err: unknown): Promise<void> {
   const error: JobError =
     err instanceof Error && "code" in err && typeof (err as { code?: unknown }).code === "string"
       ? {
           code: (err as { code: string }).code,
           message: err.message.slice(0, 500),
-          requestId: jobId,
+          requestId: job.id,
           ...((err as { details?: unknown }).details !== undefined
             ? { details: (err as { details?: unknown }).details }
             : {}),
         }
-      : { code: "INTERNAL", message: String(err).slice(0, 500), requestId: jobId };
-  await prisma.job.update({
-    where: { id: jobId },
+      : { code: "INTERNAL", message: String(err).slice(0, 500), requestId: job.id };
+  await prisma.job.updateMany({
+    where: ownedJob(job),
     data: {
       status: "FAILED",
       error: error as never,
@@ -120,14 +122,22 @@ export async function processAgentJob(
   config: WorkerConfig,
   jobId: string,
 ): Promise<void> {
+  const startedAt = new Date();
   // —— CAS 认领：仅 QUEUED → RUNNING ——
   const claimed = await prisma.job.updateMany({
     where: { id: jobId, status: "QUEUED" },
-    data: { status: "RUNNING", startedAt: new Date() },
+    data: { status: "RUNNING", startedAt },
   });
   if (claimed.count === 0) return; // 重复投递 / 已终态。
-  const job = await prisma.job.findUniqueOrThrow({ where: { id: jobId } });
+  const job = { ...await prisma.job.findUniqueOrThrow({ where: { id: jobId } }), startedAt };
 
+  // 心跳只续租仍由本次执行拥有的作业；失联对账后的旧执行不能复活。
+  const heartbeat = setInterval(() => {
+    void prisma.job.updateMany({
+      where: ownedJob(job), data: { updatedAt: new Date() },
+    }).catch(() => undefined);
+  }, 10_000);
+  heartbeat.unref();
   try {
     const store = new ArtifactStore(config.artifactDir);
     if (job.kind === "RULE_EXTRACTION") {
@@ -138,11 +148,27 @@ export async function processAgentJob(
       throw Object.assign(new Error(`未知作业类型：${job.kind}`), { code: "INTERNAL" });
     }
   } catch (err) {
-    await failJob(prisma, jobId, err);
+    await failJob(prisma, job, err);
+  } finally {
+    clearInterval(heartbeat);
   }
 }
 
-type JobRow = { id: string; projectId: string; request: unknown };
+type JobRow = { id: string; projectId: string; request: unknown; startedAt: Date | null };
+function ownedJob(job: JobRow) {
+  return { id: job.id, status: "RUNNING", startedAt: job.startedAt };
+}
+
+/** 锁定当前租约行，再写全部资产和终态；异常时整批回滚。 */
+async function commitJob(
+  prisma: PrismaClient, job: JobRow, persist: (tx: Prisma.TransactionClient) => Promise<void>,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const guard = await tx.job.updateMany({ where: ownedJob(job), data: { updatedAt: new Date() } });
+    if (guard.count !== 1) throw new Error("作业租约已失效，拒绝提交旧执行结果");
+    await persist(tx);
+  }, { timeout: 30_000 });
+}
 
 async function runRuleExtraction(
   prisma: PrismaClient,
@@ -210,12 +236,14 @@ async function runRuleExtraction(
     });
   }
 
+  await commitJob(prisma, job, async (prisma) => {
   // 持久化：Rule + RuleVersion(DRAFT) + Clarification；key → 真 id 映射。
-  const keyToRuleVersionId = new Map<string, string>();
+  const keyToRuleVersionId = new Map<string, string>(output.ruleDrafts.map((draft) => [draft.key, randomUUID()]));
   for (const draft of output.ruleDrafts) {
     const rule = await prisma.rule.create({ data: { projectId: job.projectId } });
     const ruleVersion = await prisma.ruleVersion.create({
       data: {
+        id: keyToRuleVersionId.get(draft.key)!,
         ruleId: rule.id,
         version: 1,
         statement: draft.statement,
@@ -229,7 +257,7 @@ async function runRuleExtraction(
         priority: draft.priority,
         businessFields: draft.businessFields as never,
         sources: draft.sources as never,
-        conflictsWith: draft.conflictsWith as never,
+        conflictsWith: draft.conflictsWith.map((key) => keyToRuleVersionId.get(key)!) as never,
         reviewStatus: "DRAFT",
         origin: "model",
         promptVersion: REFERENCE_PROMPT_VERSION,
@@ -264,6 +292,7 @@ async function runRuleExtraction(
   await prisma.job.update({
     where: { id: job.id },
     data: { status: "SUCCEEDED", result: result as never, finishedAt: new Date() },
+  });
   });
 }
 
@@ -363,11 +392,19 @@ async function runCaseGeneration(prisma: PrismaClient, job: JobRow): Promise<voi
     });
   }
 
+  await commitJob(prisma, job, async (prisma) => {
   const caseVersionIds: string[] = [];
   for (const draft of output.caseDrafts) {
     const testCase = await prisma.testCase.create({ data: { projectId: job.projectId } });
+    const normalized = TestCaseVersionSchema.parse({
+      ...draft, id: randomUUID(), caseId: testCase.id, version: 1,
+      steps: draft.steps.map((step) => ({ ...step, id: randomUUID() })),
+      approvalStatus: "DRAFT", origin: "model", promptVersion: REFERENCE_PROMPT_VERSION,
+      createdAt: new Date().toISOString(),
+    });
     const caseVersion = await prisma.testCaseVersion.create({
       data: {
+        id: normalized.id,
         caseId: testCase.id,
         version: 1,
         title: draft.title,
@@ -376,7 +413,7 @@ async function runCaseGeneration(prisma: PrismaClient, job: JobRow): Promise<voi
         roles: draft.roles,
         preconditions: draft.preconditions as never,
         dataSpec: draft.dataSpec as never,
-        steps: draft.steps as never,
+        steps: normalized.steps as never,
         assertions: draft.assertions as never,
         cleanup: draft.cleanup as never,
         priority: draft.priority,
@@ -400,5 +437,6 @@ async function runCaseGeneration(prisma: PrismaClient, job: JobRow): Promise<voi
   await prisma.job.update({
     where: { id: job.id },
     data: { status: "SUCCEEDED", result: result as never, finishedAt: new Date() },
+  });
   });
 }

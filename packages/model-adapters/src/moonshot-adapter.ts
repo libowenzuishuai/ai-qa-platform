@@ -65,6 +65,7 @@ async function requestCompletion(
   messages: ChatMessage[],
   timeoutMs: number,
   temperature?: number,
+  maxOutputTokens?: number,
 ): Promise<{ content: string; requestId: string | null; usage: ChatCompletionBody["usage"] }> {
   const { config } = options;
   const doFetch: FetchLike = options.fetchImpl ?? ((input, init) => fetch(input, init));
@@ -81,6 +82,7 @@ async function requestCompletion(
         model: config.model,
         messages,
         temperature,
+        max_tokens: maxOutputTokens,
         response_format: { type: "json_object" },
       }),
       signal: AbortSignal.timeout(timeoutMs),
@@ -178,6 +180,7 @@ export class MoonshotTextAdapter implements TextModelAdapter {
       ],
       req.timeoutMs,
       req.temperature,
+      req.maxOutputTokens,
     );
 
     // 有限格式修复 + schema 校验。

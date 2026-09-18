@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import { reconcileAgentJobs } from "./agent-job-recovery.js";
 import { PrismaClient } from "@prisma/client";
 import { Queue, Worker as BullWorker } from "bullmq";
 import { emitRunEvent, parseRedisConnection } from "@ai-qa/run-events";
@@ -79,6 +80,7 @@ const QUEUED_RETRY_AFTER_MS = 10_000;
 const LEASE_STALE_MS = 90_000;
 
 async function reconcile(): Promise<void> {
+  await reconcileAgentJobs(prisma, agentJobsQueue);
   // 1) 落库但入队失败/丢失的 QUEUED 运行：超时重投。
   const staleQueued = await prisma.run.findMany({
     where: {

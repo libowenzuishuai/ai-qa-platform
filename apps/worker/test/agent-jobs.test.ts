@@ -1,5 +1,9 @@
+import { execFileSync } from "node:child_process";
+import { Queue, Worker } from "bullmq";
+import type { PrismaClient } from "@prisma/client";
+import { reconcileAgentJobs } from "../src/agent-job-recovery.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -7,6 +11,7 @@ import {
   RuleExtractionOutput,
   CaseGenerationInput,
   CaseGenerationOutput,
+  TestCaseVersion,
 } from "@ai-qa/contracts";
 import { inputHash, registerMockResponse } from "@ai-qa/model-adapters";
 import { processAgentJob, buildCaseGenerationJobInput } from "../src/agent-job-processor.js";
@@ -28,13 +33,30 @@ import { createTestEnv, type TestEnv } from "../../api/test/helpers/db.js";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CONTRACT_FIXTURES = join(HERE, "../../../packages/contracts/fixtures");
 
+const MOCK_TABLE = join(HERE, "../../../packages/model-adapters/mock-table/entries.json");
+const originalMockTable = readFileSync(MOCK_TABLE);
 let env: TestEnv;
+let queue: Queue;
+const redisName = `aiqa-stage2-review-${process.pid}`;
+let redisStarted = false;
+let connection: { host: string; port: number };
+
 
 beforeAll(async () => {
   env = await createTestEnv("agentjobs");
+  execFileSync("docker", ["run", "--rm", "-d", "--name", redisName, "-p", "127.0.0.1::6379", "redis:7-alpine"]);
+  redisStarted = true;
+  const port = Number(execFileSync("docker", ["port", redisName, "6379/tcp"], { encoding: "utf8" }).trim().split(":").at(-1));
+  connection = { host: "127.0.0.1", port };
+  queue = new Queue("agent-jobs-test", { connection });
+  await queue.waitUntilReady();
 });
 afterAll(async () => {
-  await env.cleanup();
+  writeFileSync(MOCK_TABLE, originalMockTable);
+  try { await queue?.close(); } finally {
+    try { if (redisStarted) execFileSync("docker", ["rm", "-f", redisName]); }
+    finally { await env?.cleanup(); }
+  }
 });
 
   /** golden 的 sources.documentVersionId 随 bundle 重定基（联合校验要求一致）。 */
@@ -220,6 +242,10 @@ describe("阶段 2 纵向链路（mock 全链路）", () => {
     });
     expect(clarification.kind).toBe("CONFLICT");
     expect(clarification.ruleVersionIds).toHaveLength(2);
+    const conflicts = await env.prisma.ruleVersion.findMany({ where: { id: { in: clarification.ruleVersionIds } } });
+    for (const conflict of conflicts) {
+      expect(conflict.conflictsWith).toEqual(conflicts.filter((r) => r.id !== conflict.id).map((r) => r.id));
+    }
   });
 
   it("RULE_EXTRACTION：编造引用的输出 → 作业 FAILED/MODEL_OUTPUT_INVALID", async () => {
@@ -342,6 +368,9 @@ describe("阶段 2 纵向链路（mock 全链路）", () => {
     expect(caseVersion.approvalStatus).toBe("DRAFT");
     expect(caseVersion.origin).toBe("model");
     expect(caseVersion.projectId).toBe(caseProjectId);
+    const normalized = TestCaseVersion.parse({ ...caseVersion, description: caseVersion.description ?? undefined,
+      approvalHash: caseVersion.approvalHash ?? undefined, createdAt: caseVersion.createdAt.toISOString() });
+    expect(new Set(normalized.steps.map((s) => s.id)).size).toBe(normalized.steps.length);
   });
 
   it("重复投递：已终态作业不重复执行（CAS 认领）", async () => {
@@ -363,3 +392,65 @@ const emptyWorkerConfig = {
   demoFixtureToken: "unused",
   logLevel: "warn",
 };
+
+async function extractionJob() {
+  const project = await env.prisma.project.create({ data: { name: "recovery-test" } });
+  const { documentVersionId, storedBundle } = await seedDocumentVersion("01-explicit-prd", "recovery", project.id);
+  const input = RuleExtractionInput.parse({projectGlossary: [], documentVersions: [storedBundle], images: [], promptVersion: REFERENCE_PROMPT_VERSION});
+  const {system,user} = buildRuleExtractionMessages(input);
+  registerMockResponse(inputHash("RULE_EXTRACTION",system,user), rebaseGolden(loadFixture("01-explicit-prd","expected-rule-drafts.json"),documentVersionId));
+  return env.prisma.job.create({data:{projectId:project.id,kind:"RULE_EXTRACTION",request:{documentVersionIds:[documentVersionId],mode:"mock"},fingerprint:documentVersionId}});
+}
+const cfg = () => ({...emptyWorkerConfig,artifactDir:env.artifactDir});
+function latch() { let release!:()=>void; const promise=new Promise<void>(r=>release=r); return {promise,release}; }
+
+it("真实队列：漏投的 QUEUED 作业经对账补投，重复投递仅一套资产", async()=>{
+ const job=await extractionJob();
+ await env.prisma.job.update({where:{id:job.id},data:{updatedAt:new Date(Date.now()-20000)}});
+ await reconcileAgentJobs(env.prisma,queue);
+ await queue.add("run",{jobId:job.id});
+ const finished=latch();let count=0;
+ const worker=new Worker(queue.name,async task=>{await processAgentJob(env.prisma,cfg(),String(task.data.jobId));},{connection,concurrency:2});
+ worker.on("completed",()=>{if(++count===2)finished.release();});
+ try {
+  await Promise.race([finished.promise,new Promise((_,reject)=>setTimeout(()=>reject(new Error("queue timeout")),5000).unref())]);
+  expect((await env.prisma.job.findUniqueOrThrow({where:{id:job.id}})).status).toBe("SUCCEEDED");
+  expect(await env.prisma.rule.count({where:{projectId:job.projectId}})).toBe(3);
+ } finally {await worker.close();}
+});
+
+it("失联作业明确 FAILED，活跃心跳不误判；旧执行不能覆盖重试",async()=>{
+ const job=await extractionJob();const entered=latch(),resume=latch();
+ const client=env.prisma.$extends({query:{modelInvocation:{async create({args,query}){
+   entered.release();await resume.promise;return query(args);
+ }}}}) as unknown as PrismaClient;
+ const pending=processAgentJob(client,cfg(),job.id);
+ await entered.promise;
+ try {
+  await reconcileAgentJobs(env.prisma,queue);
+  expect((await env.prisma.job.findUniqueOrThrow({where:{id:job.id}})).status).toBe("RUNNING");
+  await env.prisma.job.update({where:{id:job.id},data:{updatedAt:new Date(Date.now()-100000)}});
+  await reconcileAgentJobs(env.prisma,queue);
+  expect((await env.prisma.job.findUniqueOrThrow({where:{id:job.id}})).status).toBe("FAILED");
+  // 显式重试的新执行拥有不同 startedAt；旧执行稍后回来必须被拒绝。
+  await env.prisma.job.update({where:{id:job.id},data:{status:"QUEUED",startedAt:null,finishedAt:null}});
+  await processAgentJob(env.prisma,cfg(),job.id);
+ } finally {resume.release();await pending;}
+ expect((await env.prisma.job.findUniqueOrThrow({where:{id:job.id}})).status).toBe("SUCCEEDED");
+ expect(await env.prisma.rule.count({where:{projectId:job.projectId}})).toBe(3);
+});
+
+it("中途写入失败回滚所有资产，重试不会留下半套规则",async()=>{
+ const job=await extractionJob();let creates=0;
+ const client=env.prisma.$extends({query:{ruleVersion:{async create({args,query}){
+   if(++creates===2)throw new Error("injected second insert failure");return query(args);
+ }}}}) as unknown as PrismaClient;
+ await processAgentJob(client,cfg(),job.id);
+ expect((await env.prisma.job.findUniqueOrThrow({where:{id:job.id}})).status).toBe("FAILED");
+ expect(await env.prisma.rule.count({where:{projectId:job.projectId}})).toBe(0);
+ expect(await env.prisma.ruleVersion.count({where:{rule:{projectId:job.projectId}}})).toBe(0);
+ await env.prisma.job.update({where:{id:job.id},data:{status:"QUEUED",startedAt:null,finishedAt:null}});
+ await processAgentJob(env.prisma,cfg(),job.id);
+ expect((await env.prisma.job.findUniqueOrThrow({where:{id:job.id}})).status).toBe("SUCCEEDED");
+ expect(await env.prisma.rule.count({where:{projectId:job.projectId}})).toBe(3);
+});

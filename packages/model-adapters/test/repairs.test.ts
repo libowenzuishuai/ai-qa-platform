@@ -28,7 +28,7 @@ describe("有限格式修复（契约：闭集 + ≤2 次）", () => {
   });
 
   it("truncated-json：未闭合括号补齐", () => {
-    const r = parseWithRepairs('{"list":[1,2,{"x":"val');
+    const r = parseWithRepairs('{"list":[1,2,{"x":"val"');
     expect(r.ok).toBe(true);
     expect(r.repairsApplied).toContain("truncated-json");
   });
@@ -44,3 +44,13 @@ describe("有限格式修复（契约：闭集 + ≤2 次）", () => {
     expect(r.ok).toBe(false);
   });
 });
+
+ it("修复尾逗号时保留正文、转义引号与反斜杠", () => {
+   for (const rule of ["显示 ,} 原文", "金额 ,] 不得修改", '转义引号 \" ,} 正文', "路径 \\ ,] 保留"]) {
+     const raw = JSON.stringify({ rule, list: ["x"] }).replace(/}$/, ",}");
+     expect(parseWithRepairs(raw).json).toEqual({ rule, list: ["x"] });
+   }
+ });
+ it("不接受字符串被截断的业务内容", () => {
+   expect(parseWithRepairs('{"rule":"金额不得超').ok).toBe(false);
+ });

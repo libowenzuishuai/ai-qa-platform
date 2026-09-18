@@ -11,6 +11,31 @@ export const MAX_REPAIRS = 2;
 /** 单次修复动作：返回修复后的文本，或 null 表示不适用。 */
 type RepairFn = (raw: string) => string | null;
 
+/** Remove only syntax commas; quoted business text must remain byte-for-byte intact. */
+function removeTrailingCommas(raw: string): string | null {
+  let inString = false;
+  let escaped = false;
+  let result = "";
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i]!;
+    if (inString) {
+      result += ch;
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    if (ch === ",") {
+      let next = i + 1;
+      while (next < raw.length && /[ \t\r\n]/.test(raw[next]!)) next++;
+      if (raw[next] === "}" || raw[next] === "]") continue;
+    }
+    result += ch;
+  }
+  return result === raw ? null : result;
+}
+
 const REPAIRS: ReadonlyArray<{ kind: ModelRepairKind; apply: RepairFn }> = [
   {
     kind: "bom",
@@ -25,7 +50,7 @@ const REPAIRS: ReadonlyArray<{ kind: ModelRepairKind; apply: RepairFn }> = [
   },
   {
     kind: "trailing-comma",
-    apply: (raw) => (/,\s*([}\]])/.test(raw) ? raw.replace(/,\s*([}\]])/g, "$1") : null),
+    apply: removeTrailingCommas,
   },
   {
     kind: "truncated-json",
@@ -52,7 +77,7 @@ const REPAIRS: ReadonlyArray<{ kind: ModelRepairKind; apply: RepairFn }> = [
         else if (ch === "}" || ch === "]") stack.pop();
       }
       let candidate = raw;
-      if (inString) candidate += '"';
+      if (inString) return null; // 不补全被截断的业务字符串。
       if (stack.length === 0) return null;
       candidate += stack.reverse().join("");
       try {

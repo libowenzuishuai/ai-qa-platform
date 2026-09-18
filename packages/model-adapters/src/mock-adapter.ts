@@ -108,9 +108,16 @@ export class MockVisionAdapter implements VisionModelAdapter {
 
   async describeImage(req: VisionModelRequest): Promise<ModelResponse> {
     const key = inputHash(req.purpose, "vision", req.hint, req.imageStorageKey);
-    return buildMockResponse(
+    const response = buildMockResponse(
       { purpose: req.purpose, system: "vision", user: req.hint },
       key,
     );
+    const verdict = validateAgainstSchema(compileOutputSchema(req.outputSchema), response.parsedJson);
+    if (!verdict.ok) {
+      throw new ModelError("MODEL_OUTPUT_INVALID", "视觉 mock 注册内容不符合 outputSchema", {
+        mockTable: "mock-table/entries.json", inputHash: key, schemaErrors: verdict.errors,
+      });
+    }
+    return response;
   }
 }

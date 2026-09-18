@@ -126,3 +126,15 @@ describe("real 配置纪律（禁止降级 mock）", () => {
     expect((err as ModelError).code).toBe("MODEL_NOT_CONFIGURED");
   });
 });
+
+it("视觉 mock 拒绝结构错误的响应", async () => {
+  const req = {
+    purpose: "VISION_DESCRIBE" as const, hint: "schema-test", imageStorageKey: "test.png", timeoutMs: 1000,
+    outputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
+  };
+  const key = inputHash(req.purpose, "vision", req.hint, req.imageStorageKey);
+  registerMockResponse(key, { text: 123 });
+  await expect(new MockVisionAdapter().describeImage(req)).rejects.toMatchObject({ code: "MODEL_OUTPUT_INVALID" });
+  registerMockResponse(key, { text: "正常" });
+  expect((await new MockVisionAdapter().describeImage(req)).parsedJson).toEqual({ text: "正常" });
+});

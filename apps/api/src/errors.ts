@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { ModelError } from "@ai-qa/model-adapters";
 import {
   ApiErrorBody,
   DEFAULT_HTTP_STATUS_BY_CODE,
@@ -26,6 +27,16 @@ export function sendApiError(
   error: unknown,
 ): void {
   const requestId = req.id;
+  if (error instanceof ModelError) {
+    // 供应商错误文本可能包含请求内容；客户端只接收稳定语义与请求编号。
+    const messages = {
+      MODEL_NOT_CONFIGURED: "模型服务未配置或配置不可用",
+      MODEL_OUTPUT_INVALID: "模型输出未通过校验",
+      MODEL_TIMEOUT: "模型请求超时",
+      DEPENDENCY_UNAVAILABLE: "模型服务暂不可用",
+    };
+    error = new ApiError(error.code, messages[error.code]);
+  }
   if (error instanceof ApiError) {
     const body = {
       code: error.code,
