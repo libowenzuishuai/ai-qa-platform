@@ -14,7 +14,7 @@
 |---|---|---|
 | **A** | **李博闻** | `model-adapter.ts` 起草；**牵头**：`jobs.ts` + `api-error.ts` 增补 + `index.ts` 导出 + 测试汇总 + 单 PR 合并 |
 | **B** | **原泽菲** | `document.ts` 起草；3 份 `source.md` + `parsed-bundle.json`；解析红线测试断言 |
-| **C** | **李琪双** | `agent-rule.ts` + `agent-case.ts` 起草；3 份 `expected-rule-drafts.json`；联合校验测试断言 |
+| **C** | **李琦双** | `agent-rule.ts` + `agent-case.ts` 起草；3 份 `expected-rule-drafts.json`；联合校验测试断言 |
 
 牵头人选说明：v1 建议 C 牵头，但 C 本就是最重负载（两份契约 + 全部
 golden），再背 jobs/错误码/汇总/PR 必成瓶颈。A 的契约最小最独立，牵头
@@ -52,8 +52,8 @@ packages/contracts/
   src/
     document.ts        ← 新增（原泽菲起草）
     model-adapter.ts   ← 新增（李博闻起草）
-    agent-rule.ts      ← 新增（李琪双起草）
-    agent-case.ts      ← 新增（李琪双起草）
+    agent-rule.ts      ← 新增（李琦双起草）
+    agent-case.ts      ← 新增（李琦双起草）
     jobs.ts            ← 新增（李博闻起草）
     api-error.ts       ← 改：ApiErrorCode 增补 5 码 + 状态码映射（李博闻）
     index.ts           ← 改：导出以上全部（李博闻）
@@ -72,7 +72,7 @@ packages/contracts/
 
 ## 2. 四份契约逐份内容
 
-### 2.1 `document.ts`（原泽菲起草，李琪双消费）
+### 2.1 `document.ts`（原泽菲起草，李琦双消费）
 
 枚举逐字 lift 自 Prisma schema 注释，不改名、不增删值：
 
@@ -122,7 +122,7 @@ export const ParsedBlock = z.object({
   imageStorageKey: z.string().optional(), // kind=image 时
 });
 
-/** 解析产物：原泽菲的解析器输出 → 存 artifact-store → 李琪双的作业输入。 */
+/** 解析产物：原泽菲的解析器输出 → 存 artifact-store → 李琦双的作业输入。 */
 export const ParsedDocumentBundle = z.object({
   documentVersionId: EntityId,
   format: DocumentFormat,
@@ -158,7 +158,7 @@ export const ParsedDocumentBundle = z.object({
 });
 ```
 
-### 2.2 `model-adapter.ts`（李博闻起草，原泽菲注入 vision、李琪双消费）
+### 2.2 `model-adapter.ts`（李博闻起草，原泽菲注入 vision、李琦双消费）
 
 **【v2 已决】`ModelProvider = ["moonshot", "mock"]`**——依据：根 `.env`
 已配置 moonshot/kimi-k2.6 并经阶段 0.1 复核实测；评审明确"不能按 zhipu
@@ -236,12 +236,12 @@ export interface VisionModelAdapter {
 **MockAdapter 确定性协议（写进契约注释并由测试锁定）**：mock 响应按
 `purpose + 输入内容 hash` 查 fixtures 内置映射表，**查不到即抛
 `MODEL_OUTPUT_INVALID`（details: { mockTable, inputHash }），禁止现编**。
-这是"李琪双不等李博闻开工"的前提，也是 real 不降级 mock（约定 §1.4）
+这是"李琦双不等李博闻开工"的前提，也是 real 不降级 mock（约定 §1.4）
 的另一半：mock 也不许偷偷变聪明。错误映射：缺密钥/endpoint →
 `MODEL_NOT_CONFIGURED`（禁止静默换 mock）；修复后仍不合 schema →
 `MODEL_OUTPUT_INVALID`，details 携带 `{ repairsApplied, rawExcerpt }`。
 
-### 2.3 `agent-rule.ts`（李琪双起草，入库前校验消费）
+### 2.3 `agent-rule.ts`（李琦双起草，入库前校验消费）
 
 字段名与提示词 §5.1 对齐。**映射说明**：§5.1 的输入变量 `sourceSpans`
 在契约中不设独立字段，它是 `documentVersions[].spans` 的展开物
@@ -314,7 +314,7 @@ export const RuleExtractionOutput = z.object({
    同批 draft key 集合（引用闭合）；`conflictsWith` 标注 CONFLICT 的
    双方必须互相指向（不许单方消解）。
 
-### 2.4 `agent-case.ts`（李琪双起草）
+### 2.4 `agent-case.ts`（李琦双起草）
 
 字段名对齐 §5.2；直接复用 `test-case.ts` 的积木：
 
@@ -462,7 +462,7 @@ result 只放实体 id 引用与计数，不内联 bundle/draft 大对象。
 
 ---
 
-## 3. 三份 fixture 细则（原泽菲写 source + bundle，李琪双写 golden）
+## 3. 三份 fixture 细则（原泽菲写 source + bundle，李琦双写 golden）
 
 目录 `packages/contracts/fixtures/`。bundle 是手工构造的
 `ParsedDocumentBundle`（span 带假 id）；golden 是手工构造的
@@ -477,7 +477,7 @@ result 只放实体 id 引用与计数，不内联 bundle/draft 大对象。
 | 02 冲突 | §2.1「审批后仍可修改金额」vs §4.2「审批后金额锁定」 | 两个 heading-path span 分别覆盖两处原文 | **两条 draft 各带各的来源**，`conflictsWith` 经 key 互相指向，+1 条 `kind:"CONFLICT"` clarification 关联两个 key；golden 中不得出现第三条「调和版」规则 |
 | 03 缺边界 | 只写「高额采购订单需主管审批」，全文无具体金额 | 正常 PARSED | 边界规则 `classification:"UNKNOWN"`；**负向断言：任何 draft 的 businessFields.value 不得为数字字面量**（无依据不编数）；+1 条 `kind:"MISSING_INFO"` clarification 询问金额边界 |
 
-fixture 的三个用途：① 李琪双的 pipeline 输入（不等原泽菲的解析器）；
+fixture 的三个用途：① 李琦双的 pipeline 输入（不等原泽菲的解析器）；
 ② contracts 测试数据；③ 集成日原泽菲真解析 `source.md` 的产物与手写
 bundle 做结构等价对照。
 
@@ -489,17 +489,17 @@ bundle 做结构等价对照。
 
 | 测试 | 断言 | 断言草稿归属 |
 |---|---|---|
-| fixture round-trip | 3 份 bundle 过 `ParsedDocumentBundle`；3 份 golden 过 `RuleExtractionOutput` | 原泽菲（bundle）/ 李琪双（golden） |
-| EXPLICIT 出处 | fixture 01 过 `validateRuleExtraction`；删某 draft 的 sources → 报错 | 李琪双 |
-| spanId 存在性 | 改某 `sourceSpanIds` 为不存在 id → 报错（拦编造引用） | 李琪双 |
-| quotedText 逐字 | 改 quotedText 为原文没有的句子 → 报错 | 李琪双 |
-| 冲突保持 | fixture 02 golden 过校验；删任一方 conflictsWith → 报错（不许单方消解） | 李琪双 |
-| key 引用闭合 | conflictsWith / ruleDraftKeys 指向不存在的 key → 报错 | 李琪双 |
-| 不补造 | fixture 03 负向：golden 所有 businessFields.value 均非数字字面量 | 李琪双 |
+| fixture round-trip | 3 份 bundle 过 `ParsedDocumentBundle`；3 份 golden 过 `RuleExtractionOutput` | 原泽菲（bundle）/ 李琦双（golden） |
+| EXPLICIT 出处 | fixture 01 过 `validateRuleExtraction`；删某 draft 的 sources → 报错 | 李琦双 |
+| spanId 存在性 | 改某 `sourceSpanIds` 为不存在 id → 报错（拦编造引用） | 李琦双 |
+| quotedText 逐字 | 改 quotedText 为原文没有的句子 → 报错 | 李琦双 |
+| 冲突保持 | fixture 02 golden 过校验；删任一方 conflictsWith → 报错（不许单方消解） | 李琦双 |
+| key 引用闭合 | conflictsWith / ruleDraftKeys 指向不存在的 key → 报错 | 李琦双 |
+| 不补造 | fixture 03 负向：golden 所有 businessFields.value 均非数字字面量 | 李琦双 |
 | 空文本红线 | PARSED + 全空 blocks → schema 拒绝 | 原泽菲 |
 | coverageSummary 对账 | 手改 goodSpans 计数 → 拒绝 | 原泽菲 |
 | NEEDS_OCR 格式约束 | NEEDS_OCR + MARKDOWN → 拒绝 | 原泽菲 |
-| case 联合校验 | 用 fixture 01 golden 伪造 APPROVED 输入，喂含未声明 ruleVersionId 断言的 draft → `validateCaseGeneration` 报错；fixture 策略 fixtureId 越界 → 报错；coverageMap 漏一条规则 → 报错 | 李琪双 |
+| case 联合校验 | 用 fixture 01 golden 伪造 APPROVED 输入，喂含未声明 ruleVersionId 断言的 draft → `validateCaseGeneration` 报错；fixture 策略 fixtureId 越界 → 报错；coverageMap 漏一条规则 → 报错 | 李琦双 |
 | provider 枚举 | `ModelProvider` 含 moonshot；`ModelProvider.parse("glm")` 抛错（防回退） | 李博闻 |
 | 错误码映射 | 新 5 码都在 `DEFAULT_HTTP_STATUS_BY_CODE` | 李博闻 |
 | 既有基线 | 既有 81 项测试全绿（追加不得破坏） | 李博闻（CI 守门） |
@@ -510,7 +510,7 @@ bundle 做结构等价对照。
 
 | 时段 | 动作 |
 |---|---|
-| 会前（半天） | 三人按 §2 各自起草（纯类型文件，可编译即可）；原泽菲起 3 份 source + bundle 草稿，李琪双起 3 份 golden 草稿 |
+| 会前（半天） | 三人按 §2 各自起草（纯类型文件，可编译即可）；原泽菲起 3 份 source + bundle 草稿，李琦双起 3 份 golden 草稿 |
 | 评审会（90 分钟） | 只裁 §7 的 5 个开放点，逐字段过 4 份草案 |
 | 会后（半天） | 按裁决修订 → 李博闻合成单 PR（只动 `packages/contracts`）+ 补 §4 测试 → `pnpm --filter @ai-qa/contracts test` 与 `pnpm typecheck` 绿 → 三人 approve → **合并即冻结** |
 
@@ -518,7 +518,7 @@ bundle 做结构等价对照。
 |---|---|
 | 李博闻（A，牵头） | `model-adapter.ts` + `jobs.ts` + `api-error.ts` 增补 + `index.ts` + 测试汇总 + PR |
 | 原泽菲（B） | `document.ts` + 3 份 `source.md`/`parsed-bundle.json` + 解析红线断言 |
-| 李琪双（C） | `agent-rule.ts` + `agent-case.ts` + 3 份 `expected-rule-drafts.json` + 联合校验断言 |
+| 李琦双（C） | `agent-rule.ts` + `agent-case.ts` + 3 份 `expected-rule-drafts.json` + 联合校验断言 |
 
 ---
 
@@ -548,7 +548,7 @@ bundle 做结构等价对照。
 2. **span id 生成时机**：解析时生成并在入库前写死进 bundle，还是入库后
    回填？（决定 fixture 里 span id 写法与存在性校验时机；若裁"入库前
    写死"，quotedText 校验可升级为 block 级对应）
-3. **bundle 读路径**：李琪双的 rule-extraction 作业从 artifact-store 按
+3. **bundle 读路径**：李琦双的 rule-extraction 作业从 artifact-store 按
    documentVersionId 取 bundle 并校验 parseStatus=PARSED 的时机与责任方
    （v1 未列；直接决定 C 能否真不等 B）。
 4. **job 幂等**：同参数重复 POST 返回同一 jobId 还是新建？建议：
@@ -581,7 +581,7 @@ bundle 做结构等价对照。
 - [ ] `pnpm typecheck` 全仓绿
 - [ ] 三人从合并后的 main 各自 `import` 新契约即可开工，互不等人：
       李博闻写 `packages/model-adapters`（moonshot + mock 适配器）、
-      原泽菲写 `packages/doc-ingestion`、李琪双新建 `packages/agents`
+      原泽菲写 `packages/doc-ingestion`、李琦双新建 `packages/agents`
       （规则提取/用例生成 pipeline，fixture 先行）
 - [ ] §7 的 5 个裁决点在 PR 描述里留痕
 - [ ] 合并后 `packages/contracts` 转只读；后续任何契约改动走单独 PR
