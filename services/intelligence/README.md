@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-已提供服务、协议、生成类型、业务校验、模型网关、只读文件访问、测试与 TS 客户端。B/C 的正式算法入口尚未实现，返回明确 503。`/health` 的 capabilities 如实为 false。
+已提供服务、协议、生成类型、业务校验、模型网关、只读文件访问、测试与 TS 客户端。B 的首版 Python 文档解析已实现，`documentParse=true`；C 的规则/用例算法仍未实现，对应 capabilities=false、调用返回 503。文档上传与 DOCUMENT_PARSE 作业接线尚未完成。
 
 ## 本地启动（从仓库根目录）
 
@@ -33,7 +33,7 @@ export AIQA_INTELLIGENCE_TOKEN='与 Python 服务相同的令牌'
 export AIQA_INTELLIGENCE_TIMEOUT_MS='120000'
 ```
 
-默认 `reference` 是迁移兼容模式，继续使用已存在的 TS 参考管线；Python 出错不会回退。B/C 完成前切换 Python 会得到“模块待实现”的明确失败。
+默认 `reference` 是迁移兼容模式，继续使用已存在的 TS 参考管线；Python 出错不会回退。C 完成前切换 Python 的规则/用例管线仍会得到“模块待实现”的明确失败。文档解析可通过内部 HTTP 单独调用。
 
 ## 内部接口 v1
 
@@ -46,6 +46,17 @@ export AIQA_INTELLIGENCE_TIMEOUT_MS='120000'
 均使用 `Authorization: Bearer <内部令牌>`。请求包含 schemaVersion=`1.0`、requestId、mode、timeoutMs、input；响应原样回传版本、请求 ID、mode，另有 output 与 invocations。文件通过只读共享目录的 storageKey、大小、SHA-256 引用，不传任意下载 URL。
 
 NEEDS_OCR 是合法解析结果，HTTP 200 返回对应 bundle；下游规则提取拒绝它。错误体使用现有 code/message/requestId。健康接口不暴露凭据。
+
+## 文档解析首版范围
+
+- Markdown/TXT：UTF-8 原文与真实行号，标题/列表均有来源；Markdown 表格、代码块、图片/HTML 源文本标为 LOW，绝不加载外部资源。TXT 行号沿用契约的 markdown-line 定位。
+- DOCX：正文段落索引保留空段落；表格按零起始 tableIndex/row/col 定位，合并单元格记录主单元格。段落编号只计正文直接段落、表格编号只计正文直接表格。嵌套表格、图片、修订、页眉页脚等遗漏有警告/可定位的 UNPARSED 记录，不宣称完整解析。
+- PDF：按真实页号提取文字；空白或无法提取文字的页保留 UNPARSED。全部无文字时返回 PDF_SCANNED/NEEDS_OCR；混合文档保留可读文字与遗漏页。扫描 PDF OCR、复杂表格和多栏阅读顺序尚未实现。
+- PNG/JPEG：验证真实文件/格式/像素后走共享视觉网关。全文保留，整图归一化 bbox=[0,0,1,1]、LOW；无有效转录返回 NEEDS_OCR。凭据缺失/超时继续返回明确错误，不包装成解析成功。
+- 上限：源文件 20 MB，PDF 200 页，提取文本 200 万字符/20000 块，图片 2000 万像素且单帧，视觉文本 10 万字符；DOCX 解压总量 64 MB/2000 条目，单 XML 16 MB。超限显式失败，不静默截断。
+- CPU 解析每个服务进程最多两个子进程，请求超时/取消时终止实际子进程。服务部署使用只读证据目录和容器资源上限；本版没有做生产负载验收。
+
+`pnpm test:doc-ingestion` 运行解析回归；依赖 pypdf（BSD-3-Clause）、python-docx（MIT）、Pillow（MIT-CMU）、defusedxml（PSF），lxml（BSD）为 DOCX 间接依赖。版本固定在 pyproject 和 requirements-dev.lock。扫描 OCR 不额外安装系统工具。
 
 ## 开发入口
 

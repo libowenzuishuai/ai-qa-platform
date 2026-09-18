@@ -12,7 +12,9 @@
 - TS worker 的 Python 调用开关，以及规则/用例结果返回后的二次校验和事务落库。
 - 两端共用 19 个合法/反例契约样例；Python 和实际 HTTP 测试；生成物漂移检查 CI。
 
-**尚未实现**：正式文档解析算法、正式 agents 管线、文档上传与 DOCUMENT_PARSE 作业接线、完整审阅页面。对应 Python 模块 `ready=False` 并明确返回 503，不生成假成功结果。
+**B 首版已实现**：Markdown/TXT、结构化 DOCX、逐页文字 PDF 与图片视觉网关接入；`DocumentParser.ready=True`。扫描 OCR、复杂表格等限制见服务 README。
+
+**尚未实现**：正式 agents 管线、文档上传与 DOCUMENT_PARSE 作业接线、完整审阅页面。C 模块仍 `ready=False` 并明确返回 503。
 
 现有参考模式仍可用。选择 Python 后，服务或模块不可用就失败，不回退 reference/mock。模块完成验收后再显式切换默认配置。
 
@@ -52,7 +54,9 @@ async def parse_document(self, input: DocumentParseInput, context: RequestContex
 6. 原 `f07f928` 评审 B1–B4 的反例在 Python 新实现中全部通过。
 7. 默认测试不调用付费模型；完成后设置 `ready=True`。
 
-旧 TS 分支保留供参考，不合入主干；迁移样例与测试意图，不复制错误实现。
+`phase2/doc-ingestion` 至 `6ed386f` 的提交历史与修正意图已合入并迁为 Python 实现；主干不保留第二套 TS 解析代码。详见 [本次评审](reviews/doc-ingestion-6ed386f.md)。
+
+B 下一步从更新后的 main 开 `phase2/python-doc-ingestion`：扫描 PDF OCR、精细图片文字框、复杂/嵌套表格与遗漏覆盖率。先与 A 对齐定位契约，不沿旧 TS 包继续写。
 
 ## 4. C：从这里开始
 
@@ -94,7 +98,7 @@ async def generate_cases(self, input: CaseGenerationInput, context: RequestConte
 4. 补最小资料/规则/用例审阅页面，展示模拟模式、失败原因和显式重试入口。
 5. B/C 合入后跑完整 HTTP→队列→Python→资产落库→审阅流程，再做独立的真实 Kimi 验证。
 
-本次完成的是跨语言基建和交接，不把以上五项标为已完成。
+当前已完成跨语言基建与 B 首版解析；以上五项平台集成工作仍未完成。
 
 ## 6. 契约与接线纪律
 

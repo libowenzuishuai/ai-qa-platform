@@ -1,6 +1,6 @@
 # AI 测试人员平台
 
-> 阶段二采用 **TypeScript 平台 + Python 智能服务**。三人开工请先读 [分工与接口清单](docs/stage2-python-handoff.md)，Python 启动见 [服务说明](services/intelligence/README.md)。当前完成基建，正式解析/生成算法待 B/C 实现。
+> 阶段二采用 **TypeScript 平台 + Python 智能服务**。三人开工请先读 [分工与接口清单](docs/stage2-python-handoff.md)，Python 启动见 [服务说明](services/intelligence/README.md)。B 首版 Python 文档解析已实现；C 正式生成算法与平台上传/解析作业接线待完成。
 根据版本化产品资料（PRD、业务说明、原型）形成有依据的规则与用例，在多人
 开发合并后的 Web 测试环境中独立执行验收测试，输出可追溯报告、缺陷与复测。
 
@@ -27,7 +27,7 @@ packages/artifact-store  证据存储：受控目录、checksum、防目录穿�
 packages/test-runtime    Playwright 执行器：七动作、导航策略、程序化断言、证据采集
 packages/evaluation      确定性聚合：case verdict、运行指标、严格验收（FR-10）
 packages/model-adapters  模型适配器（占位，阶段 2）
-packages/doc-ingestion   文档解析（占位，阶段 2）
+packages/doc-ingestion   Python 文档解析迁移说明（不再维护 TS 解析库）
 tools/phase1-acceptance  阶段 1 集成验收 harness（评测器专用，53 项场景）
 docs/ai-qa               产品规格资料包
 docs                     实施状态、决策记录、验证记录

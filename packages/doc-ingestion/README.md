@@ -1,8 +1,11 @@
-# packages/doc-ingestion（占位）
+# 文档解析已迁入 Python
 
-文档解析与来源定位：Markdown/TXT、DOCX、文本型 PDF、PNG/JPEG（PRD FR-02）。
-扫描 PDF 必须返回“不支持/需 OCR”，不得返回空文本却显示解析成功。
-表格保留行列关系；来源定位保留 Markdown 行/标题、DOCX 标题+段落、
-PDF 页码、图片区域坐标。
+原泽菲的 `phase2/doc-ingestion`（`f07f928`、`6ed386f`）修正已迁入：
 
-本目录当前为占位说明，阶段 2 实现。
+- `services/intelligence/src/aiqa_intelligence/doc_ingestion`
+- `services/intelligence/tests/doc_ingestion`
+
+主干不再维护第二套 TypeScript 解析库。原实现与提交历史保留在 Git 中。
+
+从仓库根目录运行 `pnpm test:doc-ingestion`。接口、分工和部署方式见
+`docs/stage2-python-handoff.md` 与 `services/intelligence/README.md`。

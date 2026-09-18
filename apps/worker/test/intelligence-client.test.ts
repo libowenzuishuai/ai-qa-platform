@@ -1,20 +1,25 @@
 import { afterAll, beforeAll, afterEach, expect, it, vi } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { callIntelligence } from '../src/intelligence-client.js';
-import { RuleExtractionResponse } from '@ai-qa/contracts';
+import { RuleExtractionResponse, DocumentParseResponse } from '@ai-qa/contracts';
 const root=fileURLToPath(new URL('../../../',import.meta.url));
 const vectors=JSON.parse(readFileSync(root+'packages/contracts/fixtures/intelligence-conformance.json','utf8'));
 const rules=vectors.find((v:any)=>v.name==='01-explicit-prd');
 const cases=vectors.find((v:any)=>v.name==='case-valid');
 let child:ChildProcess;
 let url:string;
+let artifactDir:string;
 const config=()=>({port:0,host:'127.0.0.1',databaseUrl:'unused',redisUrl:'unused',artifactDir:'unused',demoFixtureToken:'unused',logLevel:'warn',
   intelligenceUrl:url,intelligenceToken:'http-test-token',intelligenceTimeoutMs:2000});
 beforeAll(async()=>{
+ artifactDir=mkdtempSync(join(tmpdir(),'aiqa-parser-http-'));
  child=spawn(root+'services/intelligence/.venv/bin/python',['-m','uvicorn','http_fixture:app','--host','127.0.0.1','--port','0'],{
-  cwd:root,env:{...process.env,PYTHONPATH:root+'services/intelligence/src:'+root+'services/intelligence/tests'},stdio:['ignore','pipe','pipe'],
+  cwd:root,env:{...process.env,AIQA_ARTIFACT_DIR:artifactDir,PYTHONPATH:root+'services/intelligence/src:'+root+'services/intelligence/tests'},stdio:['ignore','pipe','pipe'],
  });
  await new Promise<void>((resolve,reject)=>{
   const timer=setTimeout(()=>reject(new Error('Python service startup timed out')),10000);
@@ -27,6 +32,19 @@ beforeAll(async()=>{
 afterEach(()=>vi.restoreAllMocks());
 afterAll(async()=>{
  if(child && child.exitCode===null){const exit=new Promise(r=>child.once('exit',r));child.kill('SIGTERM');await exit;}
+ if(artifactDir) rmSync(artifactDir,{recursive:true,force:true});
+});
+it('真实 PDF 经 TS → Python HTTP 解析，页码与引用通过正式 TS 契约',async()=>{
+ const data=readFileSync(root+'services/intelligence/tests/doc_ingestion/fixtures/b1-two-page.pdf');
+ writeFileSync(join(artifactDir,'source.pdf'),data);
+ const response=await callIntelligence({...config(),intelligenceTimeoutMs:10000},'document','http-document','mock',{
+  documentVersionId:'doc-http',format:'PDF_TEXT',storageKey:'source.pdf',
+  checksum:createHash('sha256').update(data).digest('hex'),fileSizeBytes:data.length,
+ });
+ const result=DocumentParseResponse.parse(response);
+ expect(result.output.parseStatus).toBe('PARSED');
+ expect(result.output.spans.find(s=>s.quotedText?.trim()==='SecondPage')?.locator).toEqual({kind:'pdf-page',page:2});
+ expect(result.invocations).toEqual([]);
 });
 it('实际 TypeScript → Python HTTP：规则和用例协议往返',async()=>{
  const r=await callIntelligence(config(),'rules','http-rules','mock',rules.input);
