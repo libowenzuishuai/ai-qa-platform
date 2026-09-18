@@ -365,7 +365,7 @@ def test_cancellation_terminates_actual_parser_child():
     asyncio.run(cancel())
 
 
-def register_pdf_ocr_mocks(gateway, pages: dict[int, str], input):
+def register_pdf_vision_mocks(gateway, pages: dict[int, str], input):
     for page, text in pages.items():
         gateway.register_mock(
             page_vision_request(input, page), {"text": text, "complete": True}
@@ -375,7 +375,7 @@ def register_pdf_ocr_mocks(gateway, pages: dict[int, str], input):
 def parse_pdf_with_ocr(tmp_path, pdf_data, pages: dict[int, str], *, format="PDF_TEXT"):
     input = input_for(tmp_path, pdf_data, format)
     gateway = Gateway("mock", ArtifactReader(tmp_path), "test", [])
-    register_pdf_ocr_mocks(gateway, pages, input)
+    register_pdf_vision_mocks(gateway, pages, input)
     context = RequestContext("req", "mock", ArtifactReader(tmp_path), gateway)
     result = asyncio.run(DocumentParser().parse_document(input, context)).model_dump(
         mode="json", exclude_unset=True
