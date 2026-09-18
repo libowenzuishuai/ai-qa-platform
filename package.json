@@ -19,6 +19,7 @@
     "test:contracts": "pnpm --filter @ai-qa/contracts test",
     "test:golden": "pnpm --filter @ai-qa/demo-app test:golden",
     "test:runtime": "pnpm --filter @ai-qa/test-runtime test",
+    "test:doc-ingestion": "pnpm --filter @ai-qa/doc-ingestion test",
     "db:migrate": "pnpm --filter @ai-qa/api db:migrate",
     "db:seed": "pnpm --filter @ai-qa/api db:seed",
     "typecheck": "pnpm -r typecheck"
