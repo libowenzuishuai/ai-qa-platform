@@ -1,0 +1,53 @@
+{
+  "ruleDrafts": [
+    {
+      "key": "rule-draft-01",
+      "statement": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+      "classification": "EXPLICIT",
+      "role": "申请人",
+      "action": "提交采购单",
+      "expectation": "采购单进入待审批状态",
+      "priority": "P0",
+      "businessFields": [
+        { "key": "amountCents", "operator": "gt", "value": 500000, "unit": "fen" }
+      ],
+      "sources": [
+        { "documentVersionId": "doc-v-01", "sourceSpanIds": ["span-01-2"] }
+      ],
+      "conflictsWith": []
+    },
+    {
+      "key": "rule-draft-02",
+      "statement": "订单金额不超过 5000.00 元的采购单直接进入付款待办",
+      "classification": "EXPLICIT",
+      "role": "申请人",
+      "action": "提交采购单",
+      "expectation": "采购单直接进入付款待办",
+      "priority": "P0",
+      "businessFields": [
+        { "key": "amountCents", "operator": "lte", "value": 500000, "unit": "fen" }
+      ],
+      "sources": [
+        { "documentVersionId": "doc-v-01", "sourceSpanIds": ["span-01-2"] }
+      ],
+      "conflictsWith": []
+    },
+    {
+      "key": "rule-draft-03",
+      "statement": "申请人不可审批自己提交的采购单",
+      "classification": "EXPLICIT",
+      "role": "申请人",
+      "action": "审批采购单",
+      "expectation": "审批被拒绝",
+      "forbiddenBehaviors": ["申请人执行审批操作"],
+      "priority": "P0",
+      "businessFields": [],
+      "sources": [
+        { "documentVersionId": "doc-v-01", "sourceSpanIds": ["span-01-3"] }
+      ],
+      "conflictsWith": []
+    }
+  ],
+  "clarifications": [],
+  "unparsedRanges": []
+}

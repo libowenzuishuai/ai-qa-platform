@@ -1,0 +1,49 @@
+{
+  "documentVersionId": "doc-v-01",
+  "format": "MARKDOWN",
+  "parseStatus": "PARSED",
+  "parserVersion": "fixture-manual-1",
+  "blocks": [
+    { "id": "blk-01-1", "kind": "heading", "text": "采购审批系统需求" },
+    { "id": "blk-01-2", "kind": "heading", "text": "1. 概述" },
+    { "id": "blk-01-3", "kind": "paragraph", "text": "本系统用于管理采购申请的创建、提交与审批流程，覆盖申请人与部门主管两类角色。" },
+    { "id": "blk-01-4", "kind": "heading", "text": "2. 审批规则" },
+    { "id": "blk-01-5", "kind": "paragraph", "text": "订单金额超过 5000.00 元的采购单必须提交部门主管审批。订单金额不超过 5000.00 元的采购单直接进入付款待办。" },
+    { "id": "blk-01-6", "kind": "heading", "text": "3. 角色权限" },
+    { "id": "blk-01-7", "kind": "paragraph", "text": "申请人可以创建并提交采购单。部门主管可以审批采购单。申请人不可审批自己提交的采购单。" },
+    { "id": "blk-01-8", "kind": "heading", "text": "4. 数据要求" },
+    { "id": "blk-01-9", "kind": "paragraph", "text": "采购单金额以分为单位存储，精确到分。金额展示时保留两位小数。" }
+  ],
+  "spans": [
+    {
+      "id": "span-01-1",
+      "documentVersionId": "doc-v-01",
+      "locator": { "kind": "markdown-heading", "path": ["采购审批系统需求", "2. 审批规则"] },
+      "quotedText": "审批规则",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "span-01-2",
+      "documentVersionId": "doc-v-01",
+      "locator": { "kind": "markdown-line", "startLine": 9, "endLine": 9 },
+      "quotedText": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "span-01-3",
+      "documentVersionId": "doc-v-01",
+      "locator": { "kind": "markdown-line", "startLine": 13, "endLine": 13 },
+      "quotedText": "申请人不可审批自己提交的采购单",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "span-01-4",
+      "documentVersionId": "doc-v-01",
+      "locator": { "kind": "markdown-line", "startLine": 17, "endLine": 17 },
+      "quotedText": "采购单金额以分为单位存储，精确到分",
+      "extractionQuality": "GOOD"
+    }
+  ],
+  "coverageSummary": { "totalBlocks": 9, "goodSpans": 4, "lowSpans": 0, "unparsedSpans": 0 },
+  "warnings": []
+}

@@ -1,0 +1,45 @@
+{
+  "documentVersionId": "doc-v-02",
+  "format": "MARKDOWN",
+  "parseStatus": "PARSED",
+  "parserVersion": "fixture-manual-1",
+  "blocks": [
+    { "id": "blk-02-1", "kind": "heading", "text": "差旅报销系统需求" },
+    { "id": "blk-02-2", "kind": "heading", "text": "2.1 金额修改" },
+    { "id": "blk-02-3", "kind": "paragraph", "text": "报销单提交审批后，申请人仍可修改报销金额。" },
+    { "id": "blk-02-4", "kind": "heading", "text": "4.2 金额锁定" },
+    { "id": "blk-02-5", "kind": "paragraph", "text": "报销单进入审批流程后，报销金额锁定，任何角色不可修改。" }
+  ],
+  "spans": [
+    {
+      "id": "span-02-1",
+      "documentVersionId": "doc-v-02",
+      "locator": { "kind": "markdown-heading", "path": ["差旅报销系统需求", "2.1 金额修改"] },
+      "quotedText": "金额修改",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "span-02-2",
+      "documentVersionId": "doc-v-02",
+      "locator": { "kind": "markdown-line", "startLine": 5, "endLine": 5 },
+      "quotedText": "报销单提交审批后，申请人仍可修改报销金额",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "span-02-3",
+      "documentVersionId": "doc-v-02",
+      "locator": { "kind": "markdown-heading", "path": ["差旅报销系统需求", "4.2 金额锁定"] },
+      "quotedText": "金额锁定",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "span-02-4",
+      "documentVersionId": "doc-v-02",
+      "locator": { "kind": "markdown-line", "startLine": 9, "endLine": 9 },
+      "quotedText": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+      "extractionQuality": "GOOD"
+    }
+  ],
+  "coverageSummary": { "totalBlocks": 5, "goodSpans": 4, "lowSpans": 0, "unparsedSpans": 0 },
+  "warnings": []
+}

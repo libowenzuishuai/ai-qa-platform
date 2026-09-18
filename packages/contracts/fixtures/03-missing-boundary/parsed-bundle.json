@@ -1,0 +1,38 @@
+{
+  "documentVersionId": "doc-v-03",
+  "format": "MARKDOWN",
+  "parseStatus": "PARSED",
+  "parserVersion": "fixture-manual-1",
+  "blocks": [
+    { "id": "blk-03-1", "kind": "heading", "text": "采购审批需求（边界缺失）" },
+    { "id": "blk-03-2", "kind": "heading", "text": "审批规则" },
+    { "id": "blk-03-3", "kind": "paragraph", "text": "高额采购订单需提交主管审批。审批通过后订单进入付款待办。" },
+    { "id": "blk-03-4", "kind": "heading", "text": "角色" },
+    { "id": "blk-03-5", "kind": "paragraph", "text": "申请人提交订单，主管审批订单。" }
+  ],
+  "spans": [
+    {
+      "id": "span-03-1",
+      "documentVersionId": "doc-v-03",
+      "locator": { "kind": "markdown-heading", "path": ["采购审批需求（边界缺失）", "审批规则"] },
+      "quotedText": "审批规则",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "span-03-2",
+      "documentVersionId": "doc-v-03",
+      "locator": { "kind": "markdown-line", "startLine": 4, "endLine": 4 },
+      "quotedText": "高额采购订单需提交主管审批",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "span-03-3",
+      "documentVersionId": "doc-v-03",
+      "locator": { "kind": "markdown-line", "startLine": 4, "endLine": 4 },
+      "quotedText": "审批通过后订单进入付款待办",
+      "extractionQuality": "GOOD"
+    }
+  ],
+  "coverageSummary": { "totalBlocks": 5, "goodSpans": 3, "lowSpans": 0, "unparsedSpans": 0 },
+  "warnings": []
+}

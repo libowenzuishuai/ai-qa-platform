@@ -1,0 +1,40 @@
+{
+  "ruleDrafts": [
+    {
+      "key": "rule-draft-01",
+      "statement": "报销单提交审批后，申请人仍可修改报销金额",
+      "classification": "EXPLICIT",
+      "role": "申请人",
+      "action": "修改已提交审批的报销单金额",
+      "expectation": "修改成功",
+      "priority": "P1",
+      "businessFields": [],
+      "sources": [
+        { "documentVersionId": "doc-v-02", "sourceSpanIds": ["span-02-2"] }
+      ],
+      "conflictsWith": ["rule-draft-02"]
+    },
+    {
+      "key": "rule-draft-02",
+      "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+      "classification": "EXPLICIT",
+      "role": "任何角色",
+      "action": "修改审批流程中的报销单金额",
+      "expectation": "修改被拒绝",
+      "priority": "P1",
+      "businessFields": [],
+      "sources": [
+        { "documentVersionId": "doc-v-02", "sourceSpanIds": ["span-02-4"] }
+      ],
+      "conflictsWith": ["rule-draft-01"]
+    }
+  ],
+  "clarifications": [
+    {
+      "ruleDraftKeys": ["rule-draft-01", "rule-draft-02"],
+      "question": "§2.1 允许审批后修改金额，§4.2 要求审批后金额锁定——以哪个为准？或适用不同状态阶段？",
+      "kind": "CONFLICT"
+    }
+  ],
+  "unparsedRanges": []
+}

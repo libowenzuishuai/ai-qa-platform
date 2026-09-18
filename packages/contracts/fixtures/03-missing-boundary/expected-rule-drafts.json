@@ -1,0 +1,42 @@
+{
+  "ruleDrafts": [
+    {
+      "key": "rule-draft-01",
+      "statement": "高额采购订单需提交主管审批（金额边界未定义）",
+      "classification": "UNKNOWN",
+      "role": "申请人",
+      "action": "提交采购订单",
+      "expectation": "高额订单进入待审批（高额的具体金额边界待澄清）",
+      "priority": "P0",
+      "businessFields": [
+        { "key": "amountCents", "unit": "fen" }
+      ],
+      "sources": [
+        { "documentVersionId": "doc-v-03", "sourceSpanIds": ["span-03-2"] }
+      ],
+      "conflictsWith": []
+    },
+    {
+      "key": "rule-draft-02",
+      "statement": "审批通过后订单进入付款待办",
+      "classification": "EXPLICIT",
+      "role": "主管",
+      "action": "审批采购订单",
+      "expectation": "订单进入付款待办",
+      "priority": "P1",
+      "businessFields": [],
+      "sources": [
+        { "documentVersionId": "doc-v-03", "sourceSpanIds": ["span-03-3"] }
+      ],
+      "conflictsWith": []
+    }
+  ],
+  "clarifications": [
+    {
+      "ruleDraftKeys": ["rule-draft-01"],
+      "question": "“高额采购订单”的金额边界是多少（含/不含边界值）？低于边界的订单如何处理？",
+      "kind": "MISSING_INFO"
+    }
+  ],
+  "unparsedRanges": []
+}

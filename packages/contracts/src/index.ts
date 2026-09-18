@@ -8,3 +8,9 @@ export * from "./assertion-result.js";
 export * from "./test-plan.js";
 export * from "./acceptance-hash.js";
 export * from "./run.js";
+// ---------- 阶段 2 第 0 步（docs/stage2-step0-contracts.md）----------
+export * from "./document.js";
+export * from "./model-adapter.js";
+export * from "./agent-rule.js";
+export * from "./agent-case.js";
+export * from "./jobs.js";

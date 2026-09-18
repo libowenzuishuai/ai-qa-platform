@@ -31,6 +31,19 @@ export const ApiErrorCode = z.enum([
   "BUDGET_EXCEEDED",
   "CANCELLED",
   "INTERNAL",
+  // ---------- 阶段 2 增补（docs/stage2-step0-contracts.md §2.6）----------
+  /** real 模式缺密钥/endpoint；禁止降级 mock。details: {provider, missing[]} */
+  "MODEL_NOT_CONFIGURED",
+  /** 有限修复（≤2 次）后仍不合 schema；mock 查表 miss 复用。
+   *  details: {repairsApplied, rawExcerpt} 或 {mockTable, inputHash} */
+  "MODEL_OUTPUT_INVALID",
+  /** 超出请求的 timeoutMs。details: {timeoutMs} */
+  "MODEL_TIMEOUT",
+  /** 解析器异常退出（区别于 NEEDS_OCR 终态）。details: {parserVersion} */
+  "PARSE_FAILED",
+  /** 对 NEEDS_OCR 版本发起 rule-extraction 时拒绝。
+   *  details: {documentVersionId} */
+  "NEEDS_OCR",
 ]);
 export type ApiErrorCode = z.infer<typeof ApiErrorCode>;
 
@@ -50,4 +63,9 @@ export const DEFAULT_HTTP_STATUS_BY_CODE: Readonly<Record<string, number>> = {
   BUDGET_EXCEEDED: 429,
   CANCELLED: 409,
   INTERNAL: 500,
+  MODEL_NOT_CONFIGURED: 503,
+  MODEL_OUTPUT_INVALID: 500,
+  MODEL_TIMEOUT: 504,
+  PARSE_FAILED: 422,
+  NEEDS_OCR: 422,
 };
