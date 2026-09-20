@@ -30,9 +30,13 @@ class Agents:
         return m.CaseGenerationOutput.model_validate(self.case)
 
 
-def test_explicit_not_ready_and_auth(rule_vector):
+def test_auth_and_capabilities(rule_vector):
+    """T6 翻转后：B/C 模块均已就绪；未注册 mock 的调用必须 422 拒绝，不现编。"""
     with TestClient(create_app(token="service-test")) as client:
-        assert client.get("/health").json()["capabilities"]["ruleExtraction"] is False
+        capabilities = client.get("/health").json()["capabilities"]
+        assert capabilities["documentParse"] is True
+        assert capabilities["ruleExtraction"] is True
+        assert capabilities["caseGeneration"] is True
         assert (
             client.post("/v1/rules/extract", json=request(rule_vector)).status_code
             == 401
@@ -40,8 +44,8 @@ def test_explicit_not_ready_and_auth(rule_vector):
         res = client.post(
             "/v1/rules/extract", headers=HEADERS, json=request(rule_vector)
         )
-        assert res.status_code == 503
-        assert res.json()["code"] == "DEPENDENCY_UNAVAILABLE"
+        assert res.status_code == 422
+        assert res.json()["code"] == "MODEL_OUTPUT_INVALID"
 
 
 def test_rules_and_cases(rule_vector, case_vector):

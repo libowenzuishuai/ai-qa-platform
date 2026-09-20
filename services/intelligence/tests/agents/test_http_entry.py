@@ -168,15 +168,11 @@ def test_timeout_actually_cancels_request(tmp_path):
     assert slow.cancelled is True, "wait_for 必须真正取消执行中的任务"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="T6 验收门：类级 ready=True 后本测试转绿（XPASS），届时移除此标记",
-)
 def test_default_instance_final_acceptance(tmp_path):
     """最终验收（评审修正 5）：默认实例 AgentPipelines() → 两个正式入口成功。
 
-    在类级 ready 置 True 之前，默认实例在入口处 503，本测试预期失败；
-    翻转后若忘记移除 xfail 标记，strict 模式会让 XPASS 报红提醒。
+    T6 已翻类级 ready=True（验收门曾以 xfail(strict) 挂起），本测试是
+    常驻验收：任何人把 ready 改回 False 或破坏默认路径都会在此变红。
     """
     rules_v = vector("01-explicit-prd")
     cases_v = vector("case-valid")

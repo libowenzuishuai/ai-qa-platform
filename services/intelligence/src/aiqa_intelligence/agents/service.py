@@ -17,8 +17,10 @@ from .prompts import (
 
 
 class AgentPipelines:
-    # handoff §4 验收七条全部通过后才置 True；置 True 前 HTTP 层返回 503。
-    ready = False
+    # T6 验收翻转（2026-09-20）：三条业务样例语义断言、21 共享向量全量
+    # 遍历、HTTP 正式入口（含默认实例验收门）全部通过后置 True。
+    # 平台默认后端配置保持不变，正式切换由 A 联调后处理（评审修正 5）。
+    ready = True
 
     async def extract_rules(
         self, input: RuleExtractionInput, context: RequestContext
