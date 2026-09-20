@@ -27,7 +27,7 @@ export function loadConfig(): WorkerConfig {
     artifactDir: process.env.AIQA_ARTIFACT_DIR ?? "data/artifacts",
     demoFixtureToken: process.env.DEMO_FIXTURE_TOKEN ?? "dev-fixture-token",
     logLevel: process.env.WORKER_LOG_LEVEL ?? "info",
-    intelligenceBackend: process.env.AIQA_INTELLIGENCE_BACKEND ?? "reference",
+    intelligenceBackend: process.env.AIQA_INTELLIGENCE_BACKEND ?? "python",
     intelligenceUrl: process.env.AIQA_INTELLIGENCE_URL,
     intelligenceToken: process.env.AIQA_INTELLIGENCE_TOKEN,
     intelligenceTimeoutMs: Number(process.env.AIQA_INTELLIGENCE_TIMEOUT_MS ?? 120000),

@@ -57,11 +57,19 @@ def validate_bundle(bundle: dict) -> None:
     )
 
 
-def validate_rules(input: dict, output: dict) -> None:
+def validate_rule_input(input: dict) -> None:
     validate_shape("RuleExtractionInput", input)
-    validate_shape("RuleExtractionOutput", output)
-    for bundle in input["documentVersions"]:
+    documents = input["documentVersions"]
+    require(len({b["documentVersionId"] for b in documents}) == len(documents), "文档版本 ID 重复")
+    spans = [s for b in documents for s in b["spans"]]
+    require(len({s["id"] for s in spans}) == len(spans), "来源片段 ID 重复")
+    for bundle in documents:
         validate_bundle(bundle)
+
+
+def validate_rules(input: dict, output: dict) -> None:
+    validate_rule_input(input)
+    validate_shape("RuleExtractionOutput", output)
     bundles = {b["documentVersionId"]: b for b in input["documentVersions"]}
     spans = {s["id"]: s for b in bundles.values() for s in b["spans"]}
     drafts = {d["key"]: d for d in output["ruleDrafts"]}
@@ -77,6 +85,9 @@ def validate_rules(input: dict, output: dict) -> None:
             for span_id in source["sourceSpanIds"]:
                 require(span_id in spans, "来源片段不存在")
                 span = spans[span_id]
+                quality = span.get("extractionQuality", "GOOD")
+                require(quality != "UNPARSED", "UNPARSED 片段不能作为规则来源")
+                require(draft["classification"] != "EXPLICIT" or quality == "GOOD", "LOW 片段不能作为 EXPLICIT 规则来源")
                 require(span["documentVersionId"] == doc, "来源跨文档")
                 if span.get("quotedText"):
                     require(
@@ -87,6 +98,7 @@ def validate_rules(input: dict, output: dict) -> None:
                         "原文引用不匹配",
                     )
         for key in draft.get("conflictsWith", []):
+            require(key != draft["key"], "规则不能与自身冲突")
             require(key in drafts, "冲突 key 不存在")
             require(
                 draft["key"] in drafts[key].get("conflictsWith", []), "冲突没有互指"
@@ -94,6 +106,11 @@ def validate_rules(input: dict, output: dict) -> None:
     require(
         all(r["spanId"] in spans for r in output["unparsedRanges"]),
         "未解析范围引用不存在片段",
+    )
+    require(
+        {sid for sid, span in spans.items() if span.get("extractionQuality") == "UNPARSED"}
+        <= {r["spanId"] for r in output["unparsedRanges"]},
+        "UNPARSED 片段必须进入未解析范围，不能隐藏遗漏",
     )
     require(
         all(k in drafts for c in output["clarifications"] for k in c["ruleDraftKeys"]),
@@ -131,6 +148,7 @@ def validate_cases(input: dict, output: dict) -> None:
         data = draft["dataSpec"]
         if data["strategy"] == "fixture":
             require(data["fixtureId"] in fixtures, "引用不可用夹具")
+        require(declared <= {a["ruleVersionId"] for a in draft["assertions"]}, "声明的规则缺少对应断言")
         for assertion in draft["assertions"]:
             require(assertion["ruleVersionId"] in declared, "断言引用未声明规则")
             operator, expected = assertion["operator"], assertion.get("expected")
@@ -146,3 +164,16 @@ def validate_cases(input: dict, output: dict) -> None:
         for e in output["coverageMap"] + output["blockedRequirements"]
     }
     require(covered == approved, "覆盖表存在越界或遗漏")
+
+    entries = output["coverageMap"]
+    require(len({e["ruleVersionId"] for e in entries}) == len(entries), "coverageMap 规则重复")
+    blocked = {b["ruleVersionId"] for b in output["blockedRequirements"]}
+    for entry in entries:
+        rule_id = entry["ruleVersionId"]
+        cases = [d for d in output["caseDrafts"] if rule_id in d["ruleVersionIds"]]
+        require(entry["caseCount"] == len(cases), "coverageMap 用例计数不一致")
+        actual_dimensions = {dimension for d in cases for dimension in d["dimensions"]}
+        require(set(entry["dimensionsCovered"]) == actual_dimensions, "coverageMap 覆盖维度不一致")
+        require(bool(cases) or rule_id in blocked, "零用例规则必须说明阻塞原因")
+    # A generated case cannot disappear from the coverage table behind a blocker.
+    require({r for d in output["caseDrafts"] for r in d["ruleVersionIds"]} <= {e["ruleVersionId"] for e in entries}, "生成用例必须在覆盖表中对账")

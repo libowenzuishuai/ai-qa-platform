@@ -14,6 +14,7 @@ from .contracts.validation import (
     validate_shape,
     validate_bundle,
     validate_rules,
+    validate_rule_input,
     validate_cases,
     validate_case_input,
 )
@@ -112,6 +113,7 @@ def create_app(
             raise ServiceError("VALIDATION_ERROR", "输入不符合契约") from exc
         data = typed.input.model_dump(mode="json", exclude_unset=True)
         if operation == "rules":
+            validate_rule_input(data)
             for bundle in data["documentVersions"]:
                 validate_bundle(bundle)
                 if bundle["parseStatus"] != "PARSED":

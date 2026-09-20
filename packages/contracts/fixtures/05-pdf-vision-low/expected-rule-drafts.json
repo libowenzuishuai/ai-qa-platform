@@ -1,0 +1,26 @@
+{
+  "ruleDrafts": [
+    {
+      "key": "rule-draft-01",
+      "statement": "报销单应在提交后 3 个工作日内完成复核（低质量扫描件转录，待人工核对）",
+      "classification": "INFERRED",
+      "role": "复核员",
+      "action": "提交报销单",
+      "expectation": "3 个工作日内完成复核",
+      "businessFields": [
+        { "key": "slaDays", "operator": "lte", "value": 3, "unit": "workday" }
+      ],
+      "sources": [
+        { "documentVersionId": "doc-vision-low-1", "sourceSpanIds": ["lspan-1"] }
+      ]
+    }
+  ],
+  "clarifications": [
+    {
+      "ruleDraftKeys": ["rule-draft-01"],
+      "question": "第 2 页为低质量扫描件，视觉模型转录内容是否与原文一致？请人工核对后再批准该规则。",
+      "kind": "AMBIGUITY"
+    }
+  ],
+  "unparsedRanges": []
+}

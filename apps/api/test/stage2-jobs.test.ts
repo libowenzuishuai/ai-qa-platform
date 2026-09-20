@@ -24,7 +24,8 @@ beforeAll(async()=>{
 afterEach(()=>vi.unstubAllEnvs());
 afterAll(async()=>{await app?.close();await env?.cleanup();});
 function post(mode='mock') {return app.inject({method:'POST',url:`/api/projects/${projectId}/rule-extractions`,headers:{cookie:'aiqa_sid=stage2-session'},payload:{documentVersionIds:[docId],mode}});}
-it('真实作业 HTTP：模型缺配置返回 503/MODEL_NOT_CONFIGURED',async()=>{
+it('显式 reference 作业 HTTP：模型缺配置返回 503/MODEL_NOT_CONFIGURED',async()=>{
+ vi.stubEnv('AIQA_INTELLIGENCE_BACKEND','reference');
  vi.stubEnv('AIQA_TEXT_PROVIDER','');
  const res=await post('real');expect(res.statusCode).toBe(503);
  expect(res.json()).toMatchObject({code:'MODEL_NOT_CONFIGURED',requestId:expect.any(String)});
@@ -49,4 +50,11 @@ it('失败作业显式重试，活跃/成功作业不可重试，未登录被拒
  expect(responses.map(r=>r.statusCode).sort()).toEqual([202,409]);
  const updated=await env.prisma.job.findUniqueOrThrow({where:{id:job.id}});
  expect(updated).toMatchObject({status:'QUEUED',startedAt:null,finishedAt:null,error:null,result:null});
+});
+
+it('默认 Python 后端无需 API 进程持有模型凭据即可可靠入队 real 作业', async()=>{
+ vi.stubEnv('AIQA_INTELLIGENCE_BACKEND',undefined);
+ vi.stubEnv('AIQA_TEXT_PROVIDER','');
+ const res=await post('real');expect(res.statusCode).toBe(202);
+ expect((await env.prisma.job.findUniqueOrThrow({where:{id:res.json().jobId}})).status).toBe('QUEUED');
 });

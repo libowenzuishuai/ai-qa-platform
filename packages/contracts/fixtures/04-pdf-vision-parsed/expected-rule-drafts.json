@@ -1,0 +1,29 @@
+{
+  "ruleDrafts": [
+    {
+      "key": "rule-draft-01",
+      "statement": "单笔采购订单金额超过 2000.00 元需部门主管审批",
+      "classification": "EXPLICIT",
+      "role": "采购员",
+      "action": "提交采购订单",
+      "condition": "金额超过 2000.00 元",
+      "expectation": "订单进入部门主管审批，未批准前不得执行",
+      "businessFields": [
+        { "key": "amountCents", "operator": "gt", "value": 200000, "unit": "fen" }
+      ],
+      "sources": [
+        { "documentVersionId": "doc-vision-1", "sourceSpanIds": ["vspan-1"] }
+      ]
+    }
+  ],
+  "clarifications": [
+    {
+      "ruleDraftKeys": ["rule-draft-01"],
+      "question": "第 1 页右下角附则区域整页识别后仍不可读，其中是否包含对审批金额或角色的其他限制？",
+      "kind": "MISSING_INFO"
+    }
+  ],
+  "unparsedRanges": [
+    { "spanId": "vspan-2", "reason": "LOW_QUALITY_IMAGE" }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "date": "2026-09-20",
+  "contributorCommit": "41a84bc",
+  "typescript": {
+    "contracts": 147,
+    "runEvents": 3,
+    "artifactStore": 4,
+    "evaluation": 14,
+    "modelAdapters": 26,
+    "testRuntime": 23,
+    "api": 49,
+    "worker": 32,
+    "total": 298
+  },
+  "python": 186,
+  "sharedVectors": {
+    "valid": 7,
+    "invalid": 28,
+    "total": 35
+  },
+  "realKimiFinal": {
+    "passed": 6,
+    "total": 6,
+    "tokens": 20036,
+    "tsRevalidation": 6
+  },
+  "schemaDrift": false,
+  "typecheck": "passed",
+  "notes": [
+    "Model responses mocked only in platform integration; real Kimi evaluated independently.",
+    "Final real cohort is one synthetic round after fixes, not reliability statistics.",
+    "No application containers or production load validated."
+  ]
+}

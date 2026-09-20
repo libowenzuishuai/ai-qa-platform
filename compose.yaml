@@ -44,7 +44,7 @@ services:
     environment:
       DATABASE_URL: postgresql://aiqa:aiqa_dev_password@postgres:5432/aiqa?schema=public
       SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET in .env}
-      AIQA_INTELLIGENCE_BACKEND: ${AIQA_INTELLIGENCE_BACKEND:-reference}
+      AIQA_INTELLIGENCE_BACKEND: ${AIQA_INTELLIGENCE_BACKEND:-python}
       API_HOST: 0.0.0.0
       API_PORT: "7300"
       SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
@@ -68,7 +68,7 @@ services:
     working_dir: /app/apps/worker
     command: sh -c "node dist/server.js"
     environment:
-      AIQA_INTELLIGENCE_BACKEND: ${AIQA_INTELLIGENCE_BACKEND:-reference}
+      AIQA_INTELLIGENCE_BACKEND: ${AIQA_INTELLIGENCE_BACKEND:-python}
       AIQA_INTELLIGENCE_URL: http://intelligence:7500
       AIQA_INTELLIGENCE_TOKEN: ${AIQA_INTELLIGENCE_TOKEN:-}
       AIQA_INTELLIGENCE_TIMEOUT_MS: ${AIQA_INTELLIGENCE_TIMEOUT_MS:-120000}
@@ -111,7 +111,7 @@ services:
     depends_on:
       - api
 
-  # Python 智能服务：上传解析需要启用本 profile；C 正式生成未实现时返回 503。
+  # Python 智能服务：解析与正式规则/用例管线；启动时启用 intelligence profile。
   intelligence:
     profiles: ["intelligence"]
     build: ./services/intelligence

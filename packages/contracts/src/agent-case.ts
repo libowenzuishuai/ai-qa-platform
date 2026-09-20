@@ -117,6 +117,9 @@ export function validateCaseGeneration(
   output: CaseGenerationOutput,
 ): CaseGenerationValidation {
   const problems: string[] = [];
+  if (input.approvedRuleVersions.some(r => r.reviewStatus !== "APPROVED")) {
+    problems.push("用例生成只接受 APPROVED 规则");
+  }
   const approvedIds = new Set(input.approvedRuleVersions.map((r) => r.id));
   const roles = new Set(input.roles);
   const fixtures = new Set(input.fixtureCapabilities);
@@ -128,6 +131,8 @@ export function validateCaseGeneration(
       }
     }
     const declared = new Set(draft.ruleVersionIds);
+    const asserted = new Set(draft.assertions.map(a => a.ruleVersionId));
+    if ([...declared].some(id => !asserted.has(id))) problems.push("声明的规则缺少对应断言");
     for (const [ai, assertion] of draft.assertions.entries()) {
       if (!declared.has(assertion.ruleVersionId)) {
         problems.push(
@@ -183,5 +188,21 @@ export function validateCaseGeneration(
     }
   }
 
+  const coverageIds = new Set(output.coverageMap.map(e => e.ruleVersionId));
+  if (coverageIds.size !== output.coverageMap.length) problems.push("coverageMap 规则重复");
+  const blockedIds = new Set(output.blockedRequirements.map(b => b.ruleVersionId));
+  for (const entry of output.coverageMap) {
+    const cases = output.caseDrafts.filter(d => d.ruleVersionIds.includes(entry.ruleVersionId));
+    if (entry.caseCount !== cases.length) problems.push("coverageMap 用例计数不一致");
+    const actual = new Set(cases.flatMap(d => d.dimensions));
+    const declared = new Set(entry.dimensionsCovered);
+    if (actual.size !== declared.size || [...actual].some(d => !declared.has(d))) {
+      problems.push("coverageMap 覆盖维度不一致");
+    }
+    if (!cases.length && !blockedIds.has(entry.ruleVersionId)) problems.push("零用例规则必须说明阻塞原因");
+  }
+  for (const draft of output.caseDrafts) {
+    if (draft.ruleVersionIds.some(id => !coverageIds.has(id))) problems.push("生成用例必须在覆盖表中对账");
+  }
   return { ok: problems.length === 0, problems };
 }

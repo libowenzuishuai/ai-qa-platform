@@ -68,7 +68,7 @@ export AIQA_INTELLIGENCE_TOKEN="自行配置的内部服务令牌"
 
 数据库、Redis、会话与真实模型凭据沿用本机私有配置，不写入仓库。分别启动 API、worker、web 和 `pnpm dev:intelligence`。
 
-文档解析始终调用 Python，不受兼容模式 reference 影响。正式规则/用例管线可配置 `AIQA_INTELLIGENCE_BACKEND=python`；在 C 模块未实现前会明确失败。reference 保留旧参考实现，不用于声称 Python 正式算法验收完成。
+文档解析始终调用 Python，不受兼容模式 reference 影响。正式规则/用例管线默认 `AIQA_INTELLIGENCE_BACKEND=python`，当前使用 `agents-v2` 提示词。reference 保留为显式兼容模式；Python 不可用或输出无效时不会回退。A 已将平台联调中的 C 模块替身替换为正式管线，只有模型响应 mock；真实 Kimi 小样独立验收，见 [合并记录](reviews/python-agents-2026-09-20.md)。
 
 ## 验收与限制
 

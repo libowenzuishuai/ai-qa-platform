@@ -15,6 +15,7 @@ from .contracts.validation import validate_shape
 from .errors import ServiceError
 from .storage import ArtifactReader
 from jsonschema import Draft7Validator
+from jsonschema.exceptions import ValidationError as SchemaValidationError
 
 
 def mock_key(request: TextModelRequest | VisionModelRequest) -> str:
@@ -141,8 +142,10 @@ class Gateway:
             if channel == "VISION":
                 # Bounded transcription output, shared across images and PDF pages.
                 body["max_tokens"] = 4096
-                if model == "kimi-k2.6":
-                    body["thinking"] = {"type": "disabled"}
+            # Structured extraction is bounded by the request's wall time and output
+            # budget. Kimi thinking consumes that budget before emitting JSON.
+            if model == "kimi-k2.6":
+                body["thinking"] = {"type": "disabled"}
             for source, target in [
                 ("temperature", "temperature"),
                 ("maxOutputTokens", "max_tokens"),
@@ -187,10 +190,13 @@ class Gateway:
             try:
                 Draft7Validator.check_schema(wire["outputSchema"])
                 Draft7Validator(wire["outputSchema"]).validate(parsed)
-            except Exception as exc:
+            except SchemaValidationError as exc:
+                path = ".".join(map(str, exc.absolute_path)) or "root"
                 raise ServiceError(
-                    "MODEL_OUTPUT_INVALID", "模型输出不符合 outputSchema"
+                    "MODEL_OUTPUT_INVALID", f"模型输出不符合 outputSchema：{path} ({exc.validator})"
                 ) from exc
+            except Exception as exc:
+                raise ServiceError("MODEL_OUTPUT_INVALID", "模型输出不符合 outputSchema") from exc
         response = ModelResponse.model_validate(
             {
                 "parsedJson": parsed,

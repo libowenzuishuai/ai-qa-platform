@@ -104,16 +104,19 @@ export function validateRuleExtraction(
   const problems: string[] = [];
 
   // 输入索引：spanId → span；documentVersionId → bundle。
-  const spanById = new Map<string, { documentVersionId: string; quotedText: string | null }>();
+  const spanById = new Map<string, { documentVersionId: string; quotedText: string | null; quality: string }>();
   const bundleById = new Map<string, { blocksText: string[] }>();
   for (const bundle of input.documentVersions) {
+    if (bundleById.has(bundle.documentVersionId)) problems.push("文档版本 ID 重复");
     bundleById.set(bundle.documentVersionId, {
       blocksText: bundle.blocks.map((b) => b.text),
     });
     for (const span of bundle.spans) {
+      if (spanById.has(span.id)) problems.push("来源片段 ID 重复");
       spanById.set(span.id, {
         documentVersionId: span.documentVersionId,
         quotedText: span.quotedText,
+        quality: span.extractionQuality,
       });
     }
   }
@@ -148,6 +151,10 @@ export function validateRuleExtraction(
             `规则 ${draft.key} 的来源声明 ${source.documentVersionId} 与 span ${spanId} 的归属（${span.documentVersionId}）不一致`,
           );
         }
+        if (span.quality === "UNPARSED") problems.push(`UNPARSED 片段 ${spanId} 不能作为规则来源`);
+        if (draft.classification === "EXPLICIT" && span.quality !== "GOOD") {
+          problems.push(`EXPLICIT 规则 ${draft.key} 不能引用低质量或未解析片段 ${spanId}`);
+        }
         // 3. quotedText 逐字出现在所属文档 block 文本中。
         if (span.quotedText) {
           const found = (bundleById.get(span.documentVersionId)?.blocksText ?? []).some((text) =>
@@ -161,6 +168,7 @@ export function validateRuleExtraction(
     }
     // 5. conflictsWith 引用闭合。
     for (const otherKey of draft.conflictsWith) {
+      if (otherKey === draft.key) problems.push("规则不能与自身冲突");
       if (!keys.has(otherKey)) {
         problems.push(`规则 ${draft.key} 的 conflictsWith 引用了不存在的 key ${otherKey}`);
         continue;
@@ -176,6 +184,13 @@ export function validateRuleExtraction(
   for (const range of output.unparsedRanges) {
     if (!spanById.has(range.spanId)) {
       problems.push(`unparsedRanges 引用了不存在的 span ${range.spanId}`);
+    }
+  }
+
+  const reportedUnparsed = new Set(output.unparsedRanges.map(r => r.spanId));
+  for (const [id, span] of spanById) {
+    if (span.quality === "UNPARSED" && !reportedUnparsed.has(id)) {
+      problems.push(`UNPARSED 片段 ${id} 必须进入未解析范围，不能隐藏遗漏`);
     }
   }
 

@@ -10,15 +10,17 @@
 - 三个内部 HTTP 入口、内部令牌认证、输入/输出校验、超时与统一错误。
 - 只读 ArtifactReader（目录边界、文件大小、SHA-256），ModelGateway 文本/图片调用接口及显式 mock 注册。
 - TS worker 的 Python 调用开关，以及规则/用例结果返回后的二次校验和事务落库。
-- 两端共用 19 个合法/反例契约样例；Python 和实际 HTTP 测试；生成物漂移检查 CI。
+- 两端共用 35 个合法/反例契约样例；Python 和实际 HTTP 测试；生成物漂移检查 CI。
 
 **B 首版已实现**：Markdown/TXT、结构化 DOCX、逐页文字 PDF 与图片视觉网关接入；`DocumentParser.ready=True`。已追加 Kimi 2.6 整页 PDF 视觉识别及真实模型小样验证；复杂表格等限制见服务 README。
 
 **A 平台接线已实现**：上传/版本登记、DOCUMENT_PARSE 作业、解析文件与来源落库、澄清回答与规则批准、最小审阅页面；详见 [平台工作台](stage2-platform-workbench.md)。
 
-**尚未实现**：C 正式 agents 管线、现场执行计划绑定、完整用例编辑/批准流程及真实模型全链路验收。C 模块仍 `ready=False` 并明确返回 503。
+**C 正式管线已实现并经 A 复核**：`41a84bc` 的 T1–T6 已接入，`AgentPipelines.ready=True`；A 补齐 UNPARSED/LOW 来源约束、遗漏对账与用例覆盖对账。平台联调运行默认 Python 管线，真实模型评测单独记录，见 [C 合并验收](reviews/python-agents-2026-09-20.md)。
 
-现有参考模式仍可用。选择 Python 后，服务或模块不可用就失败，不回退 reference/mock。模块完成验收后再显式切换默认配置。
+**尚未实现**：现场执行计划绑定、完整用例编辑/批准流程和从任意真实需求直接执行到报告的全链路验收。本次真实模型小样不代表这些能力完成。
+
+默认后端已切换为 Python；reference 只允许显式兼容选择。Python 服务、模型配置或输出不可用时明确失败，不回退 reference/mock。API 与 worker 必须使用一致配置，服务需另外启动。
 
 ## 2. 责任边界
 
@@ -75,7 +77,7 @@ async def generate_cases(self, input: CaseGenerationInput, context: RequestConte
 - 直接导入 `aiqa_intelligence.contracts.generated` 的模型，禁止另造同名 DTO。
 - 输入已经是完整 bundle / 已批准规则，无需等 B 或自行读取数据库。
 - 模型调用使用 `context.models.complete_text(...)`；上下文自动收集调用记录供 A 落库。
-- 使用 `input.promptVersion`，当前 Python 接线版本为 `agents-v1`；更换提示词版本需和 A 对齐。
+- 使用 `input.promptVersion`，当前 Python 接线版本为 `agents-v2`（A 复核后的质量/覆盖/缺省字段约束）；更换提示词版本需和 A 对齐。
 - 用 `Gateway.register_mock(request, output)` 注册精确请求；未命中应失败，不使用自动编造的 mock。
 - 输出 draft.key 和 conflictsWith 临时 key；A 入库时转换为真实 ID。用例步骤 ID 同理由 A 补齐。
 - 资料原文属于待分析数据，不能覆盖系统约束或执行指令。
@@ -98,7 +100,7 @@ async def generate_cases(self, input: CaseGenerationInput, context: RequestConte
 2. 【已实现】B 返回的 bundle 按执行租约写入唯一文件，通过数据库 bundleStorageKey/checksum 发布；来源片段、解析状态与作业终态事务提交。旧固定 bundle.json 仅兼容历史种子。
 3. 【已实现】澄清回答与批准闭环。用例生成只传相关、已确认的澄清来源，不能继续传未解决记录。
 4. 【已实现】最小资料/规则/用例审阅页面，展示模拟模式、失败原因和显式重试入口。
-5. 【接线已验收，真实生成待 C】真实 HTTP→队列→Python 文档解析→资产落库→浏览器审阅已验收；规则/用例使用明确标注的 C 协议替身。待 C 合入后再做正式算法及真实 Kimi 验证。
+5. 【已联调】真实 HTTP→队列→Python 默认 AgentPipelines→规则/用例资产落库→浏览器审阅已验收，集成测试仅模型响应为 mock。独立 real Kimi 小样与 TS 二次校验见合并验收记录；尚未宣称任意项目自动测试全链路完成。
 
 A 当前可独立完成的平台接线已交付；后续继续现场绑定和正式模型验收。生产数据迁移与启动说明见平台工作台文档。
 

@@ -85,7 +85,7 @@ export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jo
     await requireProjectAccess(prisma, req, projectId, "LEAD");
     const body = RuleExtractionJobRequest.parse(req.body);
 
-    if (body.mode === "real" && process.env.AIQA_INTELLIGENCE_BACKEND !== "python") {
+    if (body.mode === "real" && (process.env.AIQA_INTELLIGENCE_BACKEND ?? "python") !== "python") {
       // API 快速失败：real 缺配置 503（PRD FR-11：不得自动降级 mock）。
       requireChannelConfig("text");
     }
@@ -125,7 +125,7 @@ export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jo
     await requireProjectAccess(prisma, req, projectId, "LEAD");
     const body = CaseGenerationJobRequest.parse(req.body);
 
-    if (body.mode === "real" && process.env.AIQA_INTELLIGENCE_BACKEND !== "python") {
+    if (body.mode === "real" && (process.env.AIQA_INTELLIGENCE_BACKEND ?? "python") !== "python") {
       requireChannelConfig("text");
     }
     // 规则必须全是 APPROVED 且属于本项目。
