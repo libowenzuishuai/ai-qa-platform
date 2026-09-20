@@ -7,9 +7,9 @@ from ..contracts.generated import (
     CaseGenerationInput,
     CaseGenerationOutput,
 )
-from ..contracts.validation import validate_rules
+from ..contracts.validation import validate_case_input, validate_cases, validate_rules
 from ..errors import ServiceError
-from .prompts import build_rule_extraction_request
+from .prompts import build_case_generation_request, build_rule_extraction_request
 
 
 class AgentPipelines:
@@ -50,7 +50,26 @@ class AgentPipelines:
     async def generate_cases(
         self, input: CaseGenerationInput, context: RequestContext
     ) -> CaseGenerationOutput:
-        """C implements generation from APPROVED rules; do not invent data/roles/selectors."""
-        raise ServiceError(
-            "DEPENDENCY_UNAVAILABLE", "Python 用例生成模块待 C 通道实现", 503
-        )
+        """用例生成管线：入口校验 → 提示词 → 模型网关 → 结构+语义校验。
+
+        只接受已批准规则：validate_case_input 在调用模型之前拒绝
+        （评审修正 4：无效输入不烧 token，调用次数为零）。
+        语义校验复用公共 validate_cases（引用范围/夹具/断言/覆盖完整性），
+        TS 落库前仍会再校验。步骤 ID 等实体 ID 由 A 入库时补齐。
+        """
+        if not self.ready:
+            raise ServiceError(
+                "DEPENDENCY_UNAVAILABLE", "Python 用例生成模块待 C 通道验收", 503
+            )
+        input_wire = input.model_dump(mode="json", exclude_unset=True)
+        validate_case_input(input_wire)
+        request = build_case_generation_request(input)
+        response = await context.models.complete_text(request)
+        try:
+            output = CaseGenerationOutput.model_validate(response.parsedJson)
+        except ValidationError as exc:
+            raise ServiceError(
+                "MODEL_OUTPUT_INVALID", "模型输出不符合用例生成契约"
+            ) from exc
+        validate_cases(input_wire, output.model_dump(mode="json", exclude_unset=True))
+        return output

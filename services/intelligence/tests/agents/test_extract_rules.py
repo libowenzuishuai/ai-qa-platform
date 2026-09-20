@@ -1,4 +1,4 @@
-"""第一个纵向切片：fixture 01（明确阈值 PRD）→ extract_rules → golden。
+"""规则提取管线测试（C 通道）。
 
 mock 协议：测试与管线共用 build_rule_extraction_request 构造完全相同的
 TextModelRequest，register_mock 按 mock_key 精确命中；未注册的输入必须失败
@@ -7,77 +7,31 @@ TextModelRequest，register_mock 按 mock_key 精确命中；未注册的输入�
 
 import asyncio
 import json
-from pathlib import Path
 
 import pytest
 from jsonschema import Draft7Validator
 
+from agent_fixtures import make_agent_context, ready_agent_pipelines, vector
 from aiqa_intelligence.agents.prompts import (
     build_rule_extraction_request,
     rule_extraction_output_schema,
 )
-from aiqa_intelligence.agents.service import AgentPipelines
-from aiqa_intelligence.context import RequestContext
 from aiqa_intelligence.contracts.generated import (
     RuleExtractionInput,
     RuleExtractionOutput,
 )
 from aiqa_intelligence.errors import ServiceError
-from aiqa_intelligence.models import Gateway
-from aiqa_intelligence.storage import ArtifactReader
-
-_VECTORS = json.loads(
-    (
-        Path(__file__).resolve().parents[4]
-        / "packages"
-        / "contracts"
-        / "fixtures"
-        / "intelligence-conformance.json"
-    ).read_text()
-)
-
-
-def vector(name: str) -> dict:
-    return next(v for v in _VECTORS if v["name"] == name)
-
-
-def make_context(tmp_path: Path) -> tuple[RequestContext, Gateway]:
-    """mock 网关 + 空调用记录，不触网络、不碰数据库。"""
-    records = []
-    gateway = Gateway(
-        mode="mock",
-        artifacts=ArtifactReader(tmp_path),
-        prompt_version="handoff-1",
-        records=records,
-        mock_entries={},
-    )
-    context = RequestContext(
-        request_id="req-agents-test",
-        mode="mock",
-        artifacts=gateway.artifacts,
-        models=gateway,
-        invocations=records,
-    )
-    return context, gateway
-
-
-def ready_pipelines() -> AgentPipelines:
-    """实例级 ready=True：类默认 False 是对 HTTP 层的诚实 503，
-    测试打开真实管线驱动验收（handoff §1：模块未完成不生成假成功）。"""
-    pipelines = AgentPipelines()
-    pipelines.ready = True
-    return pipelines
 
 
 def test_extract_rules_fixture01_matches_golden(rule_vector, tmp_path):
-    context, gateway = make_context(tmp_path)
+    context, gateway = make_agent_context(tmp_path)
     input = RuleExtractionInput.model_validate(rule_vector["input"])
     golden = RuleExtractionOutput.model_validate(rule_vector["output"])
 
     request = build_rule_extraction_request(input)
     gateway.register_mock(request, rule_vector["output"])
 
-    output = asyncio.run(ready_pipelines().extract_rules(input, context))
+    output = asyncio.run(ready_agent_pipelines().extract_rules(input, context))
 
     assert output == golden
     # T1：输出 Schema 随请求传入（网关追加进 system 并做 Draft7 结构校验）
@@ -119,14 +73,14 @@ def test_output_schema_is_self_contained_and_selective():
 def test_extract_rules_rejects_semantic_negative(tmp_path):
     """评审修正 2：管线直调公共 validate_rules——编造 span 引用必须被拒。"""
     bad = vector("invented-span")
-    context, gateway = make_context(tmp_path)
+    context, gateway = make_agent_context(tmp_path)
     input = RuleExtractionInput.model_validate(bad["input"])
 
     request = build_rule_extraction_request(input)
     gateway.register_mock(request, bad["output"])
 
     with pytest.raises(ServiceError) as exc_info:
-        asyncio.run(ready_pipelines().extract_rules(input, context))
+        asyncio.run(ready_agent_pipelines().extract_rules(input, context))
 
     assert exc_info.value.code == "MODEL_OUTPUT_INVALID"
     assert "片段" in exc_info.value.message
@@ -134,24 +88,24 @@ def test_extract_rules_rejects_semantic_negative(tmp_path):
 
 def test_extract_rules_mock_miss_fails(rule_vector, tmp_path):
     """未注册 mock 的输入必须失败，不许网关现编响应。"""
-    context, _gateway = make_context(tmp_path)
+    context, _gateway = make_agent_context(tmp_path)
     input = RuleExtractionInput.model_validate(rule_vector["input"])
 
     with pytest.raises(ServiceError) as exc_info:
-        asyncio.run(ready_pipelines().extract_rules(input, context))
+        asyncio.run(ready_agent_pipelines().extract_rules(input, context))
 
     assert exc_info.value.code == "MODEL_OUTPUT_INVALID"
 
 
 def test_extract_rules_rejects_invalid_model_output(rule_vector, tmp_path):
     """模型输出不合契约（缺 ruleDrafts）必须以 MODEL_OUTPUT_INVALID 拒绝，不放行。"""
-    context, gateway = make_context(tmp_path)
+    context, gateway = make_agent_context(tmp_path)
     input = RuleExtractionInput.model_validate(rule_vector["input"])
 
     request = build_rule_extraction_request(input)
     gateway.register_mock(request, {"clarifications": [], "unparsedRanges": []})
 
     with pytest.raises(ServiceError) as exc_info:
-        asyncio.run(ready_pipelines().extract_rules(input, context))
+        asyncio.run(ready_agent_pipelines().extract_rules(input, context))
 
     assert exc_info.value.code == "MODEL_OUTPUT_INVALID"
