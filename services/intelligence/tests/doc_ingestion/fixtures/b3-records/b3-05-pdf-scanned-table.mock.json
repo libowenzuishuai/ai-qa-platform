@@ -1,0 +1,17 @@
+{
+  "caseId": "b3-05-pdf-scanned-table",
+  "mode": "mock",
+  "fixtureRef": "pytest-generated-table-image-pdf",
+  "command": "pnpm test:doc-ingestion -k table_image",
+  "parseStatus": "NEEDS_OCR",
+  "format": "PDF_SCANNED",
+  "coverageSummary": {
+    "totalBlocks": 1,
+    "goodSpans": 0,
+    "lowSpans": 0,
+    "unparsedSpans": 1
+  },
+  "warningCount": 3,
+  "spanCount": 1,
+  "blockCount": 1
+}

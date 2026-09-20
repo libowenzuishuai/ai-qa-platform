@@ -66,6 +66,32 @@ def test_docx_cell_text_change_is_modified():
     assert report["changes"][0]["old"]["locator"]["kind"] == "docx-cell"
 
 
+def test_unique_text_relocated_to_different_line_is_uncertain():
+    old = parse_md("Amount > 500000\n", "old")
+    new = parse_md("\nAmount > 500000\n", "new")
+    report = compare_bundles("doc.md", old, new)
+    uncertain = [c for c in report["changes"] if c["kind"] == "uncertain"]
+    assert uncertain
+    assert any("不同来源坐标" in (c.get("reason") or "") for c in uncertain)
+
+
+def test_removed_span_when_line_deleted():
+    old = parse_md("Keep\nDrop me\n", "old")
+    new = parse_md("Keep\n", "new")
+    report = compare_bundles("doc.md", old, new)
+    removed = [c for c in report["changes"] if c["kind"] == "removed"]
+    assert len(removed) == 1
+    assert removed[0]["old"]["quotedText"] == "Drop me"
+
+
+def test_added_span_when_line_inserted():
+    old = parse_md("Keep\n", "old")
+    new = parse_md("Keep\nInserted\n", "new")
+    report = compare_bundles("doc.md", old, new)
+    added = [c for c in report["changes"] if c["kind"] == "added"]
+    assert any(c["new"]["quotedText"] == "Inserted" for c in added)
+
+
 def test_format_mismatch_raises():
     old = parse_md("x", "old")
     from io import BytesIO

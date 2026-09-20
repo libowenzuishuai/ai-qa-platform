@@ -232,6 +232,25 @@ def test_docx_horizontal_and_vertical_merged_cells_record_primary_grid():
     assert any("合并" in w for w in body["warnings"])
 
 
+def test_docx_footnotes_part_warns_without_parsing():
+    doc = Document()
+    doc.add_paragraph("Body")
+    output = BytesIO()
+    doc.save(output)
+    data = output.getvalue()
+    patched = BytesIO()
+    with ZipFile(patched, "w") as out, ZipFile(BytesIO(data)) as src:
+        for item in src.infolist():
+            out.writestr(item, src.read(item.filename))
+        out.writestr(
+            "word/footnotes.xml",
+            '<?xml version="1.0"?><w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"></w:footnotes>',
+        )
+    body = parsed(patched.getvalue(), "DOCX")
+    assert body["parseStatus"] == "PARSED"
+    assert any("脚注与尾注未提取" in w for w in body["warnings"])
+
+
 def test_docx_header_and_footer_use_auxiliary_paragraph_index():
     doc = Document()
     doc.sections[0].header.paragraphs[0].text = "LIMIT <= 500000 FEN"

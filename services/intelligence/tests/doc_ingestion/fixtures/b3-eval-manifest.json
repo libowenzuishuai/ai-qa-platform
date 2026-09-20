@@ -7,7 +7,7 @@
       "format": "MARKDOWN",
       "fixture": "packages/contracts/fixtures/01-explicit-prd/source.md",
       "status": "mock-covered",
-      "evalRecord": "tests/doc_ingestion/fixtures/b3-records/b3-01-markdown-prd.mock.json",
+      "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-01-markdown-prd.mock.json",
       "focus": "正文行级来源、标点保留"
     },
     {
@@ -15,13 +15,15 @@
       "format": "DOCX",
       "fixture": "pytest-generated",
       "status": "mock-covered",
-      "focus": "普通表格行列坐标（test_docx_original_paragraph_indices_and_table_coordinates）"
+      "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-02-docx-grid.mock.json",
+      "focus": "普通表格行列坐标"
     },
     {
       "id": "b3-03-docx-merge-nested",
       "format": "DOCX",
       "fixture": "pytest-generated",
       "status": "mock-covered",
+      "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-03-docx-merge-nested.mock.json",
       "focus": "合并单元格、嵌套 tableIndex"
     },
     {
@@ -29,6 +31,7 @@
       "format": "PDF_TEXT",
       "fixture": "tests/doc_ingestion/fixtures/b1-two-page.pdf",
       "status": "mock-covered",
+      "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-04-pdf-text-two-page.mock.json",
       "focus": "文字层页码与第二页内容"
     },
     {
@@ -36,21 +39,24 @@
       "format": "PDF_SCANNED",
       "fixture": "pytest-generated-table-image-pdf",
       "status": "mock-covered",
-      "focus": "扫描页表格视觉转录（mock）"
+      "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-05-pdf-scanned-table.mock.json",
+      "focus": "扫描页表格视觉转录（mock，NEEDS_OCR 直至视觉）"
     },
     {
       "id": "b3-06-png-vision",
       "format": "PNG",
       "fixture": "pytest-generated",
       "status": "mock-covered",
-      "focus": "整图 region LOW 质量"
+      "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-06-png-vision.mock.json",
+      "focus": "整图 region；默认 subprocess 解析为 NEEDS_OCR"
     },
     {
       "id": "b3-07-broken-input",
       "format": "DOCX",
       "fixture": "pytest-generated",
       "status": "mock-covered",
-      "focus": "损坏/超限 → FAILED 或 UNPARSED"
+      "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-07-broken-input.mock.json",
+      "focus": "损坏输入 → FAILED"
     },
     {
       "id": "b3-08-real-pilot-sample",

@@ -1,0 +1,17 @@
+{
+  "caseId": "b3-02-docx-grid",
+  "mode": "mock",
+  "fixtureRef": "pytest-generated",
+  "command": "pnpm test:doc-ingestion -k test_docx_original_paragraph",
+  "parseStatus": "PARSED",
+  "format": "DOCX",
+  "coverageSummary": {
+    "totalBlocks": 4,
+    "goodSpans": 4,
+    "lowSpans": 0,
+    "unparsedSpans": 0
+  },
+  "warningCount": 0,
+  "spanCount": 4,
+  "blockCount": 4
+}
