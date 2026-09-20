@@ -379,3 +379,69 @@ def test_assert_marked_write_rejected(tmp_path):
     with pytest.raises(ServiceError) as exc_info:
         run_plan(tmp_path, data, bad)
     assert "断言" in exc_info.value.message
+
+
+def test_insufficient_observation_blocks_explicitly(tmp_path):
+    """页面不足时明确阻塞：blockedReasons 非空即整体放行为「建议阻塞」，
+    不要求补齐动作/映射——对应 C2「不能猜测」约束的正路出口。"""
+    data = make_wire(
+        roles=["approver"],
+        steps=[{"id": "s1", "role": "approver", "action": "审批订单"}],
+        assertions=[
+            {"id": "a1", "description": "审批状态", "kind": "ui.state", "required": True,
+             "ruleVersionId": "rule-v1", "operator": "equals", "expected": "已通过"}
+        ],
+        refs=["status"],  # 缺少审批操作按钮的观察
+    )
+    blocked = {
+        "actions": [],
+        "targets": [],
+        "blockedReasons": ["缺少审批人角色可用页面的观察（未见审批操作目标），需补充页面探索"],
+    }
+
+    result = run_plan(tmp_path, data, blocked)
+
+    assert result.blockedReasons and "缺少" in result.blockedReasons[0]
+    assert result.actions == []
+
+
+def test_select_path_template_and_captured_value(tmp_path):
+    """剩余动作面：select 下拉、goto pathTemplate 引用捕获变量、
+    onlyIf 条件点击——全部只用已观察目标。"""
+    data = make_wire(
+        roles=["applicant"],
+        steps=[{"id": "s1", "role": "applicant", "action": "选套餐提交并打开订单详情"}],
+        assertions=[
+            {"id": "a1", "description": "详情页总额", "kind": "ui.text", "required": True,
+             "ruleVersionId": "rule-v1", "operator": "equals", "expected": "5000.01 元"}
+        ],
+        refs=["tier-select", "submit-btn", "order-link", "confirm-btn", "detail-total"],
+    )
+    answer = {
+        "actions": [
+            {"id": "r1", "type": "switchRole", "role": "applicant", "effect": "READ"},
+            {
+                "id": "s1", "type": "select", "targetRef": "tier-select",
+                "value": {"source": "literal", "value": "pro"}, "effect": "WRITE",
+            },
+            {"id": "c1", "type": "click", "targetRef": "submit-btn", "effect": "WRITE"},
+            {"id": "v1", "type": "captureValue", "targetRef": "order-link", "saveAs": "orderId", "effect": "READ"},
+            {"id": "g1", "type": "goto", "pathTemplate": "/orders/{orderId}", "effect": "READ"},
+            {
+                "id": "c2", "type": "click", "targetRef": "confirm-btn", "effect": "WRITE",
+                "onlyIf": {"varName": "orderId", "operator": "neq", "value": ""},
+            },
+            {"id": "as1", "type": "assert", "assertionId": "a1", "effect": "READ"},
+        ],
+        "targets": [{"assertionId": "a1", "targetRef": "detail-total"}],
+        "blockedReasons": [],
+    }
+
+    result = run_plan(tmp_path, data, answer)
+
+    types = [a.type for a in result.actions]
+    assert types == ["switchRole", "select", "click", "captureValue", "goto", "click", "assert"]
+    goto = next(a for a in result.actions if a.type == "goto")
+    assert goto.pathTemplate == "/orders/{orderId}"
+    conditional = next(a for a in result.actions if a.type == "click" and getattr(a, "onlyIf", None))
+    assert conditional.onlyIf.varName == "orderId"
