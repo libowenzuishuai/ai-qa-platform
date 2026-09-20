@@ -91,18 +91,17 @@ def parse_docx(data: bytes, bundle: Bundle):
         members = archive.infolist()
         if len(members) > 2000 or sum(m.file_size for m in members) > 64 * 1024 * 1024:
             raise ParseLimit("DOCX 解压体积或条目数超限")
+        has_notes = False
+        has_header_footer_parts = False
         for member in members:
+            if member.filename.startswith(("word/footnotes", "word/endnotes")):
+                has_notes = True
+            if member.filename.startswith(("word/header", "word/footer")):
+                has_header_footer_parts = True
             if member.filename.endswith((".xml", ".rels")):
                 if member.file_size > 16 * 1024 * 1024:
                     raise ParseLimit("DOCX XML 超过 16 MB 上限")
                 ElementTree.fromstring(archive.read(member))
-        if any(
-            m.filename.startswith(
-                ("word/header", "word/footer", "word/footnotes", "word/endnotes")
-            )
-            for m in members
-        ):
-            bundle.warn("DOCX 页眉、页脚、脚注与尾注未提取；需人工核对")
     document = Document(BytesIO(data))
     paragraph_index = 0
     table_index_counter = [0]
@@ -119,6 +118,33 @@ def parse_docx(data: bytes, bundle: Bundle):
             if unsupported:
                 bundle.add("", locator, quality="UNPARSED")
                 bundle.warn("DOCX 段落图片、文本框或修订内容未完整解析")
+    body_paragraph_count = paragraph_index
+    auxiliary_index = 0
+    for section in document.sections:
+        for part in (section.header, section.footer):
+            for para in part.paragraphs:
+                text = para.text.strip()
+                unsupported = bool(para._p.xpath(_CELL_UNSUPPORTED_XPATH))
+                if not text and not unsupported:
+                    continue
+                locator = {
+                    "kind": "docx-paragraph",
+                    "paragraphIndex": body_paragraph_count + auxiliary_index,
+                }
+                auxiliary_index += 1
+                if text:
+                    bundle.add(text, locator, quality="LOW")
+                if unsupported:
+                    bundle.add("", locator, quality="UNPARSED")
+                    bundle.warn("DOCX 页眉/页脚内图片或修订内容未完整解析")
+    if auxiliary_index:
+        bundle.warn(
+            f"DOCX 页眉/页脚文字使用 paragraphIndex>={body_paragraph_count}，与正文段落索引分离"
+        )
+    elif has_header_footer_parts:
+        bundle.warn("DOCX 存在页眉/页脚部件但未提取到文字；需人工核对")
+    if has_notes:
+        bundle.warn("DOCX 脚注与尾注未提取；需人工核对")
     if document.element.body.xpath("./w:ins | ./w:del | ./w:sdt"):
         bundle.warn("DOCX 存在未解析的正文修订或内容控件；需人工核对")
     if not bundle.blocks:

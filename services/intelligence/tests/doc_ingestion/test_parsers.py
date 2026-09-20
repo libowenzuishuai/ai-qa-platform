@@ -232,6 +232,26 @@ def test_docx_horizontal_and_vertical_merged_cells_record_primary_grid():
     assert any("合并" in w for w in body["warnings"])
 
 
+def test_docx_header_and_footer_use_auxiliary_paragraph_index():
+    doc = Document()
+    doc.sections[0].header.paragraphs[0].text = "LIMIT <= 500000 FEN"
+    doc.add_paragraph("Body approval rule")
+    doc.sections[0].footer.paragraphs[0].text = "Page footer ,} ,]"
+    output = BytesIO()
+    doc.save(output)
+    body = parsed(output.getvalue(), "DOCX")
+    spans = {s["quotedText"]: s for s in body["spans"] if s["quotedText"]}
+    assert spans["Body approval rule"]["locator"]["paragraphIndex"] == 0
+    assert spans["Body approval rule"]["extractionQuality"] == "GOOD"
+    header = spans["LIMIT <= 500000 FEN"]
+    footer = spans["Page footer ,} ,]"]
+    assert header["extractionQuality"] == "LOW"
+    assert footer["extractionQuality"] == "LOW"
+    assert header["locator"]["paragraphIndex"] == 1
+    assert footer["locator"]["paragraphIndex"] == 2
+    assert any("paragraphIndex>=1" in w for w in body["warnings"])
+
+
 def test_docx_nested_table_uses_incrementing_table_index():
     body = parsed(docx_with_nested_table(), "DOCX")
     locators = {

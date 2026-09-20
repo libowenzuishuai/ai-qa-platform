@@ -1,0 +1,48 @@
+{
+  "caseId": "b3-01-markdown-prd",
+  "mode": "mock",
+  "command": "pnpm test:doc-ingestion -k test_existing_prds",
+  "parseStatus": "PARSED",
+  "coverageSummary": {
+    "totalBlocks": 9,
+    "goodSpans": 9,
+    "lowSpans": 0,
+    "unparsedSpans": 0
+  },
+  "spanCount": 9,
+  "sampleSpans": [
+    {
+      "id": "s-c6691adea60abddc9833a02c-0",
+      "documentVersionId": "b3-01-mock",
+      "locator": {
+        "kind": "markdown-line",
+        "startLine": 1,
+        "endLine": 1
+      },
+      "quotedText": "采购审批系统需求",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "s-c6691adea60abddc9833a02c-1",
+      "documentVersionId": "b3-01-mock",
+      "locator": {
+        "kind": "markdown-line",
+        "startLine": 3,
+        "endLine": 3
+      },
+      "quotedText": "1. 概述",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "s-c6691adea60abddc9833a02c-2",
+      "documentVersionId": "b3-01-mock",
+      "locator": {
+        "kind": "markdown-line",
+        "startLine": 5,
+        "endLine": 5
+      },
+      "quotedText": "本系统用于管理采购申请的创建、提交与审批流程，覆盖申请人与部门主管两类角色。",
+      "extractionQuality": "GOOD"
+    }
+  ]
+}

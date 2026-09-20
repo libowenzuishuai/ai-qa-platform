@@ -7,6 +7,7 @@
       "format": "MARKDOWN",
       "fixture": "packages/contracts/fixtures/01-explicit-prd/source.md",
       "status": "mock-covered",
+      "evalRecord": "tests/doc_ingestion/fixtures/b3-records/b3-01-markdown-prd.mock.json",
       "focus": "正文行级来源、标点保留"
     },
     {
