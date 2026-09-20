@@ -1,0 +1,21 @@
+{
+  "caseId": "b3-XX-slug",
+  "documentVersionId": "version-id",
+  "format": "DOCX",
+  "fixtureRef": "path-or-pytest-generated",
+  "mode": "mock",
+  "ranAt": "2026-09-20T00:00:00+08:00",
+  "command": "pnpm test:doc-ingestion -k ...",
+  "expectedFragments": [
+    {
+      "quotedTextContains": "500000",
+      "locator": { "kind": "docx-cell", "tableIndex": 0, "row": 0, "col": 0 }
+    }
+  ],
+  "parseStatus": "PARSED",
+  "coverageSummary": {},
+  "warningsExpected": [],
+  "latencyMs": null,
+  "modelUsage": null,
+  "notes": "真实 Kimi 时填写 modelUsage；试点资料不写 Git 原文。"
+}

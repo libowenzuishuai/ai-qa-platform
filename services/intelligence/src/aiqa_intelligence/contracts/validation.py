@@ -10,9 +10,7 @@ from typing import Any
 from jsonschema import Draft7Validator, FormatChecker
 from ..errors import ServiceError
 
-SCHEMA = json.loads(
-    Path(__file__).with_name("schema.v1.json").read_text(encoding="utf-8")
-)
+SCHEMA = json.loads(Path(__file__).with_name("schema.v1.json").read_text())
 
 
 def validate_shape(name: str, value: Any) -> None:

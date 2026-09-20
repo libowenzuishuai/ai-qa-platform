@@ -12,9 +12,9 @@
     {
       "id": "b3-02-docx-grid",
       "format": "DOCX",
-      "fixture": "tests/doc_ingestion/fixtures/b3-docx-grid.docx",
-      "status": "pending-generate",
-      "focus": "普通表格行列坐标"
+      "fixture": "pytest-generated",
+      "status": "mock-covered",
+      "focus": "普通表格行列坐标（test_docx_original_paragraph_indices_and_table_coordinates）"
     },
     {
       "id": "b3-03-docx-merge-nested",
