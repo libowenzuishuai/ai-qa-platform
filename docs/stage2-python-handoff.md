@@ -1,5 +1,7 @@
 # 阶段二：TypeScript 平台 + Python 智能服务开工清单
 
+> 2026-09-20：本文作为阶段二接口与历史分工背景保留。现场绑定、用例批准、Git 接入与运行器等后续基础能力已完成；下一轮按 [三人试点分工](delivery/next-sprint-three-person-plan.md) 开工，具体实现范围见 [交付记录](delivery/v1-implementation.md)。下文“尚未实现”描述属于当时状态。
+
 日期：2026-09-18。本文覆盖旧分工中“B 写 TS doc-ingestion、C 写 packages/agents”的语言与目录安排。业务契约和验收红线继续有效。
 
 ## 1. 当前可以独立开工

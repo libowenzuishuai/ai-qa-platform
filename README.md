@@ -1,6 +1,6 @@
 # AI 测试人员平台
 
-> 阶段二采用 **TypeScript 平台 + Python 智能服务**。三人开工请先读 [分工与接口清单](docs/stage2-python-handoff.md)，Python 启动见 [服务说明](services/intelligence/README.md)。Python 文档解析、规则/用例生成和通用现场绑定已接通。最新范围与使用方式见 [前四步实施与验收](docs/delivery/v1-implementation.md)。
+> 阶段二采用 **TypeScript 平台 + Python 智能服务**。三人下一轮开工请先读 [真实项目试点分工](docs/delivery/next-sprint-three-person-plan.md)；阶段二接口背景见 [旧开工清单](docs/stage2-python-handoff.md)，Python 启动见 [服务说明](services/intelligence/README.md)。Python 文档解析、规则/用例生成和通用现场绑定已接通。最新范围与使用方式见 [前四步实施与验收](docs/delivery/v1-implementation.md)。
 根据版本化产品资料（PRD、业务说明、原型）形成有依据的规则与用例，在多人
 开发合并后的 Web 测试环境中独立执行验收测试，输出可追溯报告、缺陷与复测。
 
@@ -10,7 +10,7 @@
 - 开发提示词：[docs/ai-qa/03-GLM开发提示词.md](docs/ai-qa/03-GLM开发提示词.md)
 - 实施状态：[docs/implementation-status.md](docs/implementation-status.md)
 
-> 当前工作区新增 GitHub 资料发现、通用观察与计划批准、七个产品页面、任务/缺陷/新构建复测、HTTP API 检查及 Node/Python 自有运行器。两个合成业务通过真实 Kimi + 浏览器验证。范围限制和证据见 [实施验收](docs/delivery/v1-implementation.md)，不代表完整商业 1.0 已验收。
+> 当前版本新增 GitHub 资料发现、通用观察与计划批准、七个产品页面、任务/缺陷/新构建复测、HTTP API 检查及 Node/Python 自有运行器。两个合成业务通过真实 Kimi + 浏览器验证。范围限制和证据见 [实施验收](docs/delivery/v1-implementation.md)，不代表完整商业 1.0 已验收。
 
 ## 目录结构
 
