@@ -9,10 +9,46 @@ documentVersions[].spans 的展开物，随 bundle 一起序列化进 user 内�
 """
 
 import json
+from typing import Any
 
 from ..contracts.generated import RuleExtractionInput, TextModelRequest
+from ..contracts.validation import SCHEMA
 
 DEFAULT_TIMEOUT_MS = 120_000
+
+
+def _definition_closure(root: str) -> dict[str, Any]:
+    """取 root 定义及其 $ref 传递闭包（不硬编码数量，契约增减自动适应）。
+
+    携带本地 definitions 后 Draft7Validator 可直接解析 "#/definitions/X"
+    引用（与 validation.validate_shape 同一机制）；只带闭包子集，
+    控制注入提示词的 schema 长度。
+    """
+    defs = SCHEMA["definitions"]
+    if root not in defs:
+        raise KeyError(f"schema.v1.json 缺少定义：{root}")
+    needed: set[str] = set()
+    stack = [root]
+    while stack:
+        name = stack.pop()
+        if name in needed:
+            continue
+        needed.add(name)
+        # $ref 形如 {"$ref": "#/definitions/X"} 或指向内部路径
+        # "#/definitions/X/properties/..."；取第一段才是定义名。
+        for ref in json.dumps(defs[name], ensure_ascii=False).split('"#/definitions/')[1:]:
+            target = ref.split('"')[0].split("/")[0]
+            if target not in needed:
+                stack.append(target)
+    return {name: defs[name] for name in needed}
+
+
+def rule_extraction_output_schema() -> dict[str, Any]:
+    """规则提取输出的自包含 JSON Schema（评审 T1：随请求传入，复用公共定义）。"""
+    return {
+        "$ref": "#/definitions/RuleExtractionOutput",
+        "definitions": _definition_closure("RuleExtractionOutput"),
+    }
 
 # 系统提示词以 docs/ai-qa/03-GLM开发提示词.md §5.1 为准；版本号经
 # input.promptVersion 传递（当前接线版本 agents-v1/handoff 样例），换版本先与 A 对齐。
@@ -57,5 +93,8 @@ def build_rule_extraction_request(input: RuleExtractionInput) -> TextModelReques
         purpose="RULE_EXTRACTION",
         system=RULE_EXTRACTION_SYSTEM,
         user=user,
+        # 网关会把它追加进 system 并对模型输出做 Draft7 结构校验；
+        # 语义校验（互指/覆盖等）由公共 validate_rules 负责，不重复。
+        outputSchema=rule_extraction_output_schema(),
         timeoutMs=DEFAULT_TIMEOUT_MS,
     )
