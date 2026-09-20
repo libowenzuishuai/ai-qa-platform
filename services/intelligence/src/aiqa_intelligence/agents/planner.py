@@ -48,6 +48,9 @@ async def propose_plan(input, context):
             raise ServiceError('MODEL_OUTPUT_INVALID', '计划包含不支持动作')
         if action.get('targetRef') and action['targetRef'] not in refs:
             raise ServiceError('MODEL_OUTPUT_INVALID', '动作使用未观察目标')
+        # 断言是判定不是写入：effect 必须为 READ（C2 加固，对应真实失败模式）
+        if action['type'] == 'assert' and action.get('effect') != 'READ':
+            raise ServiceError('MODEL_OUTPUT_INVALID', '断言动作不得标记为 WRITE')
     return result
 
 

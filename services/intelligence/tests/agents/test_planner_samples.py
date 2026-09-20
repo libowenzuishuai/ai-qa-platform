@@ -302,3 +302,80 @@ def test_text_and_amount_assertions_preserve_precision(tmp_path):
     assert fills[0].value.value == "5000.01", "金额字面量不得被四舍五入或改写"
     assert [getattr(a, "assertionId", None) for a in result.actions if a.type == "assert"] == ["a1", "a2"]
     assert {t.assertionId for t in result.targets} == {"a1", "a2"}
+
+
+def test_goto_must_be_same_origin_relative_path(tmp_path):
+    """同源相对路径：外部绝对 URL 被结构闸拒绝（防外跳）。"""
+    data = make_wire(
+        roles=["applicant"],
+        steps=[{"id": "s1", "role": "applicant", "action": "打开订单页"}],
+        assertions=[
+            {"id": "a1", "description": "状态", "kind": "ui.state", "required": True,
+             "ruleVersionId": "rule-v1", "operator": "equals", "expected": "已提交"}
+        ],
+        refs=["status"],
+    )
+    bad = {
+        "actions": [
+            {"id": "r1", "type": "switchRole", "role": "applicant", "effect": "READ"},
+            {"id": "g1", "type": "goto", "path": "https://evil.example/orders", "effect": "READ"},
+            {"id": "as1", "type": "assert", "assertionId": "a1", "effect": "READ"},
+        ],
+        "targets": [{"assertionId": "a1", "targetRef": "status"}],
+        "blockedReasons": [],
+    }
+    with pytest.raises(ServiceError):
+        run_plan(tmp_path, data, bad)
+
+
+def test_waitfor_missing_target_ref_rejected(tmp_path):
+    """真实失败模式回放（real-plan-trial-v1）：模型输出 waitFor 且缺 targetRef，
+    结构闸直接拒绝——该样例锚定真实 Kimi 出现过的错误形态。"""
+    data = make_wire(
+        roles=["applicant"],
+        steps=[{"id": "s1", "role": "applicant", "action": "提交订单"}],
+        assertions=[
+            {"id": "a1", "description": "状态", "kind": "ui.state", "required": True,
+             "ruleVersionId": "rule-v1", "operator": "equals", "expected": "已提交"}
+        ],
+        refs=["submit-btn", "status"],
+    )
+    bad = {
+        "actions": [
+            {"id": "r1", "type": "switchRole", "role": "applicant", "effect": "READ"},
+            {"id": "c1", "type": "click", "targetRef": "submit-btn", "effect": "WRITE"},
+            {"id": "w1", "type": "waitFor", "effect": "READ",
+             "condition": {"kind": "text", "value": "已提交"},
+             "timeoutMs": 30000, "pollMs": 500, "maxAttempts": 60},
+            {"id": "as1", "type": "assert", "assertionId": "a1", "effect": "READ"},
+        ],
+        "targets": [{"assertionId": "a1", "targetRef": "status"}],
+        "blockedReasons": [],
+    }
+    with pytest.raises(ServiceError):
+        run_plan(tmp_path, data, bad)
+
+
+def test_assert_marked_write_rejected(tmp_path):
+    """断言是判定不是写入：effect=WRITE 的 assert 必须拒绝（C2 加固）。"""
+    data = make_wire(
+        roles=["applicant"],
+        steps=[{"id": "s1", "role": "applicant", "action": "提交订单"}],
+        assertions=[
+            {"id": "a1", "description": "状态", "kind": "ui.state", "required": True,
+             "ruleVersionId": "rule-v1", "operator": "equals", "expected": "已提交"}
+        ],
+        refs=["submit-btn", "status"],
+    )
+    bad = {
+        "actions": [
+            {"id": "r1", "type": "switchRole", "role": "applicant", "effect": "READ"},
+            {"id": "c1", "type": "click", "targetRef": "submit-btn", "effect": "WRITE"},
+            {"id": "as1", "type": "assert", "assertionId": "a1", "effect": "WRITE"},
+        ],
+        "targets": [{"assertionId": "a1", "targetRef": "status"}],
+        "blockedReasons": [],
+    }
+    with pytest.raises(ServiceError) as exc_info:
+        run_plan(tmp_path, data, bad)
+    assert "断言" in exc_info.value.message
