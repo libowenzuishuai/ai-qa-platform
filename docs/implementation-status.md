@@ -2,6 +2,8 @@
 
 更新日期：2026-09-20。当前新增交付：**前四步受支持路径已接通**。完整能力、验证记录、启动方式与明确限制统一见 [前四步实施与验收](delivery/v1-implementation.md)。
 
+后续增量：`v1/pilot-platform` 已补接入向导、完整用例编辑、准备检查与真实 Git 运行器整链，见 [试点平台进展](delivery/pilot-platform-progress.md)。本轮继续升级真实前端外观；代码收尾、可组合智能体与 GLM 任务见 [开发路线](product/v1.1/CODE-ROADMAP.md)、[GLM 开发任务书](product/v1.1/GLM-DEVELOPMENT-PROMPT.md) 和 [前端设计](product/v1.1/FRONTEND-DESIGN.md)。这部分目前在开发分支，不能按 main 的默认能力对外声明。
+
 Python 正式解析/规则/用例管线已合入；本次新增通用浏览器计划、GitHub 上下文、七个产品页面、任务/缺陷/复测、HTTP API 与自有运行器。小样本真实模型验证不代表任意项目都能自动完成验收。
 
 ## 历史验收记录

@@ -1,62 +1,26 @@
+import { productStyle, workspaceNavigation } from "./design-system.js";
 const escapeHtml = (v: unknown) => String(v ?? "").replace(/[&<>"\']/g, c => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;", "\'":"&#39;"}[c]!));
 /** 页面渲染（服务端模板，零客户端依赖；SSE 用原生 EventSource）。 */
 
-const STYLE = `
-* { box-sizing: border-box; }
-body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; margin:0; background:#f5f6f8; color:#1f2329; }
-header { background:#1f3d7a; color:#fff; padding:12px 24px; display:flex; align-items:center; gap:16px; }
-header a { color:#cdd9ff; text-decoration:none; margin-right:14px; }
-header a:hover { color:#fff; }
-main { max-width:1080px; margin:24px auto; padding:0 16px; }
-h1 { font-size:20px; } h2 { font-size:16px; }
-table { width:100%; border-collapse:collapse; background:#fff; margin:12px 0; }
-th,td { padding:8px 12px; border:1px solid #e2e4ea; text-align:left; font-size:14px; }
-th { background:#f0f2f7; }
-.card { background:#fff; border:1px solid #e2e4ea; padding:16px 20px; margin:12px 0; }
-label { display:block; margin:10px 0 4px; font-size:14px; font-weight:500; }
-select,input[type=text],input[type=password] { width:320px; padding:8px; border:1px solid #c9cdd6; font-size:14px; }
-button { padding:8px 18px; background:#2457d6; color:#fff; border:0; font-size:14px; cursor:pointer; margin-top:12px; }
-textarea { width:100%; max-width:720px; padding:10px; font:inherit; border:1px solid #c9cdd6; border-radius:6px; }
-fieldset { border:1px solid #e2e4ea; border-radius:8px; padding:16px; margin:12px 0; min-width:0; }
-input,select { max-width:100%; }
-.card { border-radius:10px; }
-button { border-radius:6px; }
-a { color:#2457d6; text-underline-offset:3px; }
-.journey { padding-left:20px; } .journey li { padding:10px 0; } .primary-link { display:inline-block; padding:10px 16px; background:#2457d6; color:white; border-radius:6px; text-decoration:none; }
-button.danger { background:#c72f2f; }
-button:disabled { background:#9aa4b8; cursor:not-allowed; }
-.badge { display:inline-block; padding:2px 10px; border-radius:10px; font-size:12px; }
-.badge.PASS,.badge.FINISHED,.badge.GREEN { background:#e9f7ee; color:#1c7c3c; }
-.badge.FAIL,.badge.ERROR { background:#fdecec; color:#a42121; }
-.badge.BLOCKED,.badge.CANCELLED,.badge.REVIEW,.badge.INCOMPLETE,.badge.QUEUED,.badge.PENDING,.badge.RUNNING,.badge.PREPARING,.badge.FINALIZING,.badge.CANCEL_REQUESTED { background:#fff4e0; color:#a16500; }
-.badge.NOT_RUN { background:#eef0f4; color:#4e5561; }
-.error-box { background:#fdecec; color:#a42121; border:1px solid #f5c6c6; padding:10px 14px; margin:12px 0; font-size:14px; }
-.muted { color:#646a73; font-size:13px; }
-img.shot { max-width:360px; border:1px solid #e2e4ea; margin:6px 6px 0 0; }
-#sse-log { background:#0f172a; color:#d7e3ff; font-family:ui-monospace,monospace; font-size:12px; padding:12px; height:260px; overflow-y:auto; white-space:pre-wrap; }
-.kv { font-size:14px; } .kv b { display:inline-block; width:140px; font-weight:500; color:#4e5561; }
-.steps td.detail { color:#646a73; font-size:13px; }
-`;
-
-export function layout(title: string, body: string): string {
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${escapeHtml(title)} · AI 测试平台</title><style>${STYLE}</style></head>
-<body><header><b>AI 测试人员平台</b><span class="muted" style="color:#9fb0dd">业务资料 · 测试审阅 · 运行验收</span>
-<nav style="margin-left:auto"><a href="/">项目</a><a href="/runs">运行</a></nav></header>
-<main>${body}</main></body></html>`;
+export interface LayoutContext { projectId?: string; projectName?: string; activeTab?: string }
+export function layout(title: string, body: string, context: LayoutContext = {}): string {
+  const navigation = context.projectId
+    ? workspaceNavigation.map(([key,label,icon]) => `<a href="/space/${encodeURIComponent(context.projectId!)}?tab=${key}" ${key===context.activeTab?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span>${label}</a>`).join('')
+    : `<a href="/"><span class="nav-icon" aria-hidden="true">▦</span>我的项目</a><a href="/runs"><span class="nav-icon" aria-hidden="true">▷</span>全部运行</a>`;
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} · AI QA</title><style>${productStyle}</style></head>
+<body><aside class="app-sidebar"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true">q.</span><div>AI QA<small>QUALITY WORKSPACE</small></div></a><div class="space-label"><small>PROJECT SPACE</small>${escapeHtml(context.projectName??'软件验收工作空间')}</div><div class="nav-label">WORKSPACE</div><nav aria-label="工作空间导航">${navigation}</nav><div class="sidebar-note"><b>每次交付，都有依据。</b>从业务要求到执行证据，<br>让质量判断可以复核。<p style="margin:20px 0 0"><a href="/">切换项目 ↗</a></p></div></aside><div class="app-shell"><header class="topbar"><div class="breadcrumb">${escapeHtml(context.projectName??'工作空间')}<span>/</span><b>${escapeHtml(title)}</b></div><div class="top-meta">需求 · 执行 · 证据</div></header><main class="app-main" id="main-content">${body}</main><footer class="app-footer">AI QA / 软件验收平台 · 以批准的要求为依据，以实际证据为结论。</footer></div></body></html>`;
 }
 
 export function loginPage(error?: string): string {
   return layout(
     "登录",
-    `<h1>平台登录</h1>
+    `<div class="login-card"><span class="eyebrow">WELCOME TO AI QA</span><h1>登录质量工作空间</h1><p class="muted">从需求出发，验证每一次交付。</p>
     ${error ? `<div class="error-box">${error}</div>` : ""}
     <div class="card"><form method="post" action="/login">
-      <label>用户名</label><input type="text" name="username" autocomplete="username">
-      <label>密码</label><input type="password" name="password" autocomplete="current-password">
+      <label for="login-username">用户名</label><input id="login-username" type="text" name="username" autocomplete="username">
+      <label for="login-password">密码</label><input id="login-password" type="password" name="password" autocomplete="current-password">
       <button type="submit">登录</button>
-    </form></div>`,
+    </form></div></div>`,
   );
 }
 
@@ -64,19 +28,8 @@ export function projectsPage(
   user: string,
   projects: Array<{ id: string; name: string; role: string }>,
 ): string {
-  const rows = projects
-    .map(
-      (p) =>
-        `<tr><td><a href="/space/${p.id}">${escapeHtml(p.name)}</a></td><td>${p.id}</td><td><span class="badge">${p.role}</span></td></tr>`,
-    )
-    .join("");
-  return layout(
-    "项目",
-    `<h1>我的项目</h1><form method="post" action="/projects/new"><label>创建项目</label><input type="text" name="name" required maxlength="120"><button>创建</button></form>
-    <p class="muted">当前用户：${escapeHtml(user)}</p>
-    <table><thead><tr><th>项目</th><th>ID</th><th>我的角色</th></tr></thead>
-    <tbody>${rows || "<tr><td colspan=3>暂无项目</td></tr>"}</tbody></table>`,
-  );
+  const tiles = projects.map(p => `<a class="card project-tile" href="/space/${encodeURIComponent(p.id)}"><span class="project-avatar">${escapeHtml(p.name.slice(0,1))}</span><h2>${escapeHtml(p.name)}</h2><p class="muted">${escapeHtml(({ADMIN:'项目管理员',LEAD:'测试负责人',MEMBER:'项目成员',VIEWER:'查看者'} as Record<string,string>)[p.role]??p.role)}</p><span>进入项目空间 →</span></a>`).join('');
+  return layout("我的项目",`<div class="page-heading"><div><span class="eyebrow">YOUR QUALITY WORKSPACE</span><h1>我的项目</h1><p>${escapeHtml(user)}，从一个项目开始，让测试沿着业务发生。</p></div></div><div class="project-list">${tiles||'<div class="empty-state">还没有项目。接入第一个项目，建立验收依据。</div>'}</div><section class="card"><h2>接入一个新项目</h2><p class="muted">创建后可连接仓库、登记测试网址并导入业务资料。</p><form method="post" action="/projects/new"><label for="project-name">项目名称</label><input id="project-name" type="text" name="name" required maxlength="120" placeholder="例如：客户服务平台"><button>创建项目 →</button></form></section>`);
 }
 
 export interface LauncherData {

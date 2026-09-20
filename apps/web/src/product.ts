@@ -1,4 +1,4 @@
-import { onboarding } from './onboarding.js';
+import { dashboard } from './dashboard.js';
 import { caseEditor, parseCaseForm } from './case-editor.js';
 import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
@@ -26,7 +26,7 @@ export function registerProductPages(app:FastifyInstance){
       const form=(action:string,body:string,button:string)=>`<form method="post" action="${base}/${action}">${body}<button>${button}</button></form>`;
       const envSelect=()=>select('environmentId','测试环境',d.environments);
       let body='';
-      if(tab==='overview')body=`<h1>${esc(d.project.name)}</h1><p>接入项目、确认验收依据，查看每次交付的实际证据。</p>${onboarding(d)}<div class="card"><h2>待办</h2><p>${d.cases.filter((c:any)=>c.approvalStatus==='DRAFT').length} 个用例待批准 · ${d.cases.filter((c:any)=>!c.plans.length).length} 个用例待绑定 · ${d.defects.filter((f:any)=>f.status!=='VERIFIED').length} 个缺陷待处理</p><a href="${base}?tab=missions">准备测试任务 →</a></div><h2>最近运行</h2>${runList(d.executions)}`;
+      if(tab==='overview')body=dashboard(d);
       if(tab==='projects')body=`<h1>项目空间</h1><section class="card"><h2>连接 GitHub 仓库</h2><p>固定提交，只读发现资料和运行线索。当前支持公共仓库。</p>${form('repository',field('url','仓库地址','https://github.com/')+field('ref','分支或提交','HEAD'),'发现仓库资料')}</section><section class="card"><h2>登记测试环境</h2>${form('environment',field('name','环境名称')+field('baseUrl','测试网址'),'登记环境')}</section>${d.environments.map((e:any)=>`<article class="card"><h3>${esc(e.name)}</h3><p>${esc(e.baseUrl)} · 配置版本 ${e.revision}</p><a href="${base}?tab=integrations">配置账号与构建核验</a></article>`).join('')}`;
       if(tab==='context')body=`<h1>产品上下文</h1><p><a href="/projects/${esc(id)}/review">上传资料、提取规则与处理澄清 →</a></p>${d.snapshots.map((s:any)=>{const prev=d.snapshots.find((p:any)=>p.id===s.previousId);const changed=s.files.filter((f:any)=>!prev?.files.some((p:any)=>p.path===f.path&&p.blobHash===f.blobHash));return `<section class="card"><h2>${esc(s.repositoryUrl)}</h2><p>提交 ${esc(s.commitSha)} · ${changed.length} 个新增或修改文件 · ${prev?prev.files.filter((p:any)=>!s.files.some((f:any)=>f.path===p.path)).length:0} 个删除文件</p><p>资料变化需要重新审阅；旧任务继续使用原来的资料与计划。</p>${form('import',`<input type="hidden" name="snapshotId" value="${esc(s.id)}">`+s.files.map((f:any)=>`<label><input type="checkbox" name="paths" value="${esc(f.path)}" ${f.category!=='BUSINESS_CANDIDATE'?'disabled':''}>${esc(f.path)} · ${esc(f.category)}</label>`).join(''),'确认选中资料并解析')}${detail({skipped:s.skipped})}</section>`}).join('')||'<p>尚未发现仓库资料，可先上传文件。</p>'}`;
       if(tab==='missions')body=`<h1>测试任务</h1><p>先确认用例与执行计划，再建立可复用的验收基线。</p><a href="/projects/${esc(id)}/review">从需求生成用例 →</a>
@@ -47,7 +47,7 @@ export function registerProductPages(app:FastifyInstance){
         ${code.checks.map((c:any)=>`<section class="card"><h3>${esc(c.request.kind)} · ${esc(c.status)}</h3><p>工程检查：${esc(c.verdict)} · ${esc(c.request.commitSha)}</p>${c.evidenceId?`<a href="/artifacts/${esc(c.evidenceId)}">下载受限结果证据</a>`:''}${['QUEUED','RUNNING'].includes(c.status)?form('cancel-check',`<input type="hidden" name="checkId" value="${esc(c.id)}">`,'取消'):''}</section>`).join('')}`;
       }
       if(tab==='missions')body+=`<section class="card"><h2>登记接口测试</h2><p>选择已有的接口断言用例，登记请求模板，再批准执行计划。预期取自批准用例。</p>${form('api-template',select('caseId','接口用例',d.cases.filter((c:any)=>c.approvalStatus==='APPROVED'&&c.assertions.length===1&&c.assertions[0].kind==='api.response'))+envSelect()+field('path','接口路径','/api/status')+'<label>请求方式</label><select name="method"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option></select>'+field('responseField','检查字段（status 或 body.字段）','status'),'登记并生成待批准计划')}</section>`;
-      return reply.type('text/html').send(layout('项目验收',`<nav style="display:flex;gap:18px;flex-wrap:wrap">${tabs.map(([key,title])=>`<a href="${base}?tab=${key}" style="${key===tab?'font-weight:700;color:#2457d6':''}">${title}</a>`).join('')}</nav>${body}`));
+      return reply.type('text/html').send(layout(tabs.find(([key])=>key===tab)?.[1]??'项目验收',body,{projectId:id,projectName:d.project.name,activeTab:tab}));
     }catch(e){return fail(reply,e);}
   });
   for(const action of ['repository','environment','import','approve-case','observe','propose','baseline','mission','start','runtime','retest','defect-update','defect-verify','runner','revoke-runner','code-check','cancel-check','api-template'])app.post(`/space/:id/${action}`,async(req,reply)=>{
@@ -88,7 +88,7 @@ export function registerProductPages(app:FastifyInstance){
   });
   app.get('/cases/:id',async(req,reply)=>{
     const sid=req.cookies.web_sid;if(!sid)return reply.redirect('/login');const {id}=req.params as {id:string};
-    try{const {data:c}=await api<any>(`/api/case-versions/${id}`,{sid});return reply.type('text/html').send(layout('审阅用例',caseEditor(c)));}catch(e){return fail(reply,e);}
+    try{const {data:c}=await api<any>(`/api/case-versions/${id}`,{sid});return reply.type('text/html').send(layout('审阅用例',caseEditor(c),{projectId:c.projectId,activeTab:'missions'}));}catch(e){return fail(reply,e);}
   });
   app.post('/cases/:id/revise',async(req,reply)=>{
     const sid=req.cookies.web_sid;if(!sid)return reply.redirect('/login');const {id}=req.params as {id:string};
