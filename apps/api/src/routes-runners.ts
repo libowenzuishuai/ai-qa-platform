@@ -1,3 +1,5 @@
+import { reconcileCodeChecks } from '@ai-qa/run-events';
+export { reconcileCodeChecks } from '@ai-qa/run-events';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { PrismaClient } from '@prisma/client';
 import type { ArtifactStore } from '@ai-qa/artifact-store';
@@ -7,9 +9,6 @@ import { CodeCheckRequest, RunnerResult } from '@ai-qa/contracts';
 import { requireAuth, requireProjectAccess } from './auth.js';
 import { ApiError } from './errors.js';
 const digest=(x:string)=>createHash('sha256').update(x).digest('hex');
-export async function reconcileCodeChecks(prisma:PrismaClient){
-  await prisma.codeCheck.updateMany({where:{status:{in:['RUNNING','CANCEL_REQUESTED']},OR:[{leaseExpiresAt:{lt:new Date()}},{deadlineAt:{lt:new Date()}}]},data:{status:'ERROR',verdict:'INCOMPLETE',leaseToken:null,result:{reason:'运行器失联或时间预算耗尽；未自动重放命令'}}});
-}
 export function registerRunnerRoutes(app:FastifyInstance,prisma:PrismaClient,store:ArtifactStore){
   const id=(req:FastifyRequest)=>(req.params as {id:string}).id;
   async function runner(req:FastifyRequest){

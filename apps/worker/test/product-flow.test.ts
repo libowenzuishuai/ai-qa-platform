@@ -19,7 +19,7 @@ import { TestCaseVersion, computePlanAcceptanceHash } from '@ai-qa/contracts';
 import { registerRunnerRoutes } from '../../api/src/routes-runners.js';
 import { WorkerConfig } from '../src/config.js';
 
-let env: TestEnv; const app=Fastify(); const target=Fastify();let baseUrl:string;let actor:any;let build='v1';let broken=false;
+let env: TestEnv; const app=Fastify(); const target=Fastify();let baseUrl:string;let actor:any;let build='v1';let broken=false;let fixtureMode=false, fixtureCalls=0, failFixtureAt=0;
 const realModel = process.env.REAL_PRODUCT_EVAL === '1';
 let python: ChildProcess | undefined, intelligenceUrl = '', pythonLog = ''; 
 const internalToken = randomUUID();
@@ -43,6 +43,7 @@ beforeAll(async()=>{
 actor=await env.prisma.user.create({data:{username:randomUUID(),displayName:'Test lead',passwordHash:'unused',platformRole:'LEAD'}});
   app.addHook('onRequest',async req=>{req.auth={userId:actor.id,username:actor.username,displayName:actor.displayName,platformRole:'LEAD'};});
   app.setErrorHandler((err,req,reply)=>sendApiError(req,reply,err));registerProjectRoutes(app,env.prisma);registerProductRoutes(app,env.prisma,env.store,jobQueue,runQueue);registerDefectRoutes(app,env.prisma,env.store,runQueue);registerRunnerRoutes(app,env.prisma,env.store);
+  target.post('/api/fixtures/ns/reset',async(_req,reply)=>{fixtureCalls++;return fixtureCalls===failFixtureAt?reply.code(500).send({error:'intentional fixture failure'}):{ok:true,deleted:0};});
   target.get('/api/status',async()=>({state:broken?'wrong':'ready'}));
   target.get('/build',async()=>({buildId:build}));
   target.get('/subscription',async(_req,reply)=>reply.type('text/html').send(`<meta charset="utf-8"><h1>订阅中心</h1><button data-testid="upgrade" onclick="document.querySelector('[data-testid=result]').textContent='${broken?'Basic':'Pro'}'">升级</button><output data-testid="result">Basic</output>`));
@@ -55,7 +56,7 @@ afterAll(async()=>{web?.kill('SIGTERM');await runWorker?.close();await jobWorker
 async function post(url:string,payload:any){const res=await app.inject({method:'POST',url,payload});expect(res.statusCode,res.body).toBeLessThan(300);return res.json();}
 async function prepare(kind:'subscription'|'booking', useReal = false){
   const project=await env.prisma.project.create({data:{name:kind,memberships:{create:{userId:actor.id,role:'ADMIN'}}}});
-  const environment=await env.prisma.environment.create({data:{projectId:project.id,name:'staging',baseUrl,allowedOrigins:[baseUrl],runtime:{fixture:'none',buildProbe:{path:'/build',field:'buildId'}}}});
+  const environment=await env.prisma.environment.create({data:{projectId:project.id,name:'staging',baseUrl,allowedOrigins:[baseUrl],runtime:{fixture:fixtureMode?'demo':'none',buildProbe:{path:'/build',field:'buildId'}}}});
   const rule=await env.prisma.rule.create({data:{projectId:project.id}});
   const rv=await env.prisma.ruleVersion.create({data:{ruleId:rule.id,version:1,statement:kind==='subscription'?'升级后显示 Pro':'预约后显示成功',classification:'EXPLICIT',action:'提交',expectation:'成功',reviewStatus:'APPROVED',origin:'manual'}});
   const tc=await env.prisma.testCase.create({data:{projectId:project.id}});
@@ -128,9 +129,44 @@ describe(realModel?'通用项目（真实 Kimi/HTTP/Redis/DB/Chromium）':'通�
       await page.goto(`${webUrl}/space/${p.project.id}?tab=missions`);
       const form=page.locator('form[action$="/mission"]');await form.locator('[name=title]').fill('浏览器创建的验收任务');await form.locator('[name=goal]').fill('验证订阅结果');await form.locator('button').click();
       expect(await env.prisma.mission.count({where:{projectId:p.project.id,title:'浏览器创建的验收任务'}})).toBe(1);expect(errors).toEqual([]);
-      mkdirSync(root+'docs/delivery/evidence',{recursive:true});await page.screenshot({path:root+'docs/delivery/evidence/product-missions.png',fullPage:true});
+      mkdirSync(root+'data/pilot-evidence',{recursive:true});await page.screenshot({path:root+'data/pilot-evidence/product-missions.png',fullPage:true});
     }finally{await browser.close();}
   },60000);
+  it('可从表单编辑完整业务语义；批准旧版本与计划保持不变',async()=>{
+    const p=await prepare('subscription');const old=await env.prisma.testCaseVersion.findUniqueOrThrow({where:{id:p.cv.id}});
+    const browser=await chromium.launch({headless:true});
+    try{const context=await browser.newContext();await context.addCookies([{name:'web_sid',value:'product-ui',url:webUrl}]);const page=await context.newPage();
+      await page.goto(`${webUrl}/cases/${p.cv.id}`);
+      await page.locator('[name=preconditions]').fill('使用独立测试账号');
+      await page.locator('[name=roles]').fill('visitor\nreviewer');
+      await page.locator('[name=priority]').selectOption('P0');
+      await page.locator('[name=step_0_role]').fill('reviewer');
+      await page.locator('[name=step_0_expectedResult]').fill('观察显示数量');
+      await page.locator('[name=assertion_0_valueType]').selectOption('number');
+      await page.locator('[name=assertion_0_operator]').selectOption('gte');
+      await page.locator('[name=assertion_0_expected]').fill('5');
+      await page.locator('[name=assertion_0_unit]').fill('count');
+      await page.locator('[name=cleanupNote]').fill('测试负责人检查并清理本次数据');
+      await page.getByRole('button',{name:'保存为新版本'}).click();await page.waitForURL(/\/cases\/(?!undefined)[^/]+$/);
+      const versions=await env.prisma.testCaseVersion.findMany({where:{caseId:p.cv.caseId},orderBy:{version:'desc'}});
+      expect(versions).toHaveLength(2);const draft=versions[0]!;
+      expect(draft.approvalStatus).toBe('DRAFT');expect(draft.priority).toBe('P0');expect(draft.roles).toEqual(['visitor','reviewer']);expect(draft.preconditions).toEqual(['使用独立测试账号']);
+      expect((draft.assertions as any[])[0]).toMatchObject({operator:'gte',expected:5,unit:'count'});
+      expect((draft.steps as any[])[0]).toMatchObject({id:'business-submit',role:'reviewer',expectedResult:'观察显示数量'});
+      expect(versions[1]!.assertions).toEqual(old.assertions);expect(versions[1]!.approvalHash).toBe(old.approvalHash);
+      expect(await env.prisma.testPlanVersion.count({where:{caseVersionId:draft.id}})).toBe(0);
+      await page.locator('[name=assertion_0_expected]').fill('不是数字');await page.getByRole('button',{name:'保存为新版本'}).click();
+      expect(await page.locator('body').innerText()).toContain('类型不符');expect(await env.prisma.testCaseVersion.count({where:{caseId:p.cv.caseId}})).toBe(2);
+    }finally{await browser.close();}
+  },30000);
+  it('准备页面区分配置与实际登录；环境过期在服务器拒绝启动',async()=>{
+    const p=await prepare('booking');
+    const ready=await app.inject({url:`/api/missions/${p.mission.id}/readiness`});expect(ready.json().configurationReady).toBe(true);expect(ready.json().notices.join()).toContain('人工清理');
+    await post(`/api/environments/${p.environment.id}/runtime`,{buildProbe:{path:'/build',field:'buildId'}});
+    const stale=await app.inject({url:`/api/missions/${p.mission.id}/readiness`});expect(stale.json().configurationReady).toBe(false);expect(stale.json().blockers.join()).toContain('重新观察');
+    expect((await app.inject({method:'POST',url:`/api/missions/${p.mission.id}/start`,payload:{buildId:'test',idempotencyKey:randomUUID()}})).statusCode).toBe(422);
+    expect(await env.prisma.run.count({where:{projectId:p.project.id}})).toBe(0);
+  },30000);
   it('填写错误版本不能获得整体 PASS；环境变化拒绝旧绑定',async()=>{
     broken=false;build='actual';const p=await prepare('subscription');
     const run=await post(`/api/missions/${p.mission.id}/start`,{buildId:'claimed',idempotencyKey:randomUUID()});
@@ -166,6 +202,16 @@ describe(realModel?'通用项目（真实 Kimi/HTTP/Redis/DB/Chromium）':'通�
     const complete=await app.inject({method:'POST',url:`/api/runner/tasks/${task.id}/result`,headers,payload:{leaseToken:owned[0].leaseToken,result}});
     expect(complete.statusCode,complete.body).toBe(200);expect(complete.json().verdict).toBe('INCOMPLETE');
     expect((await app.inject({method:'POST',url:`/api/runner/tasks/${task.id}/result`,headers,payload:{leaseToken:owned[0].leaseToken,result}})).statusCode).toBe(409);
+  },30000);
+  for(const phase of [1,2])it(`数据${phase===1?'准备':'清理'}失败不能继续判 PASS`,async()=>{
+    fixtureMode=true;fixtureCalls=0;failFixtureAt=phase;broken=false;build='fixture-v1';
+    try{
+      const p=await prepare('subscription');const run=await post(`/api/missions/${p.mission.id}/start`,{buildId:build,idempotencyKey:randomUUID()});
+      const report=await execute(run.runId);expect(report.cases[0]?.verdict).toBe('BLOCKED');expect(report.run.acceptanceStatus).toBe('INCOMPLETE');
+      const attempts=await env.prisma.caseAttempt.findMany({where:{runId:run.runId},include:{steps:true}});
+      if(phase===1)expect(attempts[0]?.steps).toHaveLength(0);
+      else expect(report.cases[0]?.assertions.some(a=>a.result==='PASS')).toBe(true);
+    }finally{fixtureMode=false;failFixtureAt=0;fixtureCalls=0;}
   },30000);
   it('跨项目用例与观察拒绝；模拟计划禁止批准',async()=>{
     const p=await prepare('booking');await env.prisma.planProposal.update({where:{id:p.proposal.id},data:{mode:'mock'}});

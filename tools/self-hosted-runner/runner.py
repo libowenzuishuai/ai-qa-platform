@@ -4,6 +4,8 @@ import argparse
 import io
 import json
 import os
+import re
+import sys
 import shutil
 import subprocess
 import tarfile
@@ -96,6 +98,8 @@ def execute(spec, continue_work=lambda: True, source_directory=None):
     def remaining():
         return max(1, spec['timeoutSeconds']-(time.monotonic()-started))
     def run_phase(image, command, network='none'):
+        if time.monotonic()-started >= spec['timeoutSeconds'] or not continue_work():
+            raise TimeoutError('Task cancelled, lease lost or budget exhausted before command')
         name = 'aiqa-' + uuid.uuid4().hex
         containers.append(name)
         docker(['create','--name',name,'--network',network,'--read-only','--cap-drop=ALL','--security-opt=no-new-privileges',
@@ -111,6 +115,11 @@ def execute(spec, continue_work=lambda: True, source_directory=None):
                 raise TimeoutError('Task cancelled, lease lost or budget exhausted')
             time.sleep(.5)
     try:
+        if not re.fullmatch(r'https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/?',spec['repositoryUrl']) or not re.fullmatch(r'[a-f0-9]{40}',spec['commitSha']):
+            raise ValueError('Invalid repository or immutable commit')
+        subdirectory=spec.get('subdirectory','')
+        if subdirectory.startswith('/') or '..' in Path(subdirectory).parts or '\\' in subdirectory:
+            raise ValueError('Invalid repository subdirectory')
         with tempfile.TemporaryDirectory(prefix='aiqa-source-') as temporary:
             source=Path(temporary)/'source';source.mkdir()
             if source_directory:
@@ -164,9 +173,13 @@ def execute(spec, continue_work=lambda: True, source_directory=None):
         result['platformError']=str(error)[:2000]
     finally:
         stopped.set()
-        for name in containers:
-            subprocess.run(['docker','rm','-f',name],capture_output=True,timeout=10)
-        subprocess.run(['docker','volume','rm',volume],capture_output=True,timeout=10)
+        cleanup_failed=False
+        for command in ([['docker','rm','-f',name] for name in containers]+[['docker','volume','rm',volume]]):
+            try:
+                cleaned=subprocess.run(command,capture_output=True,timeout=10)
+                if cleaned.returncode and b'no such' not in cleaned.stderr.lower():cleanup_failed=True
+            except (OSError,subprocess.TimeoutExpired):cleanup_failed=True
+        if cleanup_failed:result['platformError']='Cleanup incomplete; operator inspection required'
     return result
 
 
@@ -178,18 +191,26 @@ def main():
     while True:
         task=json.loads(request(base+'/api/runner/claim',token,{}))['task']
         if task:
-            last_heartbeat=0;active=True
-            def heartbeat():
-                nonlocal last_heartbeat,active
-                if time.monotonic()-last_heartbeat > 10:
+            stop=threading.Event(); active=threading.Event(); active.set()
+            def renew():
+                while not stop.is_set():
                     try:
-                        active=json.loads(request(base+'/api/runner/tasks/'+task['id']+'/heartbeat',token,{'leaseToken':task['leaseToken']}))['continue']
+                        allowed=json.loads(request(base+'/api/runner/tasks/'+task['id']+'/heartbeat',token,{'leaseToken':task['leaseToken']}))['continue']
+                        if not allowed:
+                            active.clear();return
                     except Exception:
-                        active=False
-                    last_heartbeat=time.monotonic()
-                return active
-            result=execute(task['request'],heartbeat)
-            request(base+'/api/runner/tasks/'+task['id']+'/result',token,{'leaseToken':task['leaseToken'],'result':result})
+                        active.clear();return
+                    stop.wait(10)
+            monitor=threading.Thread(target=renew,daemon=True);monitor.start()
+            try:
+                result=execute(task['request'],active.is_set)
+                try:
+                    request(base+'/api/runner/tasks/'+task['id']+'/result',token,{'leaseToken':task['leaseToken'],'result':result})
+                except Exception:
+                    # Late/revoked leases must never retry the business command or stop the daemon.
+                    print('Result delivery failed; no task replay. Platform lease reconciliation will resolve the task.',file=sys.stderr)
+            finally:
+                stop.set();monitor.join(timeout=16)
         if args.once:
             break
         time.sleep(3)

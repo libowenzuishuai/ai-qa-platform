@@ -184,6 +184,12 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
         continue;
       }
 
+      const dataSpec = caseVersion.dataSpec as { strategy: string };
+      const cleanup = caseVersion.cleanup as { strategy: string };
+      if (dataSpec.strategy === "fixture" || (cleanup.strategy !== "manual" && !fixture)) {
+        await createBlockedAttempt(prisma, runId, run.projectId, caseVersionId, index, "UNSUPPORTED", "用例声明的业务夹具或自动清理能力未配置，未开始业务操作");
+        continue;
+      }
       const plan = TestPlanV1.parse(planVersion.plan);
       let invalidEvidence = false;
       for (const binding of plan.bindings) {
@@ -227,6 +233,9 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
           attemptId: attempt.id, phase: "pre-clean",
           detail: err instanceof Error ? err.message : String(err),
         });
+        await prisma.caseAttempt.updateMany({where:{id:attempt.id,lifecycle:"RUNNING"},data:{lifecycle:"FINISHED",verdict:"BLOCKED",reasonCode:"ENVIRONMENT",finishedAt:new Date()}});
+        await emitRunEvent(prisma,runId,"attempt.finished",{attemptId:attempt.id,caseVersionId,verdict:"BLOCKED",reasonCode:"ENVIRONMENT",detail:"数据准备失败，未执行浏览器业务操作"});
+        continue;
       }
 
       const sink = createArtifactSink(prisma, store, run.projectId, runId, attempt.id);
@@ -269,6 +278,12 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
         },
       });
 
+      let cleanupError: string | undefined;
+      try { await fixture?.resetNamespace(namespace, runDeadline); }
+      catch (err) {
+        cleanupError = "数据清理失败，请检查此运行的数据隔离区";
+        await emitRunEvent(prisma, runId, "attempt.fixture_error", {attemptId:attempt.id,phase:"post-clean",detail:err instanceof Error?err.message:String(err)});
+      }
       const assertionOutcomes: AssertionOutcome[] = result.assertions.map((a) => ({
         assertionId: a.assertionId,
         required: a.required,
@@ -289,6 +304,8 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
           ? undefined
           : result.cancelled
             ? { reasonCode: "CANCELLED", detail: "执行被取消" }
+            : cleanupError
+              ? { reasonCode: "ENVIRONMENT", detail: cleanupError }
             : result.blocked
               ? { reasonCode: result.blocked.reasonCode, detail: result.blocked.detail }
               : undefined,
@@ -317,14 +334,6 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
         });
       });
 
-      try {
-        await fixture?.resetNamespace(namespace, runDeadline);
-      } catch (err) {
-        await emitRunEvent(prisma, runId, "attempt.fixture_error", {
-          attemptId: attempt.id, phase: "post-clean",
-          detail: err instanceof Error ? err.message : String(err),
-        });
-      }
     }
 
     await probeBuild(prisma, store, runId, "after");

@@ -20,3 +20,13 @@
 - 运行器是管理员信任的执行主体；不是对恶意管理员或被攻陷主机的远程证明。
 
 测试：`AIQA_TEST_DOCKER=1 AIQA_RUNNER_PYTHON_IMAGE=<本地含pytest镜像> services/intelligence/.venv/bin/python -m pytest tools/self-hosted-runner/tests`。
+
+## 公共仓库整链复验
+
+`apps/worker/test/runner-e2e.test.ts` 默认跳过；显式设置 `REAL_RUNNER_EVAL=1`、`AIQA_RUNNER_FIXTURE_SHA` 为已上传的完整夹具提交后，运行 `pnpm --filter @ai-qa/worker exec vitest run test/runner-e2e.test.ts`。还需本机测试 PostgreSQL、Docker 与上述已审核镜像。它启动临时 API，通过实际 runner CLI 从公共 Git 下载，然后检查平台终态与证据校验和；测试库与服务在结束时清理。
+
+本轮夹具提交为 `5713c1deec65ae352b119f0aa1ba9f8d610b726b`，包括 Node/pytest 成功及失败样例，属于合成评测数据。证据输出到忽略提交的 `data/pilot-evidence/runner-e2e.json`。
+
+若 Python 的 HTTPS 请求报可信证书缺失，为运行器配置正确的系统/组织 CA，例如本机 macOS 可用 `SSL_CERT_FILE=/etc/ssl/cert.pem`（先确认文件存在）。不得关闭证书校验。初次失败和后续复验分别记录，不把环境错误视为业务失败。
+
+下载和执行期间持续续租；心跳拒绝或失败停止后续业务命令。结果提交失败不重新执行业务命令，平台按租约和预算对账。清理失败会产生 `platformError`，需要管理员检查本任务资源；不自动扩大删除范围。

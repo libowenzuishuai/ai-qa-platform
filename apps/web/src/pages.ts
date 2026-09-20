@@ -16,6 +16,13 @@ th { background:#f0f2f7; }
 label { display:block; margin:10px 0 4px; font-size:14px; font-weight:500; }
 select,input[type=text],input[type=password] { width:320px; padding:8px; border:1px solid #c9cdd6; font-size:14px; }
 button { padding:8px 18px; background:#2457d6; color:#fff; border:0; font-size:14px; cursor:pointer; margin-top:12px; }
+textarea { width:100%; max-width:720px; padding:10px; font:inherit; border:1px solid #c9cdd6; border-radius:6px; }
+fieldset { border:1px solid #e2e4ea; border-radius:8px; padding:16px; margin:12px 0; min-width:0; }
+input,select { max-width:100%; }
+.card { border-radius:10px; }
+button { border-radius:6px; }
+a { color:#2457d6; text-underline-offset:3px; }
+.journey { padding-left:20px; } .journey li { padding:10px 0; } .primary-link { display:inline-block; padding:10px 16px; background:#2457d6; color:white; border-radius:6px; text-decoration:none; }
 button.danger { background:#c72f2f; }
 button:disabled { background:#9aa4b8; cursor:not-allowed; }
 .badge { display:inline-block; padding:2px 10px; border-radius:10px; font-size:12px; }

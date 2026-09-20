@@ -1,0 +1,101 @@
+{
+  "source": "real public GitHub download; synthetic test fixtures; actual CLI, Docker and API",
+  "evaluations": [
+    {
+      "kind": "NODE_TEST",
+      "request": {
+        "kind": "NODE_TEST",
+        "commitSha": "5713c1deec65ae352b119f0aa1ba9f8d610b726b",
+        "subdirectory": "tests-golden/runner-projects/node-pass",
+        "repositoryUrl": "https://github.com/libowenzuishuai/ai-qa-platform",
+        "timeoutSeconds": 120,
+        "installDependencies": false
+      },
+      "status": "FINISHED",
+      "verdict": "PASS",
+      "result": {
+        "cases": [
+          {
+            "name": "test integer minor-unit total",
+            "status": "PASS"
+          }
+        ],
+        "output": "",
+        "exitCode": 0,
+        "commitSha": "5713c1deec65ae352b119f0aa1ba9f8d610b726b"
+      }
+    },
+    {
+      "kind": "NODE_TEST",
+      "request": {
+        "kind": "NODE_TEST",
+        "commitSha": "5713c1deec65ae352b119f0aa1ba9f8d610b726b",
+        "subdirectory": "tests-golden/runner-projects/node-fail",
+        "repositoryUrl": "https://github.com/libowenzuishuai/ai-qa-platform",
+        "timeoutSeconds": 120,
+        "installDependencies": false
+      },
+      "status": "FINISHED",
+      "verdict": "FAIL",
+      "result": {
+        "cases": [
+          {
+            "name": "test integer minor-unit total",
+            "status": "FAIL"
+          }
+        ],
+        "output": "",
+        "exitCode": 1,
+        "commitSha": "5713c1deec65ae352b119f0aa1ba9f8d610b726b"
+      }
+    },
+    {
+      "kind": "PYTHON_TEST",
+      "request": {
+        "kind": "PYTHON_TEST",
+        "commitSha": "5713c1deec65ae352b119f0aa1ba9f8d610b726b",
+        "subdirectory": "tests-golden/runner-projects/python-pass",
+        "repositoryUrl": "https://github.com/libowenzuishuai/ai-qa-platform",
+        "timeoutSeconds": 120,
+        "installDependencies": false
+      },
+      "status": "FINISHED",
+      "verdict": "PASS",
+      "result": {
+        "cases": [
+          {
+            "name": "test_price test_minor_unit_total",
+            "status": "PASS"
+          }
+        ],
+        "output": ".                                                                        [100%]\n=============================== warnings summary ===============================\n../../../../usr/local/lib/python3.13/site-packages/_pytest/cacheprovider.py:469\n  /usr/local/lib/python3.13/site-packages/_pytest/cacheprovider.py:469: PytestCacheWarning: could not create cache path /work/tests-golden/runner-projects/python-pass/.pytest_cache/v/cache/nodeids: [Errno 13] Permission denied: '/work/tests-golden/runner-projects/python-pass/pytest-cache-files-tzazf2bg'\n    config.cache.set(\"cache/nodeids\", sorted(self.cached_nodeids))\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n1 passed, 1 warning in 0.00s\n",
+        "exitCode": 0,
+        "commitSha": "5713c1deec65ae352b119f0aa1ba9f8d610b726b"
+      }
+    },
+    {
+      "kind": "PYTHON_TEST",
+      "request": {
+        "kind": "PYTHON_TEST",
+        "commitSha": "5713c1deec65ae352b119f0aa1ba9f8d610b726b",
+        "subdirectory": "tests-golden/runner-projects/python-fail",
+        "repositoryUrl": "https://github.com/libowenzuishuai/ai-qa-platform",
+        "timeoutSeconds": 120,
+        "installDependencies": false
+      },
+      "status": "FINISHED",
+      "verdict": "FAIL",
+      "result": {
+        "cases": [
+          {
+            "name": "test_price test_minor_unit_total",
+            "status": "FAIL"
+          }
+        ],
+        "output": "F                                                                        [100%]\n=================================== FAILURES ===================================\n____________________________ test_minor_unit_total _____________________________\n\n    def test_minor_unit_total():\n>       assert 1250 * 3 == 3700\nE       assert (1250 * 3) == 3700\n\ntest_price.py:3: AssertionError\n=============================== warnings summary ===============================\n../../../../usr/local/lib/python3.13/site-packages/_pytest/cacheprovider.py:469\n  /usr/local/lib/python3.13/site-packages/_pytest/cacheprovider.py:469: PytestCacheWarning: could not create cache path /work/tests-golden/runner-projects/python-fail/.pytest_cache/v/cache/nodeids: [Errno 13] Permission denied: '/work/tests-golden/runner-projects/python-fail/pytest-cache-files-bap0rbvg'\n    config.cache.set(\"cache/nodeids\", sorted(self.cached_nodeids))\n\n../../../../usr/local/lib/python3.13/site-packages/_pytest/cacheprovider.py:423\n  /usr/local/lib/python3.13/site-packages/_pytest/cacheprovider.py:423: PytestCacheWarning: could not create cache path /work/tests-golden/runner-projects/python-fail/.pytest_cache/v/cache/lastfailed: [Errno 13] Permission denied: '/work/tests-golden/runner-projects/python-fail/pytest-cache-files-dkjvwgvz'\n    config.cache.set(\"cache/lastfailed\", self.lastfailed)\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ============================\nFAILED test_price.py::test_minor_unit_total - assert (1250 * 3) == 3700\n1 failed, 2 warnings in 0.01s\n",
+        "exitCode": 1,
+        "commitSha": "5713c1deec65ae352b119f0aa1ba9f8d610b726b"
+      }
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { missionReadiness } from './mission-readiness.js';
 import { projectSecretPrefix, validateSecretNamespace } from './environment-secrets.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { PrismaClient, Prisma } from '@prisma/client';
@@ -34,7 +35,7 @@ export function registerProductRoutes(app: FastifyInstance, prisma: PrismaClient
     const [project, environments, cases, baselines, observations, proposals, missions, snapshots, defects, executions] = await Promise.all([
       prisma.project.findUniqueOrThrow({where:{id:projectId}}),
       prisma.environment.findMany({where:{projectId}}),
-      prisma.testCaseVersion.findMany({where:{projectId},orderBy:{createdAt:'desc'},take:200,include:{plans:{select:{id:true,environmentId:true,version:true}}}}),
+      prisma.testCaseVersion.findMany({where:{projectId},orderBy:{createdAt:'desc'},take:200,include:{plans:{select:{id:true,environmentId:true,environmentRevision:true,version:true}}}}),
       prisma.baseline.findMany({where:{projectId},orderBy:{createdAt:'desc'}}),
       prisma.artifact.findMany({where:{projectId,type:'OBSERVATION_BUNDLE'},orderBy:{createdAt:'desc'},take:30}),
       prisma.planProposal.findMany({where:{projectId},orderBy:{createdAt:'desc'},take:50}),
@@ -43,7 +44,8 @@ export function registerProductRoutes(app: FastifyInstance, prisma: PrismaClient
       prisma.defect.findMany({where:{projectId},include:{occurrences:true},orderBy:{updatedAt:'desc'},take:100}),
       prisma.run.findMany({where:{projectId},orderBy:{createdAt:'desc'},take:100}),
     ]);
-    return {secretPrefix:projectSecretPrefix(projectId),project,environments,cases,baselines,observations,proposals,missions,snapshots,defects,executions};
+    const [documents,parsed]=await Promise.all([prisma.document.count({where:{projectId}}),prisma.document.count({where:{projectId,versions:{some:{parseStatus:"PARSED"}}}})]);
+    return {sourceCounts:{documents,parsed},secretPrefix:projectSecretPrefix(projectId),project,environments,cases,baselines,observations,proposals,missions,snapshots,defects,executions};
   });
   app.post('/api/projects/:id/api-templates',async req=>{
     const projectId=param(req);await requireProjectAccess(prisma,req,projectId,'ADMIN');
@@ -64,11 +66,11 @@ export function registerProductRoutes(app: FastifyInstance, prisma: PrismaClient
   });
   app.get('/api/case-versions/:id', async req => {
     const row = await caseFor(req, false);
-    return { ...row, plans: await prisma.testPlanVersion.findMany({ where: { caseVersionId: row.id }, orderBy: { version: 'desc' } }) };
+    return { ...row, availableRules: await prisma.ruleVersion.findMany({where:{rule:{projectId:row.projectId},OR:[{reviewStatus:"APPROVED"},{id:{in:row.ruleVersionIds}}]},select:{id:true,statement:true,version:true,reviewStatus:true}}), plans: await prisma.testPlanVersion.findMany({ where: { caseVersionId: row.id }, orderBy: { version: 'desc' } }) };
   });
   app.post('/api/case-versions/:id/revise', async req => {
     const row = await caseFor(req);
-    const body = z.object({ title: z.string().min(1), description: z.string().optional(), preconditions: z.array(z.string()), dataSpec: z.unknown(), steps: z.unknown(), assertions: z.unknown(), cleanup: z.unknown(), roles: z.array(z.string()), ruleVersionIds: ids }).strict().parse(req.body);
+    const body = z.object({ title: z.string().min(1), description: z.string().optional(), priority: z.enum(["P0","P1","P2"]).optional(), preconditions: z.array(z.string()), dataSpec: z.unknown(), steps: z.unknown(), assertions: z.unknown(), cleanup: z.unknown(), roles: z.array(z.string()), ruleVersionIds: ids }).strict().parse(req.body);
     return prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM "TestCase" WHERE id = ${row.caseId} FOR UPDATE`;
       const last = await tx.testCaseVersion.findFirstOrThrow({ where: { caseId: row.caseId }, orderBy: { version: 'desc' } });
@@ -203,11 +205,19 @@ export function registerProductRoutes(app: FastifyInstance, prisma: PrismaClient
     const missions = await prisma.mission.findMany({ where: { projectId }, orderBy: { createdAt: 'desc' }, take: 100 });
     return { missions, runs: await prisma.missionRun.findMany({ where: { missionId: { in: missions.map(m=>m.id) } } }) };
   });
+  app.get('/api/missions/:id/readiness', async req => {
+    const mission=await prisma.mission.findUnique({where:{id:param(req)}});
+    if(!mission)throw new ApiError('NOT_FOUND','任务不存在');
+    await requireProjectAccess(prisma,req,mission.projectId);
+    return {...await missionReadiness(prisma,mission),projectId:mission.projectId,title:mission.title};
+  });
   app.post('/api/missions/:id/start', async req => {
     const mission = await prisma.mission.findUnique({ where: { id: param(req) } });
     if (!mission) throw new ApiError('NOT_FOUND','任务不存在');
     await requireProjectAccess(prisma, req, mission.projectId,'LEAD');
     const body = z.object({ buildId: z.string().min(1).max(200), idempotencyKey: z.string().min(1).max(200) }).strict().parse(req.body);
+    const readiness=await missionReadiness(prisma,mission);
+    if(!readiness.configurationReady)throw new ApiError('VALIDATION_ERROR',readiness.blockers.join('；'));
     const baseline = await prisma.baseline.findUniqueOrThrow({ where: { id: mission.baselineId } });
     const created = await createRun(prisma,store,{ ...body, projectId:mission.projectId, baselineId:baseline.id, environmentId:mission.environmentId, mode:'real', caseVersionIds:baseline.caseVersionIds });
     const existing = await prisma.missionRun.findUnique({ where: { runId: created.runId } });

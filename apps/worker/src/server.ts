@@ -1,3 +1,4 @@
+import { reconcileCodeChecks } from '@ai-qa/run-events';
 import Fastify from "fastify";
 import { reconcileAgentJobs } from "./agent-job-recovery.js";
 import { PrismaClient } from "@prisma/client";
@@ -81,7 +82,7 @@ const LEASE_STALE_MS = 90_000;
 
 async function reconcile(): Promise<void> {
   await reconcileAgentJobs(prisma, agentJobsQueue);
-  await prisma.codeCheck.updateMany({where:{status:{in:["RUNNING","CANCEL_REQUESTED"]},OR:[{leaseExpiresAt:{lt:new Date()}},{deadlineAt:{lt:new Date()}}]},data:{status:"ERROR",verdict:"INCOMPLETE",leaseToken:null,result:{reason:"运行器失联或预算耗尽"}}});
+  await reconcileCodeChecks(prisma);
   // 1) 落库但入队失败/丢失的 QUEUED 运行：超时重投。
   const staleQueued = await prisma.run.findMany({
     where: {
