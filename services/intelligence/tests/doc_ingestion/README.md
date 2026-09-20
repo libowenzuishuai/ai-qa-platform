@@ -4,4 +4,6 @@
 
 `fixtures/b1-two-page.pdf` 使用原泽菲 `6ed386f` 回归中的 pdf-lib 默认压缩格式生成（Helvetica；FirstPage / SecondPage），用于重现旧 pdf-parse 双页测试失败；是本项目合成测试文件，无业务或个人数据。
 
+`fixtures/b3-eval-manifest.json` 记录 B3 八份资料评测占位（mock / 真实 Kimi / 试点资料状态）。默认 pytest 只覆盖 manifest 中标记为 `mock-covered` 的路径；真实视觉用 `verify_kimi_vision.py` 或后续 B3 脚本单独跑。
+
 Python HTTP 的正式 TS 契约验收位于 `apps/worker/test/intelligence-client.test.ts`，该测试使用临时证据目录并在结束时清理。

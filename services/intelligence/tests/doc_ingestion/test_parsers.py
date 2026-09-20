@@ -63,6 +63,41 @@ def scanned_pdf(labels: list[str]) -> bytes:
     return output.getvalue()
 
 
+def table_image_pdf(rows: list[list[str]]) -> bytes:
+    """Raster table for PDF_SCANNED vision path (mock in tests)."""
+    width, height = 400, 40 + 40 * len(rows)
+    image = Image.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(image)
+    col_count = max(len(row) for row in rows)
+    col_width = width // col_count
+    for row_index, row in enumerate(rows):
+        y0 = 20 + row_index * 40
+        draw.line([(0, y0), (width, y0)], fill="black", width=1)
+        for col_index, value in enumerate(row):
+            x0 = col_index * col_width
+            draw.line([(x0, y0), (x0, y0 + 40)], fill="black", width=1)
+            draw.text((x0 + 8, y0 + 12), value, fill="black")
+    draw.line([(0, 20 + len(rows) * 40), (width, 20 + len(rows) * 40)], fill="black")
+    draw.line([(width - 1, 20), (width - 1, 20 + len(rows) * 40)], fill="black")
+    buffer = BytesIO()
+    image.save(buffer, "PDF")
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def docx_with_nested_table() -> bytes:
+    doc = Document()
+    outer = doc.add_table(rows=1, cols=1)
+    inner = outer.cell(0, 0).add_table(rows=2, cols=2)
+    for row in range(2):
+        for col in range(2):
+            inner.cell(row, col).text = f"N{row}{col}"
+    doc.add_paragraph("Below nested table")
+    output = BytesIO()
+    doc.save(output)
+    return output.getvalue()
+
+
 def pdf(pages):
     writer = PdfWriter()
     font = writer._add_object(
@@ -177,6 +212,36 @@ def test_docx_merged_cells_and_embedded_image_are_explicit():
     assert sum(b["text"] == "Merged" for b in body["blocks"]) == 1
     assert body["coverageSummary"]["unparsedSpans"] == 1
     assert any("合并" in w for w in body["warnings"])
+
+
+def test_docx_horizontal_and_vertical_merged_cells_record_primary_grid():
+    doc = Document()
+    table = doc.add_table(rows=3, cols=3)
+    table.cell(0, 0).merge(table.cell(0, 1)).text = "Wide"
+    table.cell(1, 0).merge(table.cell(2, 0)).text = "Tall"
+    table.cell(2, 2).text = "Corner"
+    output = BytesIO()
+    doc.save(output)
+    body = parsed(output.getvalue(), "DOCX")
+    texts = {s["quotedText"]: s["locator"] for s in body["spans"] if s["quotedText"]}
+    assert texts["Wide"] == {"kind": "docx-cell", "tableIndex": 0, "row": 0, "col": 0}
+    assert texts["Tall"] == {"kind": "docx-cell", "tableIndex": 0, "row": 1, "col": 0}
+    assert texts["Corner"] == {"kind": "docx-cell", "tableIndex": 0, "row": 2, "col": 2}
+    assert sum(b["text"] == "Wide" for b in body["blocks"]) == 1
+    assert sum(b["text"] == "Tall" for b in body["blocks"]) == 1
+    assert any("合并" in w for w in body["warnings"])
+
+
+def test_docx_nested_table_uses_incrementing_table_index():
+    body = parsed(docx_with_nested_table(), "DOCX")
+    locators = {
+        s["quotedText"]: s["locator"]
+        for s in body["spans"]
+        if s["quotedText"] and s["quotedText"].startswith("N")
+    }
+    assert locators["N11"] == {"kind": "docx-cell", "tableIndex": 1, "row": 1, "col": 1}
+    assert all(loc["tableIndex"] == 1 for loc in locators.values())
+    assert body["spans"][-1]["quotedText"] == "Below nested table"
 
 
 def test_pdf_page_two_is_not_page_one():
@@ -382,6 +447,21 @@ def parse_pdf_with_ocr(tmp_path, pdf_data, pages: dict[int, str], *, format="PDF
     )
     validate_bundle(result)
     return result
+
+
+def test_scanned_pdf_table_image_vision_mock_preserves_cell_text(tmp_path):
+    table_text = "角色 | 上限\n申请人 | <=500000分\n主管 | >500000分"
+    body = parse_pdf_with_ocr(
+        tmp_path,
+        table_image_pdf([["角色", "上限"], ["申请人", "<=500000分"], ["主管", ">500000分"]]),
+        {1: table_text},
+        format="PDF_SCANNED",
+    )
+    assert body["parseStatus"] == "PARSED"
+    assert body["format"] == "PDF_SCANNED"
+    assert "<=500000" in body["blocks"][0]["text"]
+    assert ">500000" in body["blocks"][0]["text"]
+    assert body["spans"][0]["extractionQuality"] == "LOW"
 
 
 def test_scanned_pdf_vision_preserves_source_format(tmp_path):

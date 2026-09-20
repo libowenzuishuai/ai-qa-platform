@@ -1,0 +1,62 @@
+{
+  "version": "b3-v1",
+  "note": "B3 资料质量评测清单（占位）。mock 进 CI；真实 Kimi 单独记录，不混入默认 pytest。",
+  "cases": [
+    {
+      "id": "b3-01-markdown-prd",
+      "format": "MARKDOWN",
+      "fixture": "packages/contracts/fixtures/01-explicit-prd/source.md",
+      "status": "mock-covered",
+      "focus": "正文行级来源、标点保留"
+    },
+    {
+      "id": "b3-02-docx-grid",
+      "format": "DOCX",
+      "fixture": "tests/doc_ingestion/fixtures/b3-docx-grid.docx",
+      "status": "pending-generate",
+      "focus": "普通表格行列坐标"
+    },
+    {
+      "id": "b3-03-docx-merge-nested",
+      "format": "DOCX",
+      "fixture": "pytest-generated",
+      "status": "mock-covered",
+      "focus": "合并单元格、嵌套 tableIndex"
+    },
+    {
+      "id": "b3-04-pdf-text-two-page",
+      "format": "PDF_TEXT",
+      "fixture": "tests/doc_ingestion/fixtures/b1-two-page.pdf",
+      "status": "mock-covered",
+      "focus": "文字层页码与第二页内容"
+    },
+    {
+      "id": "b3-05-pdf-scanned-table",
+      "format": "PDF_SCANNED",
+      "fixture": "pytest-generated-table-image-pdf",
+      "status": "mock-covered",
+      "focus": "扫描页表格视觉转录（mock）"
+    },
+    {
+      "id": "b3-06-png-vision",
+      "format": "PNG",
+      "fixture": "pytest-generated",
+      "status": "mock-covered",
+      "focus": "整图 region LOW 质量"
+    },
+    {
+      "id": "b3-07-broken-input",
+      "format": "DOCX",
+      "fixture": "pytest-generated",
+      "status": "mock-covered",
+      "focus": "损坏/超限 → FAILED 或 UNPARSED"
+    },
+    {
+      "id": "b3-08-real-pilot-sample",
+      "format": "TBD",
+      "fixture": "external-pilot-storage",
+      "status": "blocked-pilot",
+      "focus": "试点脱敏资料；真实视觉用量单列验收"
+    }
+  ]
+}
