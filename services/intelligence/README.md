@@ -42,6 +42,8 @@ export AIQA_INTELLIGENCE_TIMEOUT_MS='120000'
 | POST /v1/documents/parse | DocumentParseRequest | DocumentParseResponse |
 | POST /v1/rules/extract | RuleExtractionRequest | RuleExtractionResponse |
 | POST /v1/cases/generate | CaseGenerationRequest | CaseGenerationResponse |
+| POST /v1/plans/propose | PlanProposalRequest | PlanProposalResponse |
+| POST /v1/sources/classify | SourceClassificationRequest | SourceClassificationResponse |
 
 均使用 `Authorization: Bearer <内部令牌>`。请求包含 schemaVersion=`1.0`、requestId、mode、timeoutMs、input；响应原样回传版本、请求 ID、mode，另有 output 与 invocations。文件通过只读共享目录的 storageKey、大小、SHA-256 引用，不传任意下载 URL。
 

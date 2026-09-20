@@ -357,6 +357,8 @@ export async function seedFixedAssets(
   });
   if (!environment) throw new Error("环境不存在或不属于该项目");
 
+  // Demo fixtures are explicit; generic environments never receive demo credentials or cleanup calls.
+  await prisma.environment.update({where:{id:environment.id},data:{runtime:{...(environment.runtime as Record<string, never>),fixture:"demo"}}});
   // 固定资产 ID 按项目前缀隔离（全局唯一 id 会跨项目冲突）。
   const P = `${projectId}-fx`;
   const existingCase = await prisma.testCaseVersion.findFirst({
@@ -369,7 +371,7 @@ export async function seedFixedAssets(
   const store = new ArtifactStore(config.artifactDir);
   let bindings: ObservedBinding[] = [];
   const snapshotSecretRefs = (environment.secretRefs ?? {}) as SecretRefs;
-  const resolveCredential = makeCredentialResolver(snapshotSecretRefs);
+  const resolveCredential = makeCredentialResolver(snapshotSecretRefs, true);
   const missing = ["applicant.username", "applicant.password", "supervisor.username", "supervisor.password"]
     .filter((ref) => resolveCredential(ref) === undefined);
   if (missing.length > 0) {

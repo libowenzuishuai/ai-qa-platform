@@ -1,0 +1,119 @@
+{
+  "mode": "real",
+  "scope": "two synthetic business projects, real Kimi plan generation and browser execution; manually approved rules/cases",
+  "evaluations": [
+    {
+      "kind": "subscription",
+      "jobStatus": "FAILED",
+      "error": {
+        "code": "MODEL_OUTPUT_INVALID",
+        "message": "[\n  {\n    \"code\": \"custom\",\n    \"path\": [\n      \"actions\",\n      3,\n      \"targetRef\"\n    ],\n    \"message\": \"waitFor text 必须提供 targetRef\"\n  }\n]",
+        "requestId": "cmu9f12lm000n0a0vc4vsg1zv"
+      },
+      "invocations": [
+        {
+          "id": "cmu9f17rq000q0a0v1552gjdi",
+          "projectId": "cmu9f124f00010a0v9q4g15qz",
+          "runId": null,
+          "provider": "moonshot",
+          "model": "kimi-k2.6",
+          "promptVersion": "planner-v1",
+          "requestId": "cmu9f12lm000n0a0vc4vsg1zv",
+          "usage": {
+            "inputTokens": 3969,
+            "outputTokens": 160
+          },
+          "estimatedCost": null,
+          "latencyMs": 6673,
+          "outcome": "SUCCESS",
+          "createdAt": "2026-09-20T06:08:46.742Z"
+        }
+      ]
+    },
+    {
+      "kind": "booking",
+      "jobStatus": "SUCCEEDED",
+      "error": null,
+      "invocations": [
+        {
+          "id": "cmu9f1d12001g0a0v8wuoxjaf",
+          "projectId": "cmu9f17v0000r0a0vevw9fhs0",
+          "runId": null,
+          "provider": "moonshot",
+          "model": "kimi-k2.6",
+          "promptVersion": "planner-v1",
+          "requestId": "cmu9f184z001d0a0vok2mdl66",
+          "usage": {
+            "inputTokens": 4088,
+            "outputTokens": 209
+          },
+          "estimatedCost": null,
+          "latencyMs": 6312,
+          "outcome": "SUCCESS",
+          "createdAt": "2026-09-20T06:08:53.558Z"
+        }
+      ]
+    },
+    {
+      "kind": "booking",
+      "healthy": {
+        "id": "cmu9f1d4h001r0a0vl0e9ikdx",
+        "lifecycle": "FINISHED",
+        "acceptanceStatus": "PASS",
+        "mode": "real",
+        "buildId": "v1",
+        "buildDeclared": true,
+        "buildVerified": true
+      },
+      "caseVerdicts": [
+        "PASS"
+      ]
+    },
+    {
+      "kind": "repository",
+      "commitSha": "1e215445f7e7ad9a63f214adb7f252f23fa1d69a",
+      "files": [
+        {
+          "path": "docs/ai-qa/00-阅读与使用说明.md",
+          "category": "RUNTIME_CLUE",
+          "reason": "明确说明这是给AI编程工具（GLM）的开发资料包使用指南，包含开发提示词的发送方式、阶段验收流程、模型配置方法，属于启动/部署/开发提示词。"
+        },
+        {
+          "path": "docs/ai-qa/01-项目评审.md",
+          "category": "BUSINESS_CANDIDATE",
+          "reason": "包含投入建议、技术取舍、风险与验证条件、首版范围界定、客户试点选择标准，属于项目评审与业务决策文档，是业务规则/验收需求的候选依据。"
+        },
+        {
+          "path": "docs/ai-qa/02-产品需求文档-PRD.md",
+          "category": "BUSINESS_CANDIDATE",
+          "reason": "明确为PRD文档，包含产品边界、业务流程、功能验收标准（FR系列）、用户权限、端到端流程、数据与接口契约、实施阶段划分，属于业务规则/验收需求的候选依据。"
+        },
+        {
+          "path": "docs/ai-qa/03-GLM开发提示词.md",
+          "category": "RUNTIME_CLUE",
+          "reason": "明确是给GLM的开发提示词，包含开发总指令、分阶段任务、不可违反的约束、工作方式定义，以及运行时智能体提示词说明，属于启动/部署/开发提示词。"
+        }
+      ],
+      "parseStatus": "PARSED",
+      "invocations": [
+        {
+          "id": "cmu9f1ng800820a0vq4co63w1",
+          "projectId": "cmu9f1ebr007v0a0vbe618cgg",
+          "runId": null,
+          "provider": "moonshot",
+          "model": "kimi-k2.6",
+          "promptVersion": "sources-v1",
+          "requestId": "cmu9f1ebt007z0a0v84ohxmdu",
+          "usage": {
+            "inputTokens": 4485,
+            "outputTokens": 284
+          },
+          "estimatedCost": null,
+          "latencyMs": 9010,
+          "outcome": "SUCCESS",
+          "createdAt": "2026-09-20T06:09:07.064Z"
+        }
+      ]
+    }
+  ]
+}

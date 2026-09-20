@@ -19,7 +19,7 @@ import { DocumentFormat, ParseStatus } from "./document.js";
  * 不内联 bundle/draft 大对象。
  */
 
-export const JobKind = z.enum(["DOCUMENT_PARSE", "RULE_EXTRACTION", "CASE_GENERATION"]);
+export const JobKind = z.enum(["DOCUMENT_PARSE", "RULE_EXTRACTION", "CASE_GENERATION", "WEB_OBSERVATION", "PLAN_PROPOSAL", "REPO_DISCOVERY"]);
 export type JobKind = z.infer<typeof JobKind>;
 
 export const JobStatus = z.enum(["QUEUED", "RUNNING", "SUCCEEDED", "FAILED"]);
@@ -111,6 +111,9 @@ const JobEnvelopeBase = z.object({
 });
 
 export const JobEnvelope = z.discriminatedUnion("kind", [
+  JobEnvelopeBase.extend({ kind: z.literal("WEB_OBSERVATION"), result: z.object({ artifactId: EntityId, bindingCount: z.number().int() }).nullable() }),
+  JobEnvelopeBase.extend({ kind: z.literal("PLAN_PROPOSAL"), result: z.object({ proposalId: EntityId }).nullable() }),
+  JobEnvelopeBase.extend({ kind: z.literal("REPO_DISCOVERY"), result: z.object({ snapshotId: EntityId, fileCount: z.number().int() }).nullable() }),
   JobEnvelopeBase.extend({
     kind: z.literal("DOCUMENT_PARSE"),
     result: DocumentParseJobResult.nullable(),

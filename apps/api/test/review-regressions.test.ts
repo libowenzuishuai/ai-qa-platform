@@ -36,7 +36,14 @@ async function passingRun() {
     attemptId: attempt.id, assertionId: "a1", expected: "付款待办", actual: "付款待办",
     result: "PASS", evidenceIds: [artifact.id],
   } });
-  await env.prisma.run.update({ where: { id: asset.runId }, data: { lifecycle: "FINISHED", acceptanceStatus: "PASS" } });
+  const buildVerification: Record<string, unknown> = {};
+  for (const phase of ["before", "after"]) {
+    const record = { phase, verified: true, observed: "review-build", expected: "review-build" };
+    const proof = env.store.put({ runId: asset.runId, attemptId: "build", filename: `${phase}.json`, data: Buffer.from(JSON.stringify(record)) });
+    const identity = await env.prisma.artifact.create({ data: { projectId: asset.projectId, type: "BUILD_IDENTITY", storageKey: proof.storageKey, checksum: proof.checksum } });
+    buildVerification[phase] = { ...record, evidenceId: identity.id };
+  }
+  await env.prisma.run.update({ where: { id: asset.runId }, data: { lifecycle: "FINISHED", acceptanceStatus: "PASS", buildVerification: buildVerification as never } });
   return { ...asset, attempt, artifact, record };
 }
 

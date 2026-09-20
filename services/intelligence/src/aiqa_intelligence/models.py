@@ -161,6 +161,8 @@ class Gateway:
                         json=body,
                         headers={"Authorization": f"Bearer {key}"},
                     )
+            except ImportError as exc:
+                raise ServiceError("MODEL_NOT_CONFIGURED", "模型网络代理依赖未安装，请配置 HTTP 代理或安装对应代理依赖", 503) from exc
             except httpx.TimeoutException as exc:
                 raise ServiceError("MODEL_TIMEOUT", "模型调用超时", 504) from exc
             except httpx.HTTPError as exc:

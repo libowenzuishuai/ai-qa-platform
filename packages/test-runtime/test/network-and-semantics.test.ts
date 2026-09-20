@@ -73,6 +73,11 @@ beforeAll(async () => {
       </body></html>`);
       return;
     }
+    if (url === "/async-ok") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(`<span data-testid="message">处理中</span><script>setTimeout(()=>document.querySelector("span").textContent="提交成功", 300)</script>`);
+      return;
+    }
     if (url === "/ok") {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       res.end(`<!doctype html><html><body><span data-testid="message">提交成功</span><span data-testid="amount-cents">1</span></body></html>`);
@@ -349,4 +354,15 @@ describe("独立复查：鉴权缺失与硬时间上限", () => {
       await new Promise<void>((r) => slow.close(() => r()));
     }
   }, 15_000);
+});
+
+describe('有界断言读取，不用业务条件阻塞执行',()=>{
+  it.each([['提交成功','PASS'],['错误结果','FAIL']] as const)('结果 %s → %s',async(expected,verdict)=>{
+    const plan=buildPlan(aBase,{actions:[
+      {id:'role',type:'switchRole',role:'applicant',effect:'READ'},
+      {id:'open',type:'goto',path:'/async-ok',effect:'READ'},
+      {id:'check',type:'assert',assertionId:'a1',effect:'READ'},
+    ],assertions:[{id:'a1',stepId:'check',required:true,ruleVersionId:'rule-r1',kind:'ui.text',targetRef:'b-msg',operator:'equals',expected,timeoutMs:700}]});
+    const {result}=await run(plan);expect(result.blocked).toBeUndefined();expect(result.assertions[0]?.result).toBe(verdict);
+  },10000);
 });

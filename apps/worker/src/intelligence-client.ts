@@ -1,10 +1,12 @@
 import {
   DocumentParseRequest, DocumentParseResponse, RuleExtractionRequest, RuleExtractionResponse,
-  CaseGenerationRequest, CaseGenerationResponse, ApiErrorBody,
+  CaseGenerationRequest, CaseGenerationResponse, PlanProposalRequest, PlanProposalResponse, SourceClassificationRequest, SourceClassificationResponse, ApiErrorBody,
 } from '@ai-qa/contracts';
 import type { WorkerConfig } from './config.js';
 
 const operations = {
+  sources: { path: "/v1/sources/classify", request: SourceClassificationRequest, response: SourceClassificationResponse },
+  plan: { path: "/v1/plans/propose", request: PlanProposalRequest, response: PlanProposalResponse },
   document: { path: '/v1/documents/parse', request: DocumentParseRequest, response: DocumentParseResponse },
   rules: { path: '/v1/rules/extract', request: RuleExtractionRequest, response: RuleExtractionResponse },
   cases: { path: '/v1/cases/generate', request: CaseGenerationRequest, response: CaseGenerationResponse },

@@ -1,14 +1,1063 @@
 {
   "$ref": "#/definitions/IntelligenceContracts",
   "definitions": {
-    "ParsedDocumentBundle": {
+    "SourceClassificationInput": {
       "type": "object",
       "properties": {
-        "documentVersionId": {
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "format": {
+                "type": "string"
+              },
+              "excerpt": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "path",
+              "format",
+              "excerpt"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 50
+        },
+        "promptVersion": {
+          "type": "string",
+          "const": "sources-v1"
+        }
+      },
+      "required": [
+        "files",
+        "promptVersion"
+      ],
+      "additionalProperties": false
+    },
+    "SourceClassificationOutput": {
+      "type": "object",
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "category": {
+                "type": "string",
+                "enum": [
+                  "BUSINESS_CANDIDATE",
+                  "API_CONTRACT",
+                  "RUNTIME_CLUE",
+                  "TEST_CLUE",
+                  "UNCLASSIFIED"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "path",
+              "category",
+              "reason"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 50
+        }
+      },
+      "required": [
+        "files"
+      ],
+      "additionalProperties": false
+    },
+    "SourceClassificationRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "requestId": {
           "type": "string",
           "minLength": 1,
           "maxLength": 128,
           "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]*$"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "real",
+            "mock"
+          ]
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 600000
+        },
+        "input": {
+          "$ref": "#/definitions/SourceClassificationInput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "timeoutMs",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "SourceClassificationResponse": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "requestId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "real",
+            "mock"
+          ]
+        },
+        "invocations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/InvocationRecord"
+          }
+        },
+        "output": {
+          "$ref": "#/definitions/SourceClassificationOutput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "invocations",
+        "output"
+      ],
+      "additionalProperties": false
+    },
+    "PlanProposalInput": {
+      "type": "object",
+      "properties": {
+        "testCase": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+            },
+            "caseId": {
+              "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": {
+              "type": "string"
+            },
+            "ruleVersionIds": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+              },
+              "minItems": 1
+            },
+            "roles": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 1
+            },
+            "preconditions": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            },
+            "dataSpec": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "strategy": {
+                      "type": "string",
+                      "const": "fixture"
+                    },
+                    "fixtureId": {
+                      "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    },
+                    "params": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean"
+                        ]
+                      },
+                      "default": {}
+                    }
+                  },
+                  "required": [
+                    "strategy",
+                    "fixtureId"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "strategy": {
+                      "type": "string",
+                      "const": "create"
+                    },
+                    "note": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "strategy",
+                    "note"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  },
+                  "role": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "expectedResult": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "role",
+                  "action"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1
+            },
+            "assertions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "ui.text",
+                      "ui.element",
+                      "ui.state",
+                      "data.value",
+                      "api.response",
+                      "download.content",
+                      "visual"
+                    ]
+                  },
+                  "required": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "ruleVersionId": {
+                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  },
+                  "operator": {
+                    "type": "string",
+                    "enum": [
+                      "equals",
+                      "notEquals",
+                      "contains",
+                      "notContains",
+                      "gt",
+                      "gte",
+                      "lt",
+                      "lte",
+                      "matches",
+                      "exists",
+                      "notExists"
+                    ]
+                  },
+                  "expected": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "unit": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "id",
+                  "description",
+                  "kind",
+                  "ruleVersionId",
+                  "operator"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1
+            },
+            "cleanup": {
+              "type": "object",
+              "properties": {
+                "strategy": {
+                  "type": "string",
+                  "enum": [
+                    "namespace",
+                    "fixture",
+                    "manual"
+                  ]
+                },
+                "note": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "strategy"
+              ],
+              "additionalProperties": false
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "P0",
+                "P1",
+                "P2"
+              ],
+              "default": "P1"
+            },
+            "approvalStatus": {
+              "type": "string",
+              "enum": [
+                "DRAFT",
+                "NEEDS_REVIEW",
+                "APPROVED",
+                "REJECTED",
+                "SUPERSEDED"
+              ],
+              "default": "DRAFT"
+            },
+            "supersedesId": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "origin": {
+              "type": "string",
+              "enum": [
+                "manual",
+                "model"
+              ]
+            },
+            "promptVersion": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "approvalHash": {
+              "type": "string",
+              "minLength": 1
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "id",
+            "caseId",
+            "version",
+            "title",
+            "ruleVersionIds",
+            "roles",
+            "dataSpec",
+            "steps",
+            "assertions",
+            "cleanup",
+            "origin",
+            "createdAt"
+          ],
+          "additionalProperties": false
+        },
+        "observation": {
+          "type": "object",
+          "properties": {
+            "environmentId": {
+              "type": "string"
+            },
+            "environmentRevision": {
+              "type": "integer"
+            },
+            "bindings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "targetRef": {
+                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  },
+                  "locator": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "testId"
+                          },
+                          "value": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "role"
+                          },
+                          "role": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "role"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "label"
+                          },
+                          "value": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "text"
+                          },
+                          "value": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
+                  "observedUrl": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "observedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "evidenceId": {
+                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "targetRef",
+                  "locator",
+                  "observedUrl",
+                  "observedAt",
+                  "evidenceId"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 1200
+            },
+            "pages": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 20000
+                  }
+                },
+                "required": [
+                  "role",
+                  "url",
+                  "title",
+                  "text"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 12
+            }
+          },
+          "required": [
+            "environmentId",
+            "environmentRevision",
+            "bindings",
+            "pages"
+          ],
+          "additionalProperties": false
+        },
+        "promptVersion": {
+          "type": "string",
+          "const": "planner-v3"
+        }
+      },
+      "required": [
+        "testCase",
+        "observation",
+        "promptVersion"
+      ],
+      "additionalProperties": false
+    },
+    "PlanProposalOutput": {
+      "type": "object",
+      "properties": {
+        "actions": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  },
+                  "effect": {
+                    "type": "string",
+                    "enum": [
+                      "READ",
+                      "WRITE"
+                    ]
+                  },
+                  "onlyIf": {
+                    "type": "object",
+                    "properties": {
+                      "varName": {
+                        "type": "string",
+                        "pattern": "^[a-zA-Z][a-zA-Z0-9_]*$"
+                      },
+                      "operator": {
+                        "type": "string",
+                        "enum": [
+                          "eq",
+                          "neq",
+                          "gt",
+                          "gte",
+                          "lt",
+                          "lte"
+                        ]
+                      },
+                      "value": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "varName",
+                      "operator",
+                      "value"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "goto"
+                  },
+                  "path": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^\\/(?!\\/)[^\\\\]*$"
+                      },
+                      {
+                        "pattern": "^[^\\x00-\\x1f\\x7f]*$"
+                      }
+                    ]
+                  },
+                  "pathTemplate": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^\\/(?!\\/)(?:[^\\\\{}]|\\{[a-zA-Z][a-zA-Z0-9_]*\\})*$"
+                      },
+                      {
+                        "pattern": "^[^\\x00-\\x1f\\x7f]*$"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "effect",
+                  "type"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  },
+                  "effect": {
+                    "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/effect"
+                  },
+                  "onlyIf": {
+                    "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/onlyIf"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "fill"
+                  },
+                  "targetRef": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]*$",
+                    "description": "bindings 中登记的观察目标引用"
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "source": {
+                            "type": "string",
+                            "const": "literal"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "source",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "source": {
+                            "type": "string",
+                            "const": "dataRef"
+                          },
+                          "ref": {
+                            "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                          }
+                        },
+                        "required": [
+                          "source",
+                          "ref"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "source": {
+                            "type": "string",
+                            "const": "captured"
+                          },
+                          "varName": {
+                            "type": "string",
+                            "pattern": "^[a-zA-Z][a-zA-Z0-9_]*$"
+                          }
+                        },
+                        "required": [
+                          "source",
+                          "varName"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "source": {
+                            "type": "string",
+                            "const": "credential"
+                          },
+                          "ref": {
+                            "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                          }
+                        },
+                        "required": [
+                          "source",
+                          "ref"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "effect",
+                  "type",
+                  "targetRef",
+                  "value"
+                ],
+                "additionalProperties": false,
+                "description": "存在自动保存的字段必须标 effect=WRITE（PRD §7.2 注）"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  },
+                  "effect": {
+                    "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/effect"
+                  },
+                  "onlyIf": {
+                    "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/onlyIf"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "click"
+                  },
+                  "targetRef": {
+                    "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/1/properties/targetRef"
+                  }
+                },
+                "required": [
+                  "id",
+                  "effect",
+                  "type",
+                  "targetRef"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  },
+                  "effect": {
+                    "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/effect"
+                  },
+                  "onlyIf": {
+                    "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/onlyIf"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "select"
+                  },
+                  "targetRef": {
+                    "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/1/properties/targetRef"
+                  },
+                  "value": {
+                    "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/1/properties/value"
+                  }
+                },
+                "required": [
+                  "id",
+                  "effect",
+                  "type",
+                  "targetRef",
+                  "value"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  },
+                  "effect": {
+                    "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/effect"
+                  },
+                  "onlyIf": {
+                    "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/onlyIf"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "switchRole"
+                  },
+                  "role": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "id",
+                  "effect",
+                  "type",
+                  "role"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  },
+                  "effect": {
+                    "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/effect"
+                  },
+                  "onlyIf": {
+                    "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/onlyIf"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "captureValue"
+                  },
+                  "targetRef": {
+                    "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/1/properties/targetRef"
+                  },
+                  "saveAs": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z][a-zA-Z0-9_]*$"
+                  }
+                },
+                "required": [
+                  "id",
+                  "effect",
+                  "type",
+                  "targetRef",
+                  "saveAs"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  },
+                  "effect": {
+                    "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/effect"
+                  },
+                  "onlyIf": {
+                    "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/onlyIf"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "assert"
+                  },
+                  "assertionId": {
+                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  }
+                },
+                "required": [
+                  "id",
+                  "effect",
+                  "type",
+                  "assertionId"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "maxItems": 100
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "assertionId": {
+                "type": "string"
+              },
+              "targetRef": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "assertionId",
+              "targetRef"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "blockedReasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "actions",
+        "targets"
+      ],
+      "additionalProperties": false
+    },
+    "PlanProposalRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "mode": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+        },
+        "timeoutMs": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+        },
+        "input": {
+          "$ref": "#/definitions/PlanProposalInput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "timeoutMs",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "PlanProposalResponse": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "mode": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+        },
+        "invocations": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+        },
+        "output": {
+          "$ref": "#/definitions/PlanProposalOutput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "invocations",
+        "output"
+      ],
+      "additionalProperties": false
+    },
+    "ParsedDocumentBundle": {
+      "type": "object",
+      "properties": {
+        "documentVersionId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
         },
         "format": {
           "type": "string",
@@ -42,7 +1091,7 @@
             "type": "object",
             "properties": {
               "id": {
-                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
               },
               "kind": {
                 "type": "string",
@@ -78,10 +1127,10 @@
             "type": "object",
             "properties": {
               "id": {
-                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
               },
               "documentVersionId": {
-                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
               },
               "locator": {
                 "anyOf": [
@@ -319,7 +1368,7 @@
                 "type": "string"
               },
               "spanId": {
-                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
               }
             },
             "required": [
@@ -447,12 +1496,12 @@
                   "type": "object",
                   "properties": {
                     "documentVersionId": {
-                      "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                      "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
                     },
                     "sourceSpanIds": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                        "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
                       },
                       "minItems": 1
                     }
@@ -522,7 +1571,7 @@
             "type": "object",
             "properties": {
               "spanId": {
-                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
               },
               "reason": {
                 "type": "string",
@@ -558,10 +1607,10 @@
             "type": "object",
             "properties": {
               "id": {
-                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
               },
               "ruleId": {
-                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
               },
               "version": {
                 "type": "integer",
@@ -621,12 +1670,12 @@
                   "type": "object",
                   "properties": {
                     "documentVersionId": {
-                      "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                      "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
                     },
                     "sourceSpanIds": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                        "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
                       },
                       "minItems": 1
                     }
@@ -642,7 +1691,7 @@
               "conflictsWith": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                  "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
                 },
                 "default": []
               },
@@ -660,7 +1709,7 @@
               "supersedesId": {
                 "anyOf": [
                   {
-                    "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
                   },
                   {
                     "type": "null"
@@ -669,11 +1718,7 @@
                 "default": null
               },
               "origin": {
-                "type": "string",
-                "enum": [
-                  "manual",
-                  "model"
-                ]
+                "$ref": "#/definitions/PlanProposalInput/properties/testCase/properties/origin"
               },
               "promptVersion": {
                 "type": [
@@ -692,8 +1737,7 @@
               "reviewedAt": {
                 "anyOf": [
                   {
-                    "type": "string",
-                    "format": "date-time"
+                    "$ref": "#/definitions/PlanProposalInput/properties/testCase/properties/createdAt"
                   },
                   {
                     "type": "null"
@@ -702,7 +1746,7 @@
                 "default": null
               },
               "createdAt": {
-                "$ref": "#/definitions/CaseGenerationInput/properties/approvedRuleVersions/items/properties/reviewedAt/anyOf/0"
+                "$ref": "#/definitions/PlanProposalInput/properties/testCase/properties/createdAt"
               }
             },
             "required": [
@@ -726,12 +1770,12 @@
             "type": "object",
             "properties": {
               "id": {
-                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
               },
               "ruleVersionIds": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                  "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
                 },
                 "minItems": 1
               },
@@ -763,7 +1807,7 @@
               "resolvedAt": {
                 "anyOf": [
                   {
-                    "$ref": "#/definitions/CaseGenerationInput/properties/approvedRuleVersions/items/properties/reviewedAt/anyOf/0"
+                    "$ref": "#/definitions/PlanProposalInput/properties/testCase/properties/createdAt"
                   },
                   {
                     "type": "null"
@@ -772,7 +1816,7 @@
                 "default": null
               },
               "createdAt": {
-                "$ref": "#/definitions/CaseGenerationInput/properties/approvedRuleVersions/items/properties/reviewedAt/anyOf/0"
+                "$ref": "#/definitions/PlanProposalInput/properties/testCase/properties/createdAt"
               }
             },
             "required": [
@@ -796,7 +1840,7 @@
         "fixtureCapabilities": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+            "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
           },
           "default": []
         },
@@ -837,7 +1881,7 @@
               "ruleVersionIds": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                  "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
                 },
                 "minItems": 1
               },
@@ -857,54 +1901,7 @@
                 "default": []
               },
               "dataSpec": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "strategy": {
-                        "type": "string",
-                        "const": "fixture"
-                      },
-                      "fixtureId": {
-                        "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
-                      },
-                      "params": {
-                        "type": "object",
-                        "additionalProperties": {
-                          "type": [
-                            "string",
-                            "number",
-                            "boolean"
-                          ]
-                        },
-                        "default": {}
-                      }
-                    },
-                    "required": [
-                      "strategy",
-                      "fixtureId"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "strategy": {
-                        "type": "string",
-                        "const": "create"
-                      },
-                      "note": {
-                        "type": "string",
-                        "minLength": 1
-                      }
-                    },
-                    "required": [
-                      "strategy",
-                      "note"
-                    ],
-                    "additionalProperties": false
-                  }
-                ]
+                "$ref": "#/definitions/PlanProposalInput/properties/testCase/properties/dataSpec"
               },
               "steps": {
                 "type": "array",
@@ -934,71 +1931,7 @@
               "assertions": {
                 "type": "array",
                 "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
-                    },
-                    "description": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "kind": {
-                      "type": "string",
-                      "enum": [
-                        "ui.text",
-                        "ui.element",
-                        "ui.state",
-                        "data.value",
-                        "api.response",
-                        "download.content",
-                        "visual"
-                      ]
-                    },
-                    "required": {
-                      "type": "boolean",
-                      "default": true
-                    },
-                    "ruleVersionId": {
-                      "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
-                    },
-                    "operator": {
-                      "type": "string",
-                      "enum": [
-                        "equals",
-                        "notEquals",
-                        "contains",
-                        "notContains",
-                        "gt",
-                        "gte",
-                        "lt",
-                        "lte",
-                        "matches",
-                        "exists",
-                        "notExists"
-                      ]
-                    },
-                    "expected": {
-                      "type": [
-                        "string",
-                        "number",
-                        "boolean",
-                        "null"
-                      ]
-                    },
-                    "unit": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "description",
-                    "kind",
-                    "ruleVersionId",
-                    "operator"
-                  ],
-                  "additionalProperties": false
+                  "$ref": "#/definitions/PlanProposalInput/properties/testCase/properties/assertions/items"
                 },
                 "minItems": 1
               },
@@ -1067,7 +2000,7 @@
             "type": "object",
             "properties": {
               "ruleVersionId": {
-                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
               },
               "caseCount": {
                 "type": "integer"
@@ -1093,7 +2026,7 @@
             "type": "object",
             "properties": {
               "ruleVersionId": {
-                "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
               },
               "reason": {
                 "type": "string",
@@ -1212,7 +2145,9 @@
           "enum": [
             "RULE_EXTRACTION",
             "CASE_GENERATION",
-            "VISION_DESCRIBE"
+            "VISION_DESCRIBE",
+            "PLAN_PROPOSAL",
+            "SOURCE_CLASSIFICATION"
           ]
         },
         "system": {
@@ -1278,7 +2213,7 @@
       "type": "object",
       "properties": {
         "documentVersionId": {
-          "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
         },
         "format": {
           "$ref": "#/definitions/ParsedDocumentBundle/properties/format"
@@ -1310,23 +2245,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "type": "string",
-          "const": "1.0"
+          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
         },
         "mode": {
-          "type": "string",
-          "enum": [
-            "real",
-            "mock"
-          ]
+          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
         },
         "timeoutMs": {
-          "type": "integer",
-          "minimum": 1000,
-          "maximum": 600000
+          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
         },
         "input": {
           "$ref": "#/definitions/DocumentParseInput"
@@ -1345,24 +2273,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "type": "string",
-          "const": "1.0"
+          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
         },
         "mode": {
-          "type": "string",
-          "enum": [
-            "real",
-            "mock"
-          ]
+          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
         },
         "invocations": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/InvocationRecord"
-          }
+          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
         },
         "output": {
           "$ref": "#/definitions/ParsedDocumentBundle"
@@ -1381,16 +2301,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/DocumentParseRequest/properties/schemaVersion"
+          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/DocumentParseRequest/properties/mode"
+          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
         },
         "timeoutMs": {
-          "$ref": "#/definitions/DocumentParseRequest/properties/timeoutMs"
+          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
         },
         "input": {
           "$ref": "#/definitions/RuleExtractionInput"
@@ -1409,16 +2329,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/DocumentParseResponse/properties/schemaVersion"
+          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/DocumentParseResponse/properties/mode"
+          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
         },
         "invocations": {
-          "$ref": "#/definitions/DocumentParseResponse/properties/invocations"
+          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
         },
         "output": {
           "$ref": "#/definitions/RuleExtractionOutput"
@@ -1437,16 +2357,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/DocumentParseRequest/properties/schemaVersion"
+          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/DocumentParseRequest/properties/mode"
+          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
         },
         "timeoutMs": {
-          "$ref": "#/definitions/DocumentParseRequest/properties/timeoutMs"
+          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
         },
         "input": {
           "$ref": "#/definitions/CaseGenerationInput"
@@ -1465,16 +2385,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/DocumentParseResponse/properties/schemaVersion"
+          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/ParsedDocumentBundle/properties/documentVersionId"
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/DocumentParseResponse/properties/mode"
+          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
         },
         "invocations": {
-          "$ref": "#/definitions/DocumentParseResponse/properties/invocations"
+          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
         },
         "output": {
           "$ref": "#/definitions/CaseGenerationOutput"
@@ -1513,6 +2433,30 @@
     "IntelligenceContracts": {
       "type": "object",
       "properties": {
+        "SourceClassificationInput": {
+          "$ref": "#/definitions/SourceClassificationInput"
+        },
+        "SourceClassificationOutput": {
+          "$ref": "#/definitions/SourceClassificationOutput"
+        },
+        "SourceClassificationRequest": {
+          "$ref": "#/definitions/SourceClassificationRequest"
+        },
+        "SourceClassificationResponse": {
+          "$ref": "#/definitions/SourceClassificationResponse"
+        },
+        "PlanProposalInput": {
+          "$ref": "#/definitions/PlanProposalInput"
+        },
+        "PlanProposalOutput": {
+          "$ref": "#/definitions/PlanProposalOutput"
+        },
+        "PlanProposalRequest": {
+          "$ref": "#/definitions/PlanProposalRequest"
+        },
+        "PlanProposalResponse": {
+          "$ref": "#/definitions/PlanProposalResponse"
+        },
         "ParsedDocumentBundle": {
           "$ref": "#/definitions/ParsedDocumentBundle"
         },
@@ -1563,6 +2507,14 @@
         }
       },
       "required": [
+        "SourceClassificationInput",
+        "SourceClassificationOutput",
+        "SourceClassificationRequest",
+        "SourceClassificationResponse",
+        "PlanProposalInput",
+        "PlanProposalOutput",
+        "PlanProposalRequest",
+        "PlanProposalResponse",
         "ParsedDocumentBundle",
         "RuleExtractionInput",
         "RuleExtractionOutput",

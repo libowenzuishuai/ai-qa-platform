@@ -55,6 +55,7 @@ export const CHECKING_ACTION_TYPES: ReadonlySet<PlanActionType> = new Set([
 export const PHASE1_EXECUTOR_ACTIONS: ReadonlySet<PlanActionType> = new Set([
   "goto",
   "fill",
+  "select",
   "click",
   "switchRole",
   "captureValue",

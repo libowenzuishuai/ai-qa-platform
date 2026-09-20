@@ -1,0 +1,144 @@
+{
+  "mode": "real",
+  "scope": "two synthetic business projects, real Kimi plan generation and browser execution; manually approved rules/cases",
+  "evaluations": [
+    {
+      "kind": "subscription",
+      "jobStatus": "SUCCEEDED",
+      "error": null,
+      "invocations": [
+        {
+          "id": "cmu9g251k000q0ars14bbnj92",
+          "projectId": "cmu9g213e00010ars925aysd8",
+          "runId": null,
+          "provider": "moonshot",
+          "model": "kimi-k2.6",
+          "promptVersion": "planner-v3",
+          "requestId": "cmu9g21k6000n0arsrps8rd8z",
+          "usage": {
+            "inputTokens": 2903,
+            "outputTokens": 159
+          },
+          "estimatedCost": null,
+          "latencyMs": 4472,
+          "outcome": "SUCCESS",
+          "createdAt": "2026-09-20T06:37:29.481Z"
+        }
+      ]
+    },
+    {
+      "kind": "subscription",
+      "healthy": {
+        "id": "cmu9g257s00110arspjdvk9ng",
+        "lifecycle": "FINISHED",
+        "acceptanceStatus": "PASS",
+        "mode": "real",
+        "buildId": "v1",
+        "buildDeclared": true,
+        "buildVerified": true
+      },
+      "caseVerdicts": [
+        "PASS"
+      ]
+    },
+    {
+      "kind": "subscription",
+      "broken": {
+        "id": "cmu9g25r4002v0arsa0ib1thc",
+        "lifecycle": "FINISHED",
+        "acceptanceStatus": "FAIL",
+        "mode": "real",
+        "buildId": "v2",
+        "buildDeclared": true,
+        "buildVerified": true
+      },
+      "caseVerdicts": [
+        "FAIL"
+      ]
+    },
+    {
+      "kind": "subscription",
+      "fixed": {
+        "id": "cmu9g287c004t0arsrq38nsv6",
+        "lifecycle": "FINISHED",
+        "acceptanceStatus": "PASS",
+        "mode": "real",
+        "buildId": "v3",
+        "buildDeclared": true,
+        "buildVerified": true
+      },
+      "caseVerdicts": [
+        "PASS"
+      ]
+    },
+    {
+      "kind": "booking",
+      "jobStatus": "SUCCEEDED",
+      "error": null,
+      "invocations": [
+        {
+          "id": "cmu9g2czx007c0arsfipbhuhh",
+          "projectId": "cmu9g28o4006n0arsndz9jx5m",
+          "runId": null,
+          "provider": "moonshot",
+          "model": "kimi-k2.6",
+          "promptVersion": "planner-v3",
+          "requestId": "cmu9g28ya00790arse09r0kkv",
+          "usage": {
+            "inputTokens": 3001,
+            "outputTokens": 158
+          },
+          "estimatedCost": null,
+          "latencyMs": 5216,
+          "outcome": "SUCCESS",
+          "createdAt": "2026-09-20T06:37:39.789Z"
+        }
+      ]
+    },
+    {
+      "kind": "booking",
+      "healthy": {
+        "id": "cmu9g2d4m007n0ars9xf698q7",
+        "lifecycle": "FINISHED",
+        "acceptanceStatus": "PASS",
+        "mode": "real",
+        "buildId": "v1",
+        "buildDeclared": true,
+        "buildVerified": true
+      },
+      "caseVerdicts": [
+        "PASS"
+      ]
+    },
+    {
+      "kind": "booking",
+      "broken": {
+        "id": "cmu9g2dkh009h0arsixvrqim2",
+        "lifecycle": "FINISHED",
+        "acceptanceStatus": "FAIL",
+        "mode": "real",
+        "buildId": "v2",
+        "buildDeclared": true,
+        "buildVerified": true
+      },
+      "caseVerdicts": [
+        "FAIL"
+      ]
+    },
+    {
+      "kind": "booking",
+      "fixed": {
+        "id": "cmu9g2g0300bf0arse4s7xvpa",
+        "lifecycle": "FINISHED",
+        "acceptanceStatus": "PASS",
+        "mode": "real",
+        "buildId": "v3",
+        "buildDeclared": true,
+        "buildVerified": true
+      },
+      "caseVerdicts": [
+        "PASS"
+      ]
+    }
+  ]
+}

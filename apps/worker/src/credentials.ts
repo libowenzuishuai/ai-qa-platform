@@ -15,16 +15,18 @@ function defaultEnvName(role: string, field: string): string {
   return `DEMO_${role.toUpperCase()}_${field.toUpperCase()}`;
 }
 
-export function makeCredentialResolver(secretRefs: SecretRefs) {
+export function makeCredentialResolver(secretRefs: SecretRefs, allowDemoDefaults = false) {
   return (ref: string): string | undefined => {
     const parts = ref.split(".");
     if (parts.length !== 2) return undefined;
     const role = parts[0]!;
     const fieldRaw = parts[1]!;
-    const field = fieldRaw === "password" ? "password" : "username";
+    if (!["username", "password"].includes(fieldRaw)) return undefined;
+    const field = fieldRaw as "username" | "password";
     const configured =
       field === "username" ? secretRefs[role]?.usernameEnv : secretRefs[role]?.passwordEnv;
-    const envName = configured ?? defaultEnvName(role, field);
+    const envName = configured ?? (allowDemoDefaults ? defaultEnvName(role, field) : undefined);
+    if (!envName) return undefined;
     const value = process.env[envName];
     return value && value.length > 0 ? value : undefined;
   };

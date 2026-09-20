@@ -15,3 +15,4 @@ export * from "./agent-rule.js";
 export * from "./agent-case.js";
 export * from "./jobs.js";
 export * from "./intelligence.js";
+export * from './product.js';

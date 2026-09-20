@@ -1,0 +1,70 @@
+{
+  "date": "2026-09-20",
+  "baselineCommit": "1e215445f7e7ad9a63f214adb7f252f23fa1d69a",
+  "checks": {
+    "typescript": {
+      "passed": 315,
+      "skipped": 1,
+      "packages": [
+        {
+          "package": "packages/artifact-store",
+          "passed": 4
+        },
+        {
+          "package": "packages/run-events",
+          "passed": 3
+        },
+        {
+          "package": "packages/contracts",
+          "passed": 147
+        },
+        {
+          "package": "packages/evaluation",
+          "passed": 15
+        },
+        {
+          "package": "packages/model-adapters",
+          "passed": 26
+        },
+        {
+          "package": "packages/test-runtime",
+          "passed": 28
+        },
+        {
+          "package": "apps/api",
+          "passed": 50
+        },
+        {
+          "package": "apps/worker",
+          "passed": 42
+        }
+      ]
+    },
+    "python": {
+      "passed": 195
+    },
+    "phase1": {
+      "passed": 62,
+      "failed": 0
+    },
+    "realProduct": {
+      "passed": 7,
+      "skipped": 1,
+      "promptVersion": "planner-v3",
+      "scope": "two synthetic business projects; manually prepared approved rules and cases"
+    },
+    "dockerRunner": {
+      "passed": 7,
+      "scope": "local synthetic source; Docker execution; platform protocol tested separately"
+    },
+    "typecheck": "passed",
+    "sharedSchemaDrift": "passed",
+    "workspaceBuild": "passed (packages, worker, web and demo; API uses tsx and passed typecheck)"
+  },
+  "limitations": [
+    "External customer pilot not performed",
+    "No arbitrary repository deployment",
+    "Public GitHub only",
+    "Development database was not migrated or restarted"
+  ]
+}

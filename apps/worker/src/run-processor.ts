@@ -1,8 +1,10 @@
+import { EnvironmentRuntime } from "@ai-qa/contracts";
+import { probeBuild } from "./build-verification.js";
 import type { PrismaClient, Prisma } from "@prisma/client";
 import { TestCaseVersion, TestPlanV1, verifyStoredPlan } from "@ai-qa/contracts";
 import { ArtifactStore } from "@ai-qa/artifact-store";
 import { aggregateCase, type AssertionOutcome } from "@ai-qa/evaluation";
-import { buildRunReport } from "@ai-qa/reporting";
+import { buildRunReport, syncRunDefects } from "@ai-qa/reporting";
 import { executePlan } from "@ai-qa/test-runtime";
 import {
   casTransitionRun,
@@ -38,6 +40,8 @@ interface EnvSnapshot {
   dependencyOrigins: string[];
   secretRefs: SecretRefs;
   buildId?: string | null;
+  runtime?: unknown;
+  apiTemplates?: Record<string, unknown>;
 }
 
 interface CasePlanPin {
@@ -85,8 +89,10 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
 
   try {
     const snapshot = (run.environmentSnapshot ?? {}) as unknown as EnvSnapshot;
-    const fixture = new DemoFixtureClient(snapshot.baseUrl, config.demoFixtureToken);
-    const resolveCredential = makeCredentialResolver(snapshot.secretRefs ?? {});
+    const runtime = EnvironmentRuntime.parse(snapshot.runtime ?? {});
+    const fixture = runtime.fixture === "demo" ? new DemoFixtureClient(snapshot.baseUrl, config.demoFixtureToken) : undefined;
+    await probeBuild(prisma, store, runId, "before");
+    const resolveCredential = makeCredentialResolver(Object.keys(runtime.secretRefs).length ? runtime.secretRefs : snapshot.secretRefs ?? {}, runtime.fixture === "demo");
     const budget = (run.budget ?? {}) as {
       maxToolActionsPerCase?: number;
       maxWallClockMsPerCase?: number;
@@ -215,7 +221,7 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
       });
 
       try {
-        await fixture.resetNamespace(namespace, runDeadline);
+        await fixture?.resetNamespace(namespace, runDeadline);
       } catch (err) {
         await emitRunEvent(prisma, runId, "attempt.fixture_error", {
           attemptId: attempt.id, phase: "pre-clean",
@@ -236,6 +242,8 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
         },
         namespace,
         resolveCredential,
+        dataRefs: runtime.dataRefs,
+        apiTemplates: snapshot.apiTemplates,
         sink,
         budget: {
           maxActions: budget.maxToolActionsPerCase ?? 50,
@@ -310,7 +318,7 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
       });
 
       try {
-        await fixture.resetNamespace(namespace, runDeadline);
+        await fixture?.resetNamespace(namespace, runDeadline);
       } catch (err) {
         await emitRunEvent(prisma, runId, "attempt.fixture_error", {
           attemptId: attempt.id, phase: "post-clean",
@@ -319,7 +327,9 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
       }
     }
 
+    await probeBuild(prisma, store, runId, "after");
     await finalize(prisma, store, runId);
+    await syncRunDefects(prisma, store, runId);
   } catch (err) {
     const detail = (err instanceof Error ? err.message : String(err)).slice(0, 500);
     // 平台故障：仅在仍处于非终态时落 ERROR（CAS，不覆盖已定终态）。

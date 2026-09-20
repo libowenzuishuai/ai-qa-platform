@@ -1,3 +1,4 @@
+import { processProductJob } from "./product-jobs.js";
 import { randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import {
@@ -53,7 +54,7 @@ async function failJob(prisma: PrismaClient, job: JobRow & { kind: string }, err
             ? { details: (err as { details?: unknown }).details }
             : {}),
         }
-      : { code: "INTERNAL", message: String(err).slice(0, 500), requestId: job.id };
+      : { code: job.kind === "PLAN_PROPOSAL" && err instanceof Error && err.name === "ZodError" ? "MODEL_OUTPUT_INVALID" : "INTERNAL", message: String(err).slice(0, 500), requestId: job.id };
   await prisma.$transaction(async tx => {
   const changed = await tx.job.updateMany({
     where: ownedJob(job),
@@ -152,6 +153,8 @@ export async function processAgentJob(
       await runRuleExtraction(prisma, store, job, config);
     } else if (job.kind === "CASE_GENERATION") {
       await runCaseGeneration(prisma, job, config);
+    } else if (["WEB_OBSERVATION", "PLAN_PROPOSAL", "REPO_DISCOVERY"].includes(job.kind)) {
+      await processProductJob(prisma, store, config, job, commitJob);
     } else {
       throw Object.assign(new Error(`未知作业类型：${job.kind}`), { code: "INTERNAL" });
     }

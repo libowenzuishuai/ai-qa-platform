@@ -1,0 +1,32 @@
+{
+  "repository": "https://github.com/libowenzuishuai/ai-qa-platform",
+  "commit": "1e215445f7e7ad9a63f214adb7f252f23fa1d69a",
+  "fileCount": 4,
+  "files": [
+    {
+      "path": "docs/ai-qa/00-阅读与使用说明.md",
+      "blobHash": "9e45f990865e426ae5cb934015560585fb3deed2",
+      "checksum": "bae922bdc34eca81f02891a16adc6844813fd3692cc28d1bdb8e7a673f2a7833",
+      "category": "BUSINESS_CANDIDATE"
+    },
+    {
+      "path": "docs/ai-qa/01-项目评审.md",
+      "blobHash": "70978ae11caba62eff7635631de15e789c07d5ab",
+      "checksum": "206e4e72e98bea63924ce2bca888ee166764adac89e6101a68c600feb2f9eea1",
+      "category": "BUSINESS_CANDIDATE"
+    },
+    {
+      "path": "docs/ai-qa/02-产品需求文档-PRD.md",
+      "blobHash": "8dc0158cba15c29959d0308886d8e09c79870bb4",
+      "checksum": "1177eaa4b231403a13ab6a58fa0b9ddb07691099b1d61057055ac61b8680f5c3",
+      "category": "BUSINESS_CANDIDATE"
+    },
+    {
+      "path": "docs/ai-qa/03-GLM开发提示词.md",
+      "blobHash": "3b102cddf9027e0904e0e90a35b7d4fa5d71d99d",
+      "checksum": "c9fb8e544d5f7d10bd5529c6762985ce9a6623b81aec11aecdca3abe747c5b83",
+      "category": "BUSINESS_CANDIDATE"
+    }
+  ],
+  "skipped": []
+}

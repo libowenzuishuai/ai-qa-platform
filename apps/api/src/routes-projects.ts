@@ -1,3 +1,5 @@
+import { projectSecretPrefix, validateSecretNamespace } from './environment-secrets.js';
+import { EnvironmentRuntime } from "@ai-qa/contracts";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { PrismaClient } from "@prisma/client";
@@ -97,12 +99,14 @@ export function registerProjectRoutes(app: FastifyInstance, prisma: PrismaClient
     dependencyOrigins: z.array(z.string().url()).default([]),
     isProduction: z.boolean().default(false),
     buildId: z.string().optional(),
+    runtime: EnvironmentRuntime.optional(),
   });
 
   app.post("/api/projects/:projectId/environments", async (req) => {
     const { projectId } = z.object({ projectId: z.string() }).parse(req.params);
     await requireProjectAccess(prisma, req, projectId, "LEAD");
     const body = EnvironmentCreate.parse(req.body);
+    if (body.runtime) { await requireProjectAccess(prisma, req, projectId, "ADMIN"); validateSecretNamespace(projectId, body.runtime); }
     // 首版禁止对 production 目标做业务测试（PRD FR-12）：登记即拒绝。
     if (body.isProduction) {
       throw new ApiError(
@@ -127,6 +131,7 @@ export function registerProjectRoutes(app: FastifyInstance, prisma: PrismaClient
         dependencyOrigins: body.dependencyOrigins,
         isProduction: body.isProduction,
         buildMetadata: body.buildId ? { buildId: body.buildId } : {},
+        runtime: body.runtime ?? {},
       },
     });
     return { id: env.id, name: env.name, createdAt: env.createdAt };

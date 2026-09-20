@@ -1,3 +1,6 @@
+import { registerRunnerRoutes } from "./routes-runners.js";
+import { registerDefectRoutes } from "./routes-defects.js";
+import { registerProductRoutes } from "./routes-product.js";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import { PrismaClient } from "@prisma/client";
@@ -74,6 +77,9 @@ export async function buildServer() {
   registerJobRoutes(app, prisma, agentJobsQueue);
   registerDocumentRoutes(app, prisma, agentJobsQueue, artifactStore);
   registerReviewRoutes(app, prisma);
+  registerProductRoutes(app, prisma, artifactStore, agentJobsQueue, runsQueue);
+  registerDefectRoutes(app, prisma, artifactStore, runsQueue);
+  registerRunnerRoutes(app, prisma, artifactStore);
 
   return app;
 }

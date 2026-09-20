@@ -116,6 +116,9 @@ export interface RunMetrics {
 }
 
 export interface RunAggregateInput {
+  /** Actual runtime identity was verified before and after execution. */
+  buildVerified?: boolean;
+  scopeComplete?: boolean;
   cases: CaseVerdictResult[];
   /** 基线中应测试的已批准规则数与其中已被用例覆盖的规则数。 */
   baselineRuleTotal?: number;
@@ -169,7 +172,9 @@ export function aggregateRun(input: RunAggregateInput): RunMetrics {
     unstable > 0 ||
     input.cancelled ||
     input.platformError ||
-    input.hasBuildId === false
+    input.hasBuildId === false ||
+    input.buildVerified !== true ||
+    input.scopeComplete === false
   ) {
     acceptanceStatus = "INCOMPLETE";
   } else if (counts.PASS === total) {
@@ -186,7 +191,7 @@ export function aggregateRun(input: RunAggregateInput): RunMetrics {
     passRate,
     ruleCoverage,
     acceptanceStatus,
-    buildVerified: input.hasBuildId ?? null,
+    buildVerified: input.buildVerified === true,
   };
 }
 

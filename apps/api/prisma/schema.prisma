@@ -17,14 +17,14 @@ datasource db {
 // ---------- 用户与权限 ----------
 
 model User {
-  id           String   @id @default(cuid())
-  username     String   @unique
+  id           String              @id @default(cuid())
+  username     String              @unique
   passwordHash String
   displayName  String
   // 平台角色：ADMIN / LEAD / VIEWER（与待测系统业务角色无关）
   platformRole String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
   sessions     Session[]
   memberships  ProjectMembership[]
 }
@@ -40,12 +40,12 @@ model Session {
 }
 
 model Project {
-  id               String   @id @default(cuid())
+  id               String              @id @default(cuid())
   name             String
-  settings         Json     @default("{}")
+  settings         Json                @default("{}")
   activeBaselineId String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
   memberships      ProjectMembership[]
   environments     Environment[]
   documents        Document[]
@@ -59,6 +59,12 @@ model Project {
   artifacts        Artifact[]
   deploymentEvents DeploymentEvent[]
   jobs             Job[]
+  planProposals    PlanProposal[]
+  contextSnapshots ContextSnapshot[]
+  missions         Mission[]
+  apiTemplates     ApiTemplate[]
+  executionRunners ExecutionRunner[]
+  codeChecks       CodeCheck[]
 }
 
 model ProjectMembership {
@@ -77,21 +83,25 @@ model ProjectMembership {
 // ---------- 环境接入 ----------
 
 model Environment {
-  id                String   @id @default(cuid())
+  id                String         @id @default(cuid())
   projectId         String
   name              String
   baseUrl           String
   allowedOrigins    String[]
-  dependencyOrigins String[] @default([])
-  isProduction      Boolean  @default(false)
+  dependencyOrigins String[]       @default([])
+  isProduction      Boolean        @default(false)
   // secretRef -> 加密存储键；不存明文凭据
-  secretRefs        Json     @default("{}")
-  buildMetadata     Json     @default("{}")
-  revision          Int      @default(1)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  secretRefs        Json           @default("{}")
+  buildMetadata     Json           @default("{}")
+  runtime           Json           @default("{}")
+  revision          Int            @default(1)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  project           Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   runs              Run[]
+  planProposals     PlanProposal[]
+  missions          Mission[]
+  apiTemplates      ApiTemplate[]
 
   @@unique([id, projectId])
   @@index([projectId])
@@ -111,40 +121,41 @@ model Document {
 }
 
 model DocumentVersion {
-  id              String        @id @default(cuid())
-  documentId      String
-  version         Int
-  checksum        String
-  storageKey      String
+  id               String          @id @default(cuid())
+  documentId       String
+  version          Int
+  checksum         String
+  storageKey       String
   // MARKDOWN / TXT / DOCX / PDF_TEXT / PDF_SCANNED / PNG / JPEG
-  format          String
+  format           String
   // PENDING / PARSING / PARSED / FAILED / NEEDS_OCR
-  parseStatus     String
-  parserVersion   String?
-  fileSizeBytes   Int?
+  parseStatus      String
+  parserVersion    String?
+  fileSizeBytes    Int?
   bundleStorageKey String?
-  bundleChecksum  String?
-  parseWarnings   Json          @default("[]")
-  mode            String        @default("unknown")
-  coverageSummary Json          @default("{}")
-  createdAt       DateTime      @default(now())
-  document        Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  sourceSpans     SourceSpan[]
+  bundleChecksum   String?
+  parseWarnings    Json            @default("[]")
+  mode             String          @default("unknown")
+  coverageSummary  Json            @default("{}")
+  createdAt        DateTime        @default(now())
+  document         Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  sourceSpans      SourceSpan[]
+  contextSources   ContextSource[]
 
   @@unique([documentId, version])
 }
 
 model SourceSpan {
-  id               String          @id @default(cuid())
+  id                String          @id @default(cuid())
   documentVersionId String
   // { kind: "markdown-line"|"markdown-heading"|"docx-paragraph"|"docx-cell"|"pdf-page"|"image-region", ... }
-  locator          Json
-  quotedText       String?
-  imageRegion      Json?
+  locator           Json
+  quotedText        String?
+  imageRegion       Json?
   // GOOD / LOW / UNPARSED
-  extractionQuality String         @default("GOOD")
-  createdAt        DateTime        @default(now())
-  documentVersion  DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
+  extractionQuality String          @default("GOOD")
+  createdAt         DateTime        @default(now())
+  documentVersion   DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Cascade)
 
   @@index([documentVersionId])
 }
@@ -189,7 +200,9 @@ model RuleVersion {
   promptVersion      String?
   reviewedBy         String?
   reviewedAt         DateTime?
-  /** 批准即永久冻结：只能置位不能清除；冻结后语义字段不可改（评审 F1）。 */
+  /**
+   * 批准即永久冻结：只能置位不能清除；冻结后语义字段不可改（评审 F1）。
+   */
   semanticFrozen     Boolean   @default(false)
   createdAt          DateTime  @default(now())
   rule               Rule      @relation(fields: [ruleId], references: [id], onDelete: Cascade)
@@ -199,18 +212,20 @@ model RuleVersion {
 }
 
 model Clarification {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   projectId      String
   ruleVersionIds String[]
-  /** MISSING_INFO / CONFLICT / AMBIGUITY（阶段 2 契约 ClarificationDraft.kind）。 */
-  kind           String   @default("MISSING_INFO")
+  /**
+   * MISSING_INFO / CONFLICT / AMBIGUITY（阶段 2 契约 ClarificationDraft.kind）。
+   */
+  kind           String    @default("MISSING_INFO")
   question       String
   answer         String?
   answerSource   String?
   resolvedBy     String?
   resolvedAt     DateTime?
-  createdAt      DateTime @default(now())
-  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
 }
@@ -218,11 +233,11 @@ model Clarification {
 // ---------- 用例与计划 ----------
 
 model TestCase {
-  id               String           @id @default(cuid())
+  id               String            @id @default(cuid())
   projectId        String
   currentVersionId String?
-  createdAt        DateTime         @default(now())
-  project          Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt        DateTime          @default(now())
+  project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   versions         TestCaseVersion[]
 
   @@unique([id, projectId])
@@ -230,20 +245,20 @@ model TestCase {
 }
 
 model TestCaseVersion {
-  id             String   @id @default(cuid())
+  id             String            @id @default(cuid())
   caseId         String
   version        Int
   title          String
   description    String?
   ruleVersionIds String[]
   roles          String[]
-  preconditions  Json     @default("[]")
+  preconditions  Json              @default("[]")
   dataSpec       Json
   steps          Json
   assertions     Json
   cleanup        Json
-  priority       String   @default("P1")
-  approvalStatus String   @default("DRAFT")
+  priority       String            @default("P1")
+  approvalStatus String            @default("DRAFT")
   supersedesId   String?
   origin         String
   generationMode String?
@@ -251,43 +266,49 @@ model TestCaseVersion {
   approvalHash   String?
   // 反规范化 projectId：支持 attempt 的同项目复合外键（评审 R6）
   projectId      String
-  /** 批准即永久冻结：只能置位不能清除；冻结后语义字段不可改（评审 F1）。 */
-  semanticFrozen Boolean  @default(false)
-  createdAt      DateTime @default(now())
+  /**
+   * 批准即永久冻结：只能置位不能清除；冻结后语义字段不可改（评审 F1）。
+   */
+  semanticFrozen Boolean           @default(false)
+  createdAt      DateTime          @default(now())
   // F4：与父 TestCase 的同项目复合外键，projectId 不能与父用例不一致
-  testCase       TestCase @relation(fields: [caseId, projectId], references: [id, projectId], onDelete: Cascade)
+  testCase       TestCase          @relation(fields: [caseId, projectId], references: [id, projectId], onDelete: Cascade)
   plans          TestPlanVersion[]
   attempts       CaseAttempt[]
+  proposals      PlanProposal[]
 
   @@unique([caseId, version])
   @@unique([id, projectId])
 }
 
 model TestPlanVersion {
-  id                 String          @id @default(cuid())
-  caseVersionId      String
-  version            Int
-  schemaVersion      String
-  plan               Json
-  bindingEvidenceIds String[]        @default([])
-  acceptanceHash     String
-  createdAt          DateTime        @default(now())
-  caseVersion        TestCaseVersion @relation(fields: [caseVersionId], references: [id], onDelete: Cascade)
+  id                  String          @id @default(cuid())
+  caseVersionId       String
+  version             Int
+  schemaVersion       String
+  plan                Json
+  environmentId       String?
+  environmentRevision Int?
+  bindingEvidenceIds  String[]        @default([])
+  acceptanceHash      String
+  createdAt           DateTime        @default(now())
+  caseVersion         TestCaseVersion @relation(fields: [caseVersionId], references: [id], onDelete: Cascade)
 
   @@unique([caseVersionId, version])
 }
 
 model Baseline {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   projectId      String
   name           String
   ruleVersionIds String[]
   caseVersionIds String[]
-  scope          Json     @default("{}")
-  exclusions     Json     @default("[]")
-  createdAt      DateTime @default(now())
-  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scope          Json      @default("{}")
+  exclusions     Json      @default("[]")
+  createdAt      DateTime  @default(now())
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   runs           Run[]
+  missions       Mission[]
 
   @@unique([id, projectId])
   @@index([projectId])
@@ -296,50 +317,56 @@ model Baseline {
 // ---------- 运行与执行 ----------
 
 model Run {
-  id                    String          @id @default(cuid())
-  projectId             String
-  baselineId            String
-  environmentId         String
-  buildId               String?
+  id                     String        @id @default(cuid())
+  projectId              String
+  baselineId             String
+  environmentId          String
+  buildId                String?
   // real / mock
-  mode                  String
-  lifecycle             String          @default("QUEUED")
+  mode                   String
+  lifecycle              String        @default("QUEUED")
   selectedCaseVersionIds String[]
-  budget                Json
-  idempotencyKey        String
+  budget                 Json
+  idempotencyKey         String
   // PENDING / PASS / FAIL / INCOMPLETE
-  acceptanceStatus      String          @default("PENDING")
+  acceptanceStatus       String        @default("PENDING")
   /**
    * 运行事件序号分配器（R7）：所有事件生产者通过
    * UPDATE "eventSeq" = "eventSeq" + 1 RETURNING 原子取号。
    */
-  eventSeq              Int             @default(0)
+  eventSeq               Int           @default(0)
   /**
    * 用例计划版本固定（R3）：创建运行时固定每个用例执行的
    * planVersionId 与 acceptanceHash；worker 只按固定版本执行。
    * [{ caseVersionId, planVersionId, acceptanceHash }]
    */
-  casePlanPins          Json            @default("[]")
-  environmentSnapshot   Json            @default("{}")
-  modelConfigSnapshot   Json            @default("{}")
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-  project               Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  baseline              Baseline        @relation(fields: [baselineId, projectId], references: [id, projectId], onDelete: Restrict)
-  environment           Environment     @relation(fields: [environmentId, projectId], references: [id, projectId], onDelete: Restrict)
-  attempts              CaseAttempt[]
-  events                RunEvent[]
+  casePlanPins           Json          @default("[]")
+  environmentSnapshot    Json          @default("{}")
+  buildVerification      Json          @default("{}")
+  modelConfigSnapshot    Json          @default("{}")
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+  project                Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  baseline               Baseline      @relation(fields: [baselineId, projectId], references: [id, projectId], onDelete: Restrict)
+  environment            Environment   @relation(fields: [environmentId, projectId], references: [id, projectId], onDelete: Restrict)
+  attempts               CaseAttempt[]
+  events                 RunEvent[]
+  missionRun             MissionRun?
 
   @@unique([projectId, idempotencyKey])
   @@unique([id, projectId])
   @@index([projectId])
 }
 
-/** 持久化运行事件：SSE 的唯一事实来源（支持 Last-Event-ID 重放）。 */
+/**
+ * 持久化运行事件：SSE 的唯一事实来源（支持 Last-Event-ID 重放）。
+ */
 model RunEvent {
   id        String   @id @default(cuid())
   runId     String
-  /** run 内单调递增序号；重连按 seq 去重补发。 */
+  /**
+   * run 内单调递增序号；重连按 seq 去重补发。
+   */
   seq       Int
   type      String
   payload   Json     @default("{}")
@@ -351,24 +378,24 @@ model RunEvent {
 }
 
 model CaseAttempt {
-  id            String   @id @default(cuid())
+  id            String                  @id @default(cuid())
   runId         String
   caseVersionId String
   attemptNo     Int
   namespace     String
-  lifecycle     String   @default("QUEUED")
+  lifecycle     String                  @default("QUEUED")
   // PASS / FAIL / BLOCKED / REVIEW / NOT_RUN
-  verdict       String   @default("NOT_RUN")
-  reasonCode    String   @default("NONE")
-  unstable      Boolean  @default(false)
+  verdict       String                  @default("NOT_RUN")
+  reasonCode    String                  @default("NONE")
+  unstable      Boolean                 @default(false)
   retryReason   String?
   startedAt     DateTime?
   finishedAt    DateTime?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime                @default(now())
   // 反规范化 projectId：同项目复合外键（评审 R6 —— 跨项目引用在数据库层拒绝）
   projectId     String
-  run           Run      @relation(fields: [runId, projectId], references: [id, projectId], onDelete: Cascade)
-  caseVersion   TestCaseVersion @relation(fields: [caseVersionId, projectId], references: [id, projectId], onDelete: Restrict)
+  run           Run                     @relation(fields: [runId, projectId], references: [id, projectId], onDelete: Cascade)
+  caseVersion   TestCaseVersion         @relation(fields: [caseVersionId, projectId], references: [id, projectId], onDelete: Restrict)
   steps         StepExecution[]
   assertions    AssertionResultRecord[]
 
@@ -376,35 +403,35 @@ model CaseAttempt {
 }
 
 model StepExecution {
-  id          String   @id @default(cuid())
+  id          String      @id @default(cuid())
   attemptId   String
   stepId      String
   // PENDING / RUNNING / PASSED / FAILED / SKIPPED / BLOCKED / CANCELLED
-  status      String   @default("PENDING")
+  status      String      @default("PENDING")
   startedAt   DateTime?
   finishedAt  DateTime?
   actual      String?
   error       String?
-  evidenceIds String[] @default([])
-  createdAt   DateTime @default(now())
+  evidenceIds String[]    @default([])
+  createdAt   DateTime    @default(now())
   attempt     CaseAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
 
   @@index([attemptId])
 }
 
 model AssertionResultRecord {
-  id          String   @id @default(cuid())
+  id          String      @id @default(cuid())
   attemptId   String
   assertionId String
   expected    String?
   actual      String?
   unit        String?
   // PASS / FAIL / REVIEW / NOT_EVALUATED
-  result      String   @default("NOT_EVALUATED")
+  result      String      @default("NOT_EVALUATED")
   evaluatedAt DateTime?
-  evidenceIds String[] @default([])
+  evidenceIds String[]    @default([])
   note        String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime    @default(now())
   attempt     CaseAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
 
   @@index([attemptId])
@@ -413,18 +440,18 @@ model AssertionResultRecord {
 // ---------- 证据 ----------
 
 model Artifact {
-  id         String    @id @default(cuid())
-  projectId  String
-  attemptId  String?
-  storageKey String
+  id          String    @id @default(cuid())
+  projectId   String
+  attemptId   String?
+  storageKey  String
   // SCREENSHOT / TRACE / CONSOLE / NETWORK / FILE / DOM_SNAPSHOT / MODEL_OUTPUT
-  type       String
+  type        String
   // NORMAL / RESTRICTED_RAW
-  sensitivity String   @default("NORMAL")
-  checksum   String?
-  expiresAt  DateTime?
-  createdAt  DateTime  @default(now())
-  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sensitivity String    @default("NORMAL")
+  checksum    String?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
 }
@@ -432,19 +459,20 @@ model Artifact {
 // ---------- 缺陷 ----------
 
 model Defect {
-  id                  String   @id @default(cuid())
+  id                  String             @id @default(cuid())
   projectId           String
   fingerprint         String
   sourceRuleVersionId String?
   assertionId         String?
   // CANDIDATE / CONFIRMED / FIX_PENDING / READY_FOR_RETEST / VERIFIED / REJECTED / REOPENED
-  status              String   @default("CANDIDATE")
-  severity            String   @default("P2")
+  status              String             @default("CANDIDATE")
+  assignedTo          String?
+  severity            String             @default("P2")
   title               String
   description         String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  project             Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  project             Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   occurrences         DefectOccurrence[]
 
   @@unique([projectId, fingerprint])
@@ -460,6 +488,7 @@ model DefectOccurrence {
   createdAt    DateTime @default(now())
   defect       Defect   @relation(fields: [defectId], references: [id], onDelete: Cascade)
 
+  @@unique([defectId, runId, attemptId])
   @@index([defectId])
 }
 
@@ -511,8 +540,10 @@ model DeploymentEvent {
   @@unique([projectId, eventId])
 }
 
-/** 阶段 2 异步作业（contracts/jobs.ts 的持久化宿主）。
- *  幂等（裁决点 4）：(projectId, kind, fingerprint) 唯一；同参数重复 POST 返回原 jobId。 */
+/**
+ * 阶段 2 异步作业（contracts/jobs.ts 的持久化宿主）。
+ * 幂等（裁决点 4）：(projectId, kind, fingerprint) 唯一；同参数重复 POST 返回原 jobId。
+ */
 model Job {
   id          String    @id @default(cuid())
   projectId   String
@@ -530,4 +561,132 @@ model Job {
 
   @@unique([projectId, kind, fingerprint])
   @@index([projectId, createdAt])
+}
+
+model PlanProposal {
+  project             Project         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  caseVersion         TestCaseVersion @relation(fields: [caseVersionId], references: [id], onDelete: Restrict)
+  environment         Environment     @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+  id                  String          @id @default(cuid())
+  projectId           String
+  caseVersionId       String
+  environmentId       String
+  environmentRevision Int
+  plan                Json
+  mode                String
+  createdAt           DateTime        @default(now())
+
+  @@index([projectId])
+}
+
+model ContextSnapshot {
+  project       Project         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  sources       ContextSource[]
+  missions      Mission[]
+  id            String          @id @default(cuid())
+  projectId     String
+  repositoryUrl String
+  commitSha     String
+  subdirectory  String
+  files         Json
+  skipped       Json
+  previousId    String?
+  createdAt     DateTime        @default(now())
+
+  @@index([projectId])
+}
+
+model ContextSource {
+  snapshot          ContextSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
+  documentVersion   DocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Restrict)
+  id                String          @id @default(cuid())
+  snapshotId        String
+  path              String
+  documentVersionId String
+  authority         String
+  confirmedBy       String
+  createdAt         DateTime        @default(now())
+
+  @@unique([snapshotId, path])
+}
+
+model Mission {
+  project           Project          @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  baseline          Baseline         @relation(fields: [baselineId], references: [id], onDelete: Restrict)
+  environment       Environment      @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+  contextSnapshot   ContextSnapshot? @relation(fields: [contextSnapshotId], references: [id], onDelete: Restrict)
+  runs              MissionRun[]
+  id                String           @id @default(cuid())
+  projectId         String
+  title             String
+  goal              String
+  template          String
+  baselineId        String
+  environmentId     String
+  contextSnapshotId String?
+  exclusions        Json             @default("[]")
+  createdBy         String
+  createdAt         DateTime         @default(now())
+
+  @@index([projectId])
+}
+
+model MissionRun {
+  mission   Mission  @relation(fields: [missionId], references: [id], onDelete: Restrict)
+  run       Run      @relation(fields: [runId], references: [id], onDelete: Restrict)
+  id        String   @id @default(cuid())
+  missionId String
+  runId     String   @unique
+  retestOf  String?
+  createdAt DateTime @default(now())
+
+  @@index([missionId])
+}
+
+model ApiTemplate {
+  project       Project     @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  environment   Environment @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+  id            String      @id @default(cuid())
+  projectId     String
+  environmentId String
+  request       Json
+  createdBy     String
+  createdAt     DateTime    @default(now())
+
+  @@index([projectId])
+}
+
+model ExecutionRunner {
+  project      Project     @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  checks       CodeCheck[]
+  id           String      @id @default(cuid())
+  projectId    String
+  name         String
+  tokenHash    String      @unique
+  capabilities String[]
+  revokedAt    DateTime?
+  createdAt    DateTime    @default(now())
+
+  @@index([projectId])
+}
+
+model CodeCheck {
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  runner         ExecutionRunner? @relation(fields: [runnerId], references: [id], onDelete: Restrict)
+  id             String           @id @default(cuid())
+  projectId      String
+  request        Json
+  status         String           @default("QUEUED")
+  verdict        String           @default("INCOMPLETE")
+  runnerId       String?
+  leaseToken     String?
+  leaseExpiresAt DateTime?
+  deadlineAt     DateTime?
+  result         Json?
+  evidenceId     String?
+  createdBy      String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([projectId, status])
 }

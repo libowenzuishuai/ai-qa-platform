@@ -1,3 +1,4 @@
+import { registerProductPages } from "./product.js";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import { registerWorkbenchRoutes } from "./workbench.js";
@@ -30,6 +31,7 @@ const app = Fastify({ logger: { level: process.env.WEB_LOG_LEVEL ?? "warn" } });
 await app.register(cookie);
 await app.register(formbody);
 registerWorkbenchRoutes(app);
+registerProductPages(app);
 
 function sid(req: { cookies: Record<string, string | undefined> }): string | undefined {
   return req.cookies["web_sid"];

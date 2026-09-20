@@ -1,3 +1,4 @@
+import { checkApi } from "./api-check.js";
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from "playwright";
 import type { ObservedLocator, PlanValue, TestPlanV1 } from "@ai-qa/contracts";
 import { checkDestination, resolveTargetUrl, type NavigationPolicy } from "./navigation-policy.js";
@@ -71,6 +72,7 @@ export interface ExecuteOptions {
   namespace: string;
   resolveCredential: (ref: string) => string | undefined;
   dataRefs?: Record<string, string>;
+  apiTemplates?: Record<string, unknown>;
   sink: EvidenceSink;
   budget: { maxActions: number; wallClockMs: number; perActionTimeoutMs: number };
   shouldContinue: () => Promise<boolean>;
@@ -91,6 +93,7 @@ const SUPPORTED_ACTIONS = new Set([
   "fill",
   "click",
   "select",
+  "apiCheck",
   "switchRole",
   "captureValue",
   "waitFor",
@@ -102,11 +105,11 @@ function locatorFor(page: Page, locator: ObservedLocator): Locator {
     case "testId":
       return page.getByTestId(locator.value);
     case "role":
-      return page.getByRole(locator.role as never, locator.name ? { name: locator.name } : undefined);
+      return page.getByRole(locator.role as never, locator.name ? { name: locator.name, exact: true } : undefined);
     case "label":
-      return page.getByLabel(locator.value);
+      return page.getByLabel(locator.value, { exact: true });
     case "text":
-      return page.getByText(locator.value);
+      return page.getByText(locator.value, { exact: true });
   }
 }
 
@@ -365,6 +368,22 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
 
       try {
         switch (action.type) {
+          case "apiCheck": {
+            const assertion = assertionById.get(action.assertionId)!;
+            const template = options.apiTemplates?.[action.templateId];
+            if (!template) throw new Error("API 请求模板未注册");
+            if (Object.keys(action.params).length) throw new Error("当前 API 模板不接受未声明参数");
+            const method = (template as { method: string }).method;
+            if (method !== "GET" && action.effect !== "WRITE") throw new Error("写 API 必须标注 WRITE");
+            writeInFlight = method !== "GET";
+            const result = await checkApi({ template, assertion, baseUrl: options.baseUrl, policy: options.policy, resolveCredential: options.resolveCredential, timeoutMs: timeout });
+            writeInFlight = false;
+            const evidence = await sink.save("API_RESPONSE", `api-${action.id}.json`, Buffer.from(JSON.stringify({ assertionId: assertion.id, ...result })), { sensitivity: "NORMAL" });
+            const progress: AssertionProgress = { assertionId: assertion.id, required: assertion.required, expected: assertion.expected, actual: result.actual, result: result.result, note: result.note, evidenceIds: [evidence.artifactId] };
+            assertions.push(progress); await events?.onAssertion?.(progress);
+            await finishStep({ status: result.result === "FAIL" ? "FAILED" : "PASSED", evidenceIds: [evidence.artifactId] });
+            break;
+          }
           case "switchRole": {
             currentRole = action.role;
             await getContext(action.role);
@@ -605,16 +624,26 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
                     progress.result = count > 0 ? "FAIL" : "PASS";
                   }
                 } else {
+                  // Read-only retries absorb asynchronous UI updates. A stable mismatch is
+                  // a business FAIL; it must not become a prerequisite-wait BLOCKED result.
+                  const readDeadline = Math.min(Date.now() + (assertion.timeoutMs ?? 0), Date.now() + timeout, budgetDeadline);
                   await locator.waitFor({ state: "visible", timeout });
-                  const actual = await readActual(page, locator, assertion.kind);
-                  progress.actual = actual;
-                  const compared = compareAssertion(
-                    assertion.operator,
-                    assertion.expected ?? null,
-                    actual,
-                  );
-                  progress.result = compared.result === "PASS" ? "PASS" : compared.result === "FAIL" ? "FAIL" : "REVIEW";
-                  progress.note = compared.note;
+                  do {
+                    if (!(await options.shouldContinue())) {
+                      cancelled = true;
+                      progress.result = "NOT_EVALUATED";
+                      progress.note = "收到取消请求";
+                      break;
+                    }
+                    if (timeExpired()) throw new Error("运行预算耗尽");
+                    const actual = await readActual(page, locator, assertion.kind);
+                    progress.actual = actual;
+                    const compared = compareAssertion(assertion.operator, assertion.expected ?? null, actual);
+                    progress.result = compared.result;
+                    progress.note = compared.note;
+                    if (compared.result !== "FAIL" || Date.now() >= readDeadline) break;
+                    await page.waitForTimeout(Math.min(100, Math.max(1, readDeadline - Date.now())));
+                  } while (true);
                 }
               }
             } catch (err) {
@@ -640,7 +669,7 @@ export async function executePlan(options: ExecuteOptions): Promise<ExecuteResul
         }
       } catch (err) {
         const message = err instanceof Error ? err.message.split("\n")[0] ?? "" : String(err);
-        let reasonCode = "LOCATOR";
+        let reasonCode = message.includes("API 凭据缺失") ? "AUTH" : "LOCATOR";
         let detail = message;
         try {
           const page = await currentPage();

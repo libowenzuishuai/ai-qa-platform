@@ -1,0 +1,84 @@
+{
+  "mode": "real",
+  "scope": "two synthetic business projects, real Kimi plan generation and browser execution; manually approved rules/cases",
+  "evaluations": [
+    {
+      "kind": "subscription",
+      "jobStatus": "SUCCEEDED",
+      "error": null,
+      "invocations": [
+        {
+          "id": "cmu9f8i6l000q0a7v9ceqnvgw",
+          "projectId": "cmu9f8brs00010a7v5tt9iv4b",
+          "runId": null,
+          "provider": "moonshot",
+          "model": "kimi-k2.6",
+          "promptVersion": "planner-v2",
+          "requestId": "cmu9f8c8i000n0a7vyfwux46y",
+          "usage": {
+            "inputTokens": 3352,
+            "outputTokens": 254
+          },
+          "estimatedCost": null,
+          "latencyMs": 7668,
+          "outcome": "SUCCESS",
+          "createdAt": "2026-09-20T06:14:26.829Z"
+        }
+      ]
+    },
+    {
+      "kind": "subscription",
+      "healthy": {
+        "id": "cmu9f8ial00110a7vn7kzemea",
+        "lifecycle": "FINISHED",
+        "acceptanceStatus": "PASS",
+        "mode": "real",
+        "buildId": "v1",
+        "buildDeclared": true,
+        "buildVerified": true
+      },
+      "caseVerdicts": [
+        "PASS"
+      ]
+    },
+    {
+      "kind": "booking",
+      "jobStatus": "SUCCEEDED",
+      "error": null,
+      "invocations": [
+        {
+          "id": "cmu9f8vas007c0a7vk106352k",
+          "projectId": "cmu9f8jr0006n0a7vc84wiiek",
+          "runId": null,
+          "provider": "moonshot",
+          "model": "kimi-k2.6",
+          "promptVersion": "planner-v2",
+          "requestId": "cmu9f8k1000790a7vzwf0a3xn",
+          "usage": {
+            "inputTokens": 3459,
+            "outputTokens": 387
+          },
+          "estimatedCost": null,
+          "latencyMs": 14577,
+          "outcome": "SUCCESS",
+          "createdAt": "2026-09-20T06:14:43.828Z"
+        }
+      ]
+    },
+    {
+      "kind": "booking",
+      "healthy": {
+        "id": "cmu9f8vcx007n0a7v1235k8w8",
+        "lifecycle": "FINISHED",
+        "acceptanceStatus": "PASS",
+        "mode": "real",
+        "buildId": "v1",
+        "buildDeclared": true,
+        "buildVerified": true
+      },
+      "caseVerdicts": [
+        "PASS"
+      ]
+    }
+  ]
+}

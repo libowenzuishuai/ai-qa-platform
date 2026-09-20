@@ -243,7 +243,23 @@ export async function buildRunReport(
   for (const caseRow of caseRows) {
     for (const ruleId of caseRow.ruleVersionIds) covered.add(ruleId);
   }
+  const build = (run.buildVerification ?? {}) as Record<string, { verified?: boolean; observed?: string; evidenceId?: string }>;
+  let buildVerified = Boolean(build.before?.verified && build.after?.verified && build.before.observed === run.buildId && build.after.observed === run.buildId);
+  for (const name of ["before", "after"]) {
+    const phase = build[name];
+    const evidence = phase?.evidenceId ? await prisma.artifact.findUnique({ where: { id: phase.evidenceId } }) : null;
+    if (!evidence || evidence.projectId !== run.projectId || evidence.type !== "BUILD_IDENTITY" || !store.verify(evidence.storageKey, evidence.checksum)) { buildVerified = false; continue; }
+    try {
+      const proof = JSON.parse(store.read(evidence.storageKey).toString());
+      if (proof.phase !== name || proof.expected !== run.buildId || proof.observed !== run.buildId || proof.verified !== true) buildVerified = false;
+    } catch { buildVerified = false; }
+  }
+  const missionRun = await prisma.missionRun.findUnique({where:{runId}});
+  const mission = missionRun ? await prisma.mission.findUnique({where:{id:missionRun.missionId}}) : null;
+  const excluded = Array.isArray(mission?.exclusions) && mission.exclusions.length > 0;
   const metrics = aggregateRun({
+    buildVerified,
+    scopeComplete: !excluded && (baseline?.ruleVersionIds ?? []).every(id => covered.has(id)) && (baseline?.caseVersionIds ?? []).every(id => run.selectedCaseVersionIds.includes(id)),
     cases: cases.map((c) => ({
       caseVersionId: c.caseVersionId,
       verdict: c.verdict,
@@ -268,7 +284,7 @@ export async function buildRunReport(
       buildId: run.buildId,
       buildDeclared: run.buildId !== null && run.buildId !== undefined,
       // 阶段 1 未实现目标构建身份核验（§三.4）：声明 ≠ 已验证。
-      buildVerified: false,
+      buildVerified,
     },
     metrics: {
       totalSelected: metrics.totalSelected,
@@ -281,4 +297,25 @@ export async function buildRunReport(
     },
     cases,
   };
+}
+
+/** A failure becomes a candidate defect with immutable occurrences; passing runs never erase history. */
+export async function syncRunDefects(prisma: import('@prisma/client').PrismaClient, store: ArtifactStore, runId: string) {
+  const report = await buildRunReport(prisma, store, runId);
+  const run = await prisma.run.findUniqueOrThrow({ where: { id: runId } });
+  if (run.lifecycle !== 'FINISHED') return;
+  const attempts = await prisma.caseAttempt.findMany({ where: { runId, verdict: 'FAIL' }, include: { assertions: true, caseVersion: true } });
+  for (const attempt of attempts) {
+    if (!report.cases.some(c => c.caseVersionId === attempt.caseVersionId && c.verdict === 'FAIL')) continue;
+    for (const assertion of attempt.assertions.filter(a => a.result === 'FAIL' && a.evidenceIds.length)) {
+      const visible = report.cases.find(c=>c.attemptId===attempt.id)?.assertions.find(a=>a.assertionId===assertion.assertionId);
+      if (!visible?.required || !visible.evidence.length || visible.evidence.some(e=>!e.integrityOk||!e.belongsToAttempt||!e.exists)) continue;
+      const definition = (attempt.caseVersion.assertions as Array<{ id: string; ruleVersionId: string; description: string }>).find(a => a.id === assertion.assertionId);
+      if (!definition) continue;
+      const fingerprint = `${attempt.caseVersion.caseId}:${definition.ruleVersionId}:${definition.id}`;
+      const defect = await prisma.defect.upsert({ where: { projectId_fingerprint: { projectId: run.projectId, fingerprint } }, create: { projectId: run.projectId, fingerprint, sourceRuleVersionId: definition.ruleVersionId, assertionId: definition.id, title: `${attempt.caseVersion.title}：${definition.description}`, description: `预期：${assertion.expected ?? ''}\n实际：${assertion.actual ?? ''}` }, update: {} });
+      await prisma.defectOccurrence.upsert({ where: { defectId_runId_attemptId: { defectId: defect.id, runId, attemptId: attempt.id } }, create: { defectId: defect.id, runId, attemptId: attempt.id, buildId: run.buildId, evidenceRefs: assertion.evidenceIds }, update: {} });
+      await prisma.defect.updateMany({ where: { id: defect.id, status: 'VERIFIED' }, data: { status: 'REOPENED' } });
+    }
+  }
 }

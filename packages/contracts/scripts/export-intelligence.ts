@@ -6,6 +6,10 @@ import * as c from '../src/index.js';
 
 // Author fields once in Zod. Generated JSON Schema and Python models must not be edited.
 const schemas = {
+  SourceClassificationInput:c.SourceClassificationInput,SourceClassificationOutput:c.SourceClassificationOutput,
+  SourceClassificationRequest:c.SourceClassificationRequest,SourceClassificationResponse:c.SourceClassificationResponse,
+  PlanProposalInput: c.PlanProposalInput, PlanProposalOutput: c.PlanProposalOutput,
+  PlanProposalRequest: c.PlanProposalRequest, PlanProposalResponse: c.PlanProposalResponse,
   ParsedDocumentBundle: c.ParsedDocumentBundle,
   RuleExtractionInput: c.RuleExtractionInput, RuleExtractionOutput: c.RuleExtractionOutput,
   CaseGenerationInput: c.CaseGenerationInput, CaseGenerationOutput: c.CaseGenerationOutput,

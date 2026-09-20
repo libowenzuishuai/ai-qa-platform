@@ -1,3 +1,4 @@
+const escapeHtml = (v: unknown) => String(v ?? "").replace(/[&<>"\']/g, c => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;", "\'":"&#39;"}[c]!));
 /** 页面渲染（服务端模板，零客户端依赖；SSE 用原生 EventSource）。 */
 
 const STYLE = `
@@ -33,7 +34,7 @@ img.shot { max-width:360px; border:1px solid #e2e4ea; margin:6px 6px 0 0; }
 export function layout(title: string, body: string): string {
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title} · AI 测试平台</title><style>${STYLE}</style></head>
+<title>${escapeHtml(title)} · AI 测试平台</title><style>${STYLE}</style></head>
 <body><header><b>AI 测试人员平台</b><span class="muted" style="color:#9fb0dd">业务资料 · 测试审阅 · 运行验收</span>
 <nav style="margin-left:auto"><a href="/">项目</a><a href="/runs">运行</a></nav></header>
 <main>${body}</main></body></html>`;
@@ -59,13 +60,13 @@ export function projectsPage(
   const rows = projects
     .map(
       (p) =>
-        `<tr><td><a href="/projects/${p.id}">${p.name}</a></td><td>${p.id}</td><td><span class="badge">${p.role}</span></td></tr>`,
+        `<tr><td><a href="/space/${p.id}">${escapeHtml(p.name)}</a></td><td>${p.id}</td><td><span class="badge">${p.role}</span></td></tr>`,
     )
     .join("");
   return layout(
     "项目",
-    `<h1>我的项目</h1>
-    <p class="muted">当前用户：${user}</p>
+    `<h1>我的项目</h1><form method="post" action="/projects/new"><label>创建项目</label><input type="text" name="name" required maxlength="120"><button>创建</button></form>
+    <p class="muted">当前用户：${escapeHtml(user)}</p>
     <table><thead><tr><th>项目</th><th>ID</th><th>我的角色</th></tr></thead>
     <tbody>${rows || "<tr><td colspan=3>暂无项目</td></tr>"}</tbody></table>`,
   );
@@ -81,15 +82,15 @@ export interface LauncherData {
 
 export function launcherPage(data: LauncherData, error?: string): string {
   const envOptions = data.environments
-    .map((e) => `<option value="${e.id}">${e.name}（${e.baseUrl}${e.buildId ? ` · ${e.buildId}` : ""}）</option>`)
+    .map((e) => `<option value="${e.id}">${escapeHtml(e.name)}（${escapeHtml(e.baseUrl)}${e.buildId ? ` · ${e.buildId}` : ""}）</option>`)
     .join("");
   const baselineOptions = data.baselines
-    .map((b) => `<option value="${b.id}" ${b.active ? "selected" : ""}>${b.name}</option>`)
+    .map((b) => `<option value="${b.id}" ${b.active ? "selected" : ""}>${escapeHtml(b.name)}</option>`)
     .join("");
   const caseRows = data.caseVersions
     .map(
       (c) =>
-        `<tr><td><label style="margin:0"><input type="checkbox" name="caseVersionIds" value="${c.caseVersionId}" checked> ${c.title}</label></td>
+        `<tr><td><label style="margin:0"><input type="checkbox" name="caseVersionIds" value="${c.caseVersionId}" checked> ${escapeHtml(c.title)}</label></td>
         <td>${c.caseVersionId}</td><td><span class="badge ${c.approvalStatus === "APPROVED" ? "PASS" : "REVIEW"}">${c.approvalStatus}</span></td>
         <td>${c.hasPlan ? "✓" : "无计划"}</td></tr>`,
     )
@@ -105,7 +106,7 @@ export function launcherPage(data: LauncherData, error?: string): string {
     .join("");
   return layout(
     data.project.name,
-    `<h1>${data.project.name}</h1><p><a href="/projects/${data.project.id}/review">打开资料与测试审阅工作台</a></p>
+    `<h1>${escapeHtml(data.project.name)}</h1><p><a href="/projects/${data.project.id}/review">打开资料与测试审阅工作台</a></p>
     ${error ? `<div class="error-box">${error}</div>` : ""}
     <div class="card">
       <h2>启动测试</h2>
@@ -138,7 +139,7 @@ export function runDetailPage(data: RunDetailData, error?: string): string {
   const caseRows = data.cases
     .map(
       (c) =>
-        `<tr><td>${c.title}</td><td class="muted">${c.caseVersionId}</td>
+        `<tr><td>${escapeHtml(c.title)}</td><td class="muted">${c.caseVersionId}</td>
         <td><span class="badge ${c.verdict}">${c.verdict}</span></td>
         <td><span class="badge">${c.reasonCode}</span></td></tr>`,
     )
@@ -238,10 +239,10 @@ export function reportPage(data: ReportData): string {
             .map((e) => `<a href="${e.url}">下载 trace（受限）</a>`)
             .join(" ");
           return `<tr><td>${a.assertionId}</td>
-          <td>${a.expected ?? "—"}${a.unit ? ` <span class="muted">${a.unit}</span>` : ""}</td>
-          <td>${a.actual ?? "—"}</td>
+          <td>${escapeHtml(a.expected ?? "—")}${a.unit ? ` <span class="muted">${escapeHtml(a.unit)}</span>` : ""}</td>
+          <td>${escapeHtml(a.actual ?? "—")}</td>
           <td><span class="badge ${a.result}">${a.result}</span></td>
-          <td class="detail">${a.note ?? ""}</td></tr>
+          <td class="detail">${escapeHtml(a.note ?? "")}</td></tr>
           ${shots || traces ? `<tr><td colspan=5>${shots} ${traces}</td></tr>` : ""}`;
         })
         .join("");
@@ -250,7 +251,7 @@ export function reportPage(data: ReportData): string {
         .map((t) => `<a href="${t.url}">下载 trace（受限原始证据）</a>`)
         .join(" ");
       return `<div class="card">
-        <h2>${c.title} <span class="badge ${c.verdict}">${c.verdict}</span>
+        <h2>${escapeHtml(c.title)} <span class="badge ${c.verdict}">${c.verdict}</span>
         <span class="badge">${c.reasonCode}</span>
         ${c.evidenceDowngraded ? '<span class="badge REVIEW">证据缺失降级</span>' : ""}</h2>
         ${traceLinks ? `<p>${traceLinks}</p>` : ""}
@@ -266,7 +267,7 @@ export function reportPage(data: ReportData): string {
       <div class="kv"><b>运行</b><a href="/runs/${data.run.id}">${data.run.id}</a></div>
       <div class="kv"><b>生命周期</b><span class="badge ${data.run.lifecycle}">${data.run.lifecycle}</span></div>
       <div class="kv"><b>严格验收</b><span class="badge ${m.acceptanceStatus}">${m.acceptanceStatus}</span></div>
-      <div class="kv"><b>构建标识</b>${data.run.buildVerified ? "已登记" : '<span class="muted">版本未验证</span>'}</div>
+      <div class="kv"><b>构建标识</b>${data.run.buildVerified ? "已核验运行实例" : '<span class="muted">版本未验证</span>'}</div>
       <div class="kv"><b>选定用例</b>${m.totalSelected}</div>
       <div class="kv"><b>结果分布</b>PASS ${m.counts.PASS ?? 0} · FAIL ${m.counts.FAIL ?? 0} · BLOCKED ${m.counts.BLOCKED ?? 0} · REVIEW ${m.counts.REVIEW ?? 0} · NOT_RUN ${m.counts.NOT_RUN ?? 0} · unstable ${m.unstable}</div>
       <div class="kv"><b>用例执行率</b>${m.executionRateDisplay}</div>

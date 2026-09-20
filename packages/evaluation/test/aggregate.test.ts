@@ -82,12 +82,16 @@ describe("aggregateRun —— FR-10", () => {
   });
 
   it("全 PASS → 严格验收 PASS", () => {
-    const m = aggregateRun({ cases: [caseOf("c1", "PASS"), caseOf("c2", "PASS")] });
+    const m = aggregateRun({ cases: [caseOf("c1", "PASS"), caseOf("c2", "PASS")], buildVerified: true });
     expect(m.acceptanceStatus).toBe("PASS");
     expect(m.executionRate).toBe(1);
     expect(m.passRate).toBe(1);
   });
 
+  it("已填写版本但未经实际核验不能 PASS", () => {
+    expect(aggregateRun({ cases: [caseOf("c1", "PASS")], hasBuildId: true }).acceptanceStatus).toBe("INCOMPLETE");
+    expect(aggregateRun({ cases: [caseOf("c1", "PASS")], buildVerified: true, scopeComplete: false }).acceptanceStatus).toBe("INCOMPLETE");
+  });
   it("有 FAIL → 严格验收 FAIL", () => {
     const m = aggregateRun({ cases: [caseOf("c1", "PASS"), caseOf("c2", "FAIL")] });
     expect(m.acceptanceStatus).toBe("FAIL");

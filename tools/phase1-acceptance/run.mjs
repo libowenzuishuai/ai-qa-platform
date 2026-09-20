@@ -367,7 +367,7 @@ async function main() {
     const origin = `http://127.0.0.1:${demo.port}`;
     const { status, data } = await fetchJson(
       `/api/projects/${projectId}/environments`,
-      { method: "POST", body: JSON.stringify({ name: `环境-${demo.name}`, baseUrl: origin, allowedOrigins: [origin], buildId: `build-${demo.name}-${stamp}` }) },
+      { method: "POST", body: JSON.stringify({ name: `环境-${demo.name}`, baseUrl: origin, allowedOrigins: [origin], runtime: { fixture: "demo" }, buildId: `build-${demo.name}-${stamp}` }) },
       admin,
     );
     if (status !== 200) throw new Error(`环境登记失败 ${demo.name}: ${JSON.stringify(data)}`);
@@ -434,7 +434,7 @@ async function main() {
     record("健康：持久化用例 PASS", verdictOf("persist")?.verdict === "PASS", verdictOf("persist")?.verdict);
 
     const report = (await fetchJson(`/api/runs/${runId}/report`, {}, admin)).data;
-    record("健康：严格验收 PASS", report.metrics.acceptanceStatus === "PASS", report.metrics.acceptanceStatus);
+    record("健康：用例通过但运行版本未核验，严格验收 INCOMPLETE", report.metrics.acceptanceStatus === "INCOMPLETE", report.metrics.acceptanceStatus);
     record(
       "健康：执行率/通过率 100%",
       report.metrics.executionRateDisplay === "100.0%" && report.metrics.passRateDisplay === "100.0%",

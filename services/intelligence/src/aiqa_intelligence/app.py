@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from .agents.service import AgentPipelines
+from .agents.planner import propose_plan, classify_sources
 from .doc_ingestion.service import DocumentParser
 from .contracts import generated as models
 from .contracts.validation import (
@@ -103,6 +104,8 @@ def create_app(
             "document": "DocumentParse",
             "rules": "RuleExtraction",
             "cases": "CaseGeneration",
+            "plan": "PlanProposal",
+            "sources": "SourceClassification",
         }
         name = names[operation]
         validate_shape(name + "Request", wire)
@@ -144,6 +147,8 @@ def create_app(
             "document": parser.parse_document,
             "rules": agents.extract_rules,
             "cases": agents.generate_cases,
+            "plan": propose_plan,
+            "sources": classify_sources,
         }
         try:
             output = await asyncio.wait_for(
@@ -161,7 +166,7 @@ def create_app(
                     raise ServiceError("MODEL_OUTPUT_INVALID", "解析产物版本或终态错误")
             elif operation == "rules":
                 validate_rules(data, body)
-            else:
+            elif operation == "cases":
                 validate_cases(data, body)
             response = {
                 "schemaVersion": "1.0",
@@ -190,6 +195,14 @@ def create_app(
     @app.post("/v1/cases/generate")
     async def cases(request: Request):
         return await invoke(request, "cases")
+
+    @app.post("/v1/plans/propose")
+    async def plans(request: Request):
+        return await invoke(request, "plan")
+
+    @app.post("/v1/sources/classify")
+    async def sources(request: Request):
+        return await invoke(request, "sources")
 
     return app
 

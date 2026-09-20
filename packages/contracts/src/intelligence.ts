@@ -1,3 +1,4 @@
+import { PlanProposalInput, PlanProposalOutput, SourceClassificationInput, SourceClassificationOutput } from "./product.js";
 import { z } from "zod";
 import { EntityId } from "./common.js";
 import { DocumentFormat, ParsedDocumentBundle } from "./document.js";
@@ -38,3 +39,9 @@ const responseBase = z.object({
 export const DocumentParseResponse = responseBase.extend({ output: ParsedDocumentBundle });
 export const RuleExtractionResponse = responseBase.extend({ output: RuleExtractionOutput });
 export const CaseGenerationResponse = responseBase.extend({ output: CaseGenerationOutput });
+
+export const PlanProposalRequest = requestBase.extend({ input: PlanProposalInput });
+export const PlanProposalResponse = responseBase.extend({ output: PlanProposalOutput });
+
+export const SourceClassificationRequest = requestBase.extend({ input: SourceClassificationInput });
+export const SourceClassificationResponse = responseBase.extend({ output: SourceClassificationOutput });

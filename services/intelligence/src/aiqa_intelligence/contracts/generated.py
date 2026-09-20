@@ -5,10 +5,158 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, RootModel
+from pydantic import AnyUrl, AwareDatetime, BaseModel, ConfigDict, Field, RootModel
+
+
+class File(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    path: str = Field(..., min_length=1)
+    format: str
+    excerpt: str = Field(..., max_length=2000)
+
+
+class SourceClassificationInput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    files: list[File] = Field(..., max_length=50)
+    promptVersion: Literal['sources-v1']
+
+
+class File1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    path: str = Field(..., min_length=1)
+    category: Literal[
+        'BUSINESS_CANDIDATE',
+        'API_CONTRACT',
+        'RUNTIME_CLUE',
+        'TEST_CLUE',
+        'UNCLASSIFIED',
+    ]
+    reason: str = Field(..., max_length=500, min_length=1)
+
+
+class SourceClassificationOutput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    files: list[File1] = Field(..., max_length=50)
+
+
+class SourceClassificationRequest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    timeoutMs: int = Field(..., ge=1000, le=600000)
+    input: SourceClassificationInput
+
+
+class Role(RootModel[str]):
+    root: str = Field(..., min_length=1)
+
+
+class DataSpec1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    strategy: Literal['create']
+    note: str = Field(..., min_length=1)
+
+
+class Cleanup(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    strategy: Literal['namespace', 'fixture', 'manual']
+    note: str | None = None
 
 
 class Locator(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['testId']
+    value: str = Field(..., min_length=1)
+
+
+class Locator1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['role']
+    role: str = Field(..., min_length=1)
+    name: str | None = None
+
+
+class Locator2(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['label']
+    value: str = Field(..., min_length=1)
+
+
+class Locator3(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['text']
+    value: str = Field(..., min_length=1)
+
+
+class Page(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    role: str
+    url: AnyUrl
+    title: str
+    text: str = Field(..., max_length=20000)
+
+
+class OnlyIf(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    varName: str = Field(..., pattern='^[a-zA-Z][a-zA-Z0-9_]*$')
+    operator: Literal['eq', 'neq', 'gt', 'gte', 'lt', 'lte']
+    value: str | float | bool
+
+
+class Value(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    source: Literal['literal']
+    value: str
+
+
+class Value2(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    source: Literal['captured']
+    varName: str = Field(..., pattern='^[a-zA-Z][a-zA-Z0-9_]*$')
+
+
+class Target(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    assertionId: str
+    targetRef: str
+
+
+class Locator4(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -21,7 +169,7 @@ class PathItem(RootModel[str]):
     root: str = Field(..., min_length=1)
 
 
-class Locator1(BaseModel):
+class Locator5(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -29,7 +177,7 @@ class Locator1(BaseModel):
     path: list[PathItem] = Field(..., min_length=1)
 
 
-class Locator2(BaseModel):
+class Locator6(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -37,7 +185,7 @@ class Locator2(BaseModel):
     paragraphIndex: int
 
 
-class Locator3(BaseModel):
+class Locator7(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -47,7 +195,7 @@ class Locator3(BaseModel):
     col: int
 
 
-class Locator4(BaseModel):
+class Locator8(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -55,7 +203,7 @@ class Locator4(BaseModel):
     page: int = Field(..., ge=1)
 
 
-class Locator5(BaseModel):
+class Locator9(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -103,33 +251,13 @@ class Clarification(BaseModel):
     kind: Literal['MISSING_INFO', 'CONFLICT', 'AMBIGUITY']
 
 
-class Role(RootModel[str]):
-    root: str = Field(..., min_length=1)
-
-
-class DataSpec1(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    strategy: Literal['create']
-    note: str = Field(..., min_length=1)
-
-
-class Step(BaseModel):
+class Step1(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
     role: str = Field(..., min_length=1)
     action: str = Field(..., min_length=1)
     expectedResult: str | None = None
-
-
-class Cleanup(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    strategy: Literal['namespace', 'fixture', 'manual']
-    note: str | None = None
 
 
 class Usage(BaseModel):
@@ -162,7 +290,13 @@ class TextModelRequest(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    purpose: Literal['RULE_EXTRACTION', 'CASE_GENERATION', 'VISION_DESCRIBE']
+    purpose: Literal[
+        'RULE_EXTRACTION',
+        'CASE_GENERATION',
+        'VISION_DESCRIBE',
+        'PLAN_PROPOSAL',
+        'SOURCE_CLASSIFICATION',
+    ]
     system: str
     user: str
     outputSchema: Any | None = None
@@ -182,10 +316,20 @@ class VisionModelRequest(BaseModel):
     timeoutMs: int = Field(..., ge=1000, le=600000)
 
 
-class DocumentVersionId(RootModel[str]):
-    root: str = Field(
-        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+class Value4(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
     )
+    source: Literal['literal']
+    value: str
+
+
+class Value6(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    source: Literal['captured']
+    varName: str = Field(..., pattern='^[a-zA-Z][a-zA-Z0-9_]*$')
 
 
 class Items(BaseModel):
@@ -199,6 +343,277 @@ class Items(BaseModel):
     ) = None
     value: str | float | bool | None = None
     unit: str | None = Field(None, min_length=1)
+
+
+class RequestId(RootModel[str]):
+    root: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+
+
+class DataSpec(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    strategy: Literal['fixture']
+    fixtureId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    params: dict[str, str | float | bool] | None = {}
+
+
+class Step(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    role: str = Field(..., min_length=1)
+    action: str = Field(..., min_length=1)
+    expectedResult: str | None = None
+
+
+class Assertion(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    description: str = Field(..., min_length=1)
+    kind: Literal[
+        'ui.text',
+        'ui.element',
+        'ui.state',
+        'data.value',
+        'api.response',
+        'download.content',
+        'visual',
+    ]
+    required: bool | None = True
+    ruleVersionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    operator: Literal[
+        'equals',
+        'notEquals',
+        'contains',
+        'notContains',
+        'gt',
+        'gte',
+        'lt',
+        'lte',
+        'matches',
+        'exists',
+        'notExists',
+    ]
+    expected: str | float | bool | None = None
+    unit: str | None = Field(None, min_length=1)
+
+
+class TestCase(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    caseId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    version: int = Field(..., ge=1)
+    title: str = Field(..., min_length=1)
+    description: str | None = None
+    ruleVersionIds: list[RequestId] = Field(..., min_length=1)
+    roles: list[Role] = Field(..., min_length=1)
+    preconditions: list[str] | None = []
+    dataSpec: DataSpec | DataSpec1
+    steps: list[Step] = Field(..., min_length=1)
+    assertions: list[Assertion] = Field(..., min_length=1)
+    cleanup: Cleanup
+    priority: Literal['P0', 'P1', 'P2'] | None = 'P1'
+    approvalStatus: (
+        Literal['DRAFT', 'NEEDS_REVIEW', 'APPROVED', 'REJECTED', 'SUPERSEDED'] | None
+    ) = 'DRAFT'
+    supersedesId: RequestId | None = None
+    origin: Literal['manual', 'model']
+    promptVersion: str | None = None
+    approvalHash: str | None = Field(None, min_length=1)
+    createdAt: AwareDatetime
+
+
+class Binding(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    targetRef: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    locator: Locator | Locator1 | Locator2 | Locator3
+    observedUrl: str = Field(..., min_length=1)
+    observedAt: AwareDatetime
+    evidenceId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    note: str | None = None
+
+
+class Observation(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    environmentId: str
+    environmentRevision: int
+    bindings: list[Binding] = Field(..., max_length=1200)
+    pages: list[Page] = Field(..., max_length=12)
+
+
+class PlanProposalInput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    testCase: TestCase
+    observation: Observation
+    promptVersion: Literal['planner-v3']
+
+
+class Actions(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    effect: Literal['READ', 'WRITE']
+    onlyIf: OnlyIf | None = None
+    type: Literal['goto']
+    path: str | None = None
+    pathTemplate: str | None = None
+
+
+class Value1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    source: Literal['dataRef']
+    ref: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+
+
+class Value3(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    source: Literal['credential']
+    ref: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+
+
+class Actions1(BaseModel):
+    """
+    存在自动保存的字段必须标 effect=WRITE（PRD §7.2 注）
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    effect: Literal['READ', 'WRITE']
+    onlyIf: OnlyIf | None = None
+    type: Literal['fill']
+    targetRef: str = Field(
+        ...,
+        description='bindings 中登记的观察目标引用',
+        max_length=128,
+        min_length=1,
+        pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$',
+    )
+    value: Value | Value1 | Value2 | Value3
+
+
+class Actions2(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    effect: Literal['READ', 'WRITE']
+    onlyIf: OnlyIf | None = None
+    type: Literal['click']
+    targetRef: str = Field(
+        ...,
+        description='bindings 中登记的观察目标引用',
+        max_length=128,
+        min_length=1,
+        pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$',
+    )
+
+
+class Actions4(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    effect: Literal['READ', 'WRITE']
+    onlyIf: OnlyIf | None = None
+    type: Literal['switchRole']
+    role: str = Field(..., min_length=1)
+
+
+class Actions5(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    effect: Literal['READ', 'WRITE']
+    onlyIf: OnlyIf | None = None
+    type: Literal['captureValue']
+    targetRef: str = Field(
+        ...,
+        description='bindings 中登记的观察目标引用',
+        max_length=128,
+        min_length=1,
+        pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$',
+    )
+    saveAs: str = Field(..., pattern='^[a-zA-Z][a-zA-Z0-9_]*$')
+
+
+class Actions6(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    effect: Literal['READ', 'WRITE']
+    onlyIf: OnlyIf | None = None
+    type: Literal['assert']
+    assertionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+
+
+class PlanProposalRequest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    timeoutMs: int = Field(..., ge=1000, le=600000)
+    input: PlanProposalInput
 
 
 class Block(BaseModel):
@@ -224,7 +639,7 @@ class Span(BaseModel):
     documentVersionId: str = Field(
         ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
     )
-    locator: Locator | Locator1 | Locator2 | Locator3 | Locator4 | Locator5
+    locator: Locator4 | Locator5 | Locator6 | Locator7 | Locator8 | Locator9
     quotedText: str | None
     extractionQuality: Literal['GOOD', 'LOW', 'UNPARSED'] | None = 'GOOD'
 
@@ -272,7 +687,7 @@ class Source(BaseModel):
     documentVersionId: str = Field(
         ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
     )
-    sourceSpanIds: list[DocumentVersionId] = Field(..., min_length=1)
+    sourceSpanIds: list[RequestId] = Field(..., min_length=1)
 
 
 class RuleDraft(BaseModel):
@@ -335,11 +750,11 @@ class ApprovedRuleVersion(BaseModel):
     priority: Literal['P0', 'P1', 'P2'] | None = 'P1'
     businessFields: list[Items] | None = Field([], validate_default=True)
     sources: list[Source] | None = Field([], validate_default=True)
-    conflictsWith: list[DocumentVersionId] | None = Field([], validate_default=True)
+    conflictsWith: list[RequestId] | None = Field([], validate_default=True)
     reviewStatus: (
         Literal['DRAFT', 'NEEDS_REVIEW', 'APPROVED', 'REJECTED', 'SUPERSEDED'] | None
     ) = 'DRAFT'
-    supersedesId: DocumentVersionId | None = None
+    supersedesId: RequestId | None = None
     origin: Literal['manual', 'model']
     promptVersion: str | None = None
     reviewedBy: str | None = None
@@ -354,7 +769,7 @@ class ClarificationSource(BaseModel):
     id: str = Field(
         ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
     )
-    ruleVersionIds: list[DocumentVersionId] = Field(..., min_length=1)
+    ruleVersionIds: list[RequestId] = Field(..., min_length=1)
     question: str = Field(..., min_length=1)
     answer: str | None = None
     answerSource: str | None = None
@@ -372,87 +787,9 @@ class CaseGenerationInput(BaseModel):
         [], validate_default=True
     )
     roles: list[Role] = Field(..., min_length=1)
-    fixtureCapabilities: list[DocumentVersionId] | None = Field(
-        [], validate_default=True
-    )
+    fixtureCapabilities: list[RequestId] | None = Field([], validate_default=True)
     executorCapabilities: list[str] | None = []
     promptVersion: str = Field(..., min_length=1)
-
-
-class DataSpec(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    strategy: Literal['fixture']
-    fixtureId: str = Field(
-        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
-    )
-    params: dict[str, str | float | bool] | None = {}
-
-
-class Assertion(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    id: str = Field(
-        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
-    )
-    description: str = Field(..., min_length=1)
-    kind: Literal[
-        'ui.text',
-        'ui.element',
-        'ui.state',
-        'data.value',
-        'api.response',
-        'download.content',
-        'visual',
-    ]
-    required: bool | None = True
-    ruleVersionId: str = Field(
-        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
-    )
-    operator: Literal[
-        'equals',
-        'notEquals',
-        'contains',
-        'notContains',
-        'gt',
-        'gte',
-        'lt',
-        'lte',
-        'matches',
-        'exists',
-        'notExists',
-    ]
-    expected: str | float | bool | None = None
-    unit: str | None = Field(None, min_length=1)
-
-
-class CaseDraft(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    title: str = Field(..., min_length=1)
-    description: str | None = None
-    ruleVersionIds: list[DocumentVersionId] = Field(..., min_length=1)
-    roles: list[Role] = Field(..., min_length=1)
-    preconditions: list[str] | None = []
-    dataSpec: DataSpec | DataSpec1
-    steps: list[Step] = Field(..., min_length=1)
-    assertions: list[Assertion] = Field(..., min_length=1)
-    cleanup: Cleanup
-    priority: Literal['P0', 'P1', 'P2'] | None = 'P1'
-    dimensions: list[
-        Literal[
-            'HAPPY_PATH',
-            'INVALID_INPUT',
-            'BOUNDARY',
-            'PERMISSION',
-            'STATE',
-            'CROSS_MODULE',
-            'PERSISTENCE',
-        ]
-    ] = Field(..., min_length=1)
 
 
 class CoverageMapItem(BaseModel):
@@ -480,15 +817,6 @@ class BlockedRequirement(BaseModel):
         'OUT_OF_EXECUTOR_CAPABILITY',
     ]
     detail: str = Field(..., min_length=1)
-
-
-class CaseGenerationOutput(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    caseDrafts: list[CaseDraft]
-    coverageMap: list[CoverageMapItem]
-    blockedRequirements: list[BlockedRequirement]
 
 
 class DocumentParseInput(BaseModel):
@@ -547,9 +875,166 @@ class InvocationRecord(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    purpose: Literal['RULE_EXTRACTION', 'CASE_GENERATION', 'VISION_DESCRIBE']
+    purpose: Literal[
+        'RULE_EXTRACTION',
+        'CASE_GENERATION',
+        'VISION_DESCRIBE',
+        'PLAN_PROPOSAL',
+        'SOURCE_CLASSIFICATION',
+    ]
     promptVersion: str = Field(..., min_length=1)
     response: ModelResponse
+
+
+class ItemsModel(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    description: str = Field(..., min_length=1)
+    kind: Literal[
+        'ui.text',
+        'ui.element',
+        'ui.state',
+        'data.value',
+        'api.response',
+        'download.content',
+        'visual',
+    ]
+    required: bool | None = True
+    ruleVersionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    operator: Literal[
+        'equals',
+        'notEquals',
+        'contains',
+        'notContains',
+        'gt',
+        'gte',
+        'lt',
+        'lte',
+        'matches',
+        'exists',
+        'notExists',
+    ]
+    expected: str | float | bool | None = None
+    unit: str | None = Field(None, min_length=1)
+
+
+class Value5(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    source: Literal['dataRef']
+    ref: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+
+
+class Value7(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    source: Literal['credential']
+    ref: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+
+
+class SourceClassificationResponse(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    invocations: list[InvocationRecord]
+    output: SourceClassificationOutput
+
+
+class Actions3(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    effect: Literal['READ', 'WRITE']
+    onlyIf: OnlyIf | None = None
+    type: Literal['select']
+    targetRef: str = Field(
+        ...,
+        description='bindings 中登记的观察目标引用',
+        max_length=128,
+        min_length=1,
+        pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$',
+    )
+    value: Value4 | Value5 | Value6 | Value7
+
+
+class PlanProposalOutput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    actions: list[
+        Actions | Actions1 | Actions2 | Actions3 | Actions4 | Actions5 | Actions6
+    ] = Field(..., max_length=100)
+    targets: list[Target]
+    blockedReasons: list[str] | None = []
+
+
+class PlanProposalResponse(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    invocations: list[InvocationRecord]
+    output: PlanProposalOutput
+
+
+class CaseDraft(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    title: str = Field(..., min_length=1)
+    description: str | None = None
+    ruleVersionIds: list[RequestId] = Field(..., min_length=1)
+    roles: list[Role] = Field(..., min_length=1)
+    preconditions: list[str] | None = []
+    dataSpec: DataSpec | DataSpec1
+    steps: list[Step1] = Field(..., min_length=1)
+    assertions: list[ItemsModel] = Field(..., min_length=1)
+    cleanup: Cleanup
+    priority: Literal['P0', 'P1', 'P2'] | None = 'P1'
+    dimensions: list[
+        Literal[
+            'HAPPY_PATH',
+            'INVALID_INPUT',
+            'BOUNDARY',
+            'PERMISSION',
+            'STATE',
+            'CROSS_MODULE',
+            'PERSISTENCE',
+        ]
+    ] = Field(..., min_length=1)
+
+
+class CaseGenerationOutput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    caseDrafts: list[CaseDraft]
+    coverageMap: list[CoverageMapItem]
+    blockedRequirements: list[BlockedRequirement]
 
 
 class DocumentParseResponse(BaseModel):
@@ -594,6 +1079,24 @@ class CaseGenerationResponse(BaseModel):
 class IntelligenceContracts(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
+    )
+    SourceClassificationInput_1: SourceClassificationInput = Field(
+        ..., alias='SourceClassificationInput'
+    )
+    SourceClassificationOutput_1: SourceClassificationOutput = Field(
+        ..., alias='SourceClassificationOutput'
+    )
+    SourceClassificationRequest_1: SourceClassificationRequest = Field(
+        ..., alias='SourceClassificationRequest'
+    )
+    SourceClassificationResponse_1: SourceClassificationResponse = Field(
+        ..., alias='SourceClassificationResponse'
+    )
+    PlanProposalInput_1: PlanProposalInput = Field(..., alias='PlanProposalInput')
+    PlanProposalOutput_1: PlanProposalOutput = Field(..., alias='PlanProposalOutput')
+    PlanProposalRequest_1: PlanProposalRequest = Field(..., alias='PlanProposalRequest')
+    PlanProposalResponse_1: PlanProposalResponse = Field(
+        ..., alias='PlanProposalResponse'
     )
     ParsedDocumentBundle_1: ParsedDocumentBundle = Field(
         ..., alias='ParsedDocumentBundle'

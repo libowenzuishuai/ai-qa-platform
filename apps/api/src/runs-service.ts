@@ -18,6 +18,8 @@ import { ApiError } from "./errors.js";
  */
 
 export interface CreateRunInput {
+  /** Internal retest path only: preserve the original plan versions. */
+  pinnedPlans?: Array<{ caseVersionId: string; planVersionId: string; acceptanceHash: string }>;
   projectId: string;
   baselineId: string;
   environmentId: string;
@@ -108,7 +110,7 @@ export async function createRun(
     where: { projectId_idempotencyKey: { projectId, idempotencyKey: input.idempotencyKey } },
   });
   if (existing) {
-    return resolveIdempotent(existing, identity, input.idempotencyKey);
+    return resolveIdempotent(existing, identity, input.idempotencyKey, input.pinnedPlans);
   }
 
 
@@ -173,15 +175,21 @@ export async function createRun(
       }
     }
 
+    // Only a plan observed against this environment revision can run here.
     // R3：固定当前最新计划版本（worker 只执行它）。
+    const fixed = input.pinnedPlans?.find(p => p.caseVersionId === caseVersion.id);
+    if (input.pinnedPlans && !fixed) throw new ApiError("VALIDATION_ERROR", "原运行缺少固定计划");
     const planVersion = await prisma.testPlanVersion.findFirst({
-      where: { caseVersionId: caseVersion.id },
+      where: { caseVersionId: caseVersion.id, ...(fixed ? { id: fixed.planVersionId, acceptanceHash: fixed.acceptanceHash } : {}) },
       orderBy: { version: "desc" },
     });
     if (!planVersion) {
       throw new ApiError("VALIDATION_ERROR", `用例 ${caseVersion.id} 没有已绑定的执行计划`, { field: "caseVersionIds" });
     }
 
+    if (planVersion.environmentId && (planVersion.environmentId !== environment.id || planVersion.environmentRevision !== environment.revision)) {
+      throw new ApiError("VALIDATION_ERROR", "计划绑定的环境或配置版本已变化，请重新观察和批准");
+    }
     const parsedCase = TestCaseVersion.safeParse({
       ...caseVersion,
       description: caseVersion.description ?? undefined,
@@ -232,11 +240,20 @@ export async function createRun(
     });
   }
 
+  const templateIds = new Set<string>();
+  for (const pin of pins) {
+    const plan = await prisma.testPlanVersion.findUniqueOrThrow({where:{id:pin.planVersionId}});
+    for (const action of (plan.plan as { actions: Array<{type:string;templateId?:string}> }).actions) if(action.type === "apiCheck" && action.templateId) templateIds.add(action.templateId);
+  }
+  const templates = await prisma.apiTemplate.findMany({where:{id:{in:[...templateIds]},projectId,environmentId}});
+  if(templates.length !== templateIds.size) throw new ApiError("VALIDATION_ERROR","API 模板不存在或不属于目标环境");
   const environmentSnapshot = {
+    apiTemplates: Object.fromEntries(templates.map(t=>[t.id,t.request])),
     baseUrl: environment.baseUrl,
     allowedOrigins: environment.allowedOrigins,
     dependencyOrigins: environment.dependencyOrigins,
     secretRefs: environment.secretRefs,
+    runtime: environment.runtime,
     buildId: environment.buildMetadata,
     environmentRevision: environment.revision,
   };
@@ -271,7 +288,7 @@ export async function createRun(
       const raced = await prisma.run.findUnique({
         where: { projectId_idempotencyKey: { projectId, idempotencyKey: input.idempotencyKey } },
       });
-      if (raced) return resolveIdempotent(raced, identity, input.idempotencyKey);
+      if (raced) return resolveIdempotent(raced, identity, input.idempotencyKey, input.pinnedPlans);
     }
     throw err;
   }
@@ -288,10 +305,13 @@ function budgetFingerprint(budget: unknown): Record<string, number> {
 }
 
 function resolveIdempotent(
-  existing: { id: string; baselineId: string; environmentId: string; selectedCaseVersionIds: string[]; buildId: string | null; mode: string; budget: unknown },
+  existing: { id: string; baselineId: string; environmentId: string; selectedCaseVersionIds: string[]; buildId: string | null; mode: string; budget: unknown; casePlanPins: unknown },
   identity: Record<string, unknown>,
   idempotencyKey: string,
+  pinnedPlans?: CreateRunInput["pinnedPlans"],
 ): CreateRunResult {
+  const normalizePins = (value: unknown) => JSON.stringify((value as NonNullable<CreateRunInput["pinnedPlans"]>).map(p => ({ caseVersionId:p.caseVersionId, planVersionId:p.planVersionId, acceptanceHash:p.acceptanceHash })).sort((a,b)=>a.caseVersionId.localeCompare(b.caseVersionId)));
+  if (pinnedPlans && normalizePins(existing.casePlanPins) !== normalizePins(pinnedPlans)) throw new ApiError("IDEMPOTENCY_CONFLICT", "相同幂等键对应不同的复测计划");
   const existingIdentity = {
     baselineId: existing.baselineId,
     environmentId: existing.environmentId,

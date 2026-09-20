@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI QA · 产品 1.0 交互原型</title>
+<link rel="icon" href="data:,"><link rel="stylesheet" href="style.css">
+</head>
+<body>
+<aside class="sidebar">
+<a class="brand" href="#overview"><span class="brand-icon">Q</span><span>AI QA<small>独立测试工作台</small></span><span class="version">1.0</span></a>
+<div class="workspace"><span class="project-mark">采</span><div><strong>采购协同平台</strong><small>团队测试空间 · 示例项目</small></div></div>
+<div class="nav-label">项目工作台</div><nav id="navigation" aria-label="项目导航"></nav>
+<div class="sidebar-bottom"><div class="online"><i></i> 演示环境</div><p>用业务要求检验每一次交付。</p><div class="profile"><span>博</span><div>李博闻<small>测试负责人</small></div></div></div>
+</aside>
+<div class="app-shell">
+<header class="topbar"><div><span class="crumb">项目 / 采购协同平台 / </span><strong id="breadcrumb">概览</strong></div><div class="top-actions"><span class="prototype-label">交互原型 · 示例数据</span><button class="quiet" data-action="reset">重置演示</button></div></header>
+<main id="content" tabindex="-1"></main>
+<footer>AI QA 1.0 设计稿 · 所有执行均为本地模拟，不连接仓库或模型服务。<a href="../PRD.md">查看产品需求文档 ↗</a></footer>
+</div>
+<dialog id="detail" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="app.js"></script>
+</body></html>

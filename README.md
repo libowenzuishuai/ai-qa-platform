@@ -1,19 +1,16 @@
 # AI 测试人员平台
 
-> 阶段二采用 **TypeScript 平台 + Python 智能服务**。三人开工请先读 [分工与接口清单](docs/stage2-python-handoff.md)，Python 启动见 [服务说明](services/intelligence/README.md)。B 首版 Python 文档解析已实现；A 上传/解析/审阅平台接线已完成；C 正式生成算法与现场执行绑定待完成。
+> 阶段二采用 **TypeScript 平台 + Python 智能服务**。三人开工请先读 [分工与接口清单](docs/stage2-python-handoff.md)，Python 启动见 [服务说明](services/intelligence/README.md)。Python 文档解析、规则/用例生成和通用现场绑定已接通。最新范围与使用方式见 [前四步实施与验收](docs/delivery/v1-implementation.md)。
 根据版本化产品资料（PRD、业务说明、原型）形成有依据的规则与用例，在多人
 开发合并后的 Web 测试环境中独立执行验收测试，输出可追溯报告、缺陷与复测。
 
-- 产品规格：[docs/ai-qa/02-产品需求文档-PRD.md](docs/ai-qa/02-产品需求文档-PRD.md)
+- **产品 1.0 设计稿（第二版）**：[产品战略与商业验证](docs/product/v1.0/PRODUCT-STRATEGY.md) · [PRD 与验收范围](docs/product/v1.0/PRD.md) · [可点击原型说明](docs/product/v1.0/prototype/README.md)
+- 历史产品规格（0.1）：[docs/ai-qa/02-产品需求文档-PRD.md](docs/ai-qa/02-产品需求文档-PRD.md)
 - 项目评审：[docs/ai-qa/01-项目评审.md](docs/ai-qa/01-项目评审.md)
 - 开发提示词：[docs/ai-qa/03-GLM开发提示词.md](docs/ai-qa/03-GLM开发提示词.md)
 - 实施状态：[docs/implementation-status.md](docs/implementation-status.md)
 
-> 当前处于**阶段 1.1（固定用例真实浏览器执行闭环 + 独立评审修复）**：登录
-> 平台 → 选择环境与固定用例 → 真实浏览器执行（连接层网络策略、CAS 生命
-> 周期、固定计划版本、证据完整性复核）→ 持久化进度/断言/截图/trace →
-> 报告与复验。AI 自动生成测试（资料解析、模型规划）在阶段 2 起；本阶段
-> 用例为人工种子（origin=manual），执行 mode=real。不应作为生产测试平台部署。
+> 当前工作区新增 GitHub 资料发现、通用观察与计划批准、七个产品页面、任务/缺陷/新构建复测、HTTP API 检查及 Node/Python 自有运行器。两个合成业务通过真实 Kimi + 浏览器验证。范围限制和证据见 [实施验收](docs/delivery/v1-implementation.md)，不代表完整商业 1.0 已验收。
 
 ## 目录结构
 
@@ -26,7 +23,7 @@ packages/contracts       领域契约：状态机、TestPlan v1、断言语义�
 packages/artifact-store  证据存储：受控目录、checksum、防目录穿越
 packages/test-runtime    Playwright 执行器：七动作、导航策略、程序化断言、证据采集
 packages/evaluation      确定性聚合：case verdict、运行指标、严格验收（FR-10）
-packages/model-adapters  模型适配器（占位，阶段 2）
+packages/model-adapters  Moonshot 文本/视觉适配器与显式 mock 协议
 packages/doc-ingestion   Python 文档解析迁移说明（不再维护 TS 解析库）
 tools/phase1-acceptance  阶段 1 集成验收 harness（评测器专用，53 项场景）
 docs/ai-qa               产品规格资料包
