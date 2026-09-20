@@ -117,7 +117,7 @@ it("真实文件上传 → Redis → worker → Python → 解析文件/来源�
   expect(await env.prisma.sourceSpan.count({ where: { documentVersionId } })).toBe(1);
   expect((await app.inject({ url: `/api/document-versions/${documentVersionId}`, headers: cookieHeader })).json().bundle.spans[0].quotedText).toBe("金额超过 5000 元须审批");
 });
-it("规则提取协议替身 → 澄清前禁止批准 → 确认回答 → 批准 → 仅相关回答传给用例生成", async () => {
+it("正式 Python 规则/用例管线（模型 mock） → 澄清前禁止批准 → 确认回答 → 批准 → 仅相关回答传给用例生成", async () => {
   const extraction = await post(`/api/projects/${projectId}/rule-extractions`, { documentVersionIds: [documentVersionId], mode: "mock" });
   const job = await waitJob(extraction.json().jobId); expect(job.status, JSON.stringify(job.error)).toBe("SUCCEEDED");
   ruleId = (job.result as any).ruleVersionIds[0]; clarificationId = (job.result as any).clarificationIds[0];
@@ -140,6 +140,9 @@ it("规则提取协议替身 → 澄清前禁止批准 → 确认回答 → 批�
   const c = await env.prisma.testCaseVersion.findUniqueOrThrow({ where: { id: (generated.result as any).caseVersionIds[0] } });
   expect(TestCaseVersion.safeParse({ ...c, createdAt: c.createdAt.toISOString(), description: c.description ?? undefined, approvalHash: c.approvalHash ?? undefined }).success).toBe(true);
   expect(c).toMatchObject({ approvalStatus: "DRAFT", generationMode: "mock" });
+  const records = await env.prisma.modelInvocation.findMany({ where: { projectId } });
+  expect(records).toHaveLength(2);
+  expect(records.every(r => r.provider === "mock" && r.promptVersion === "agents-v2")).toBe(true);
   expect(await env.prisma.auditEvent.count({ where: { entityId: ruleId, action: "ruleVersion.approve" } })).toBe(1);
 });
 it("追加版本保留旧版本与来源；坏文件为 FAILED，显式重试可恢复状态", async () => {

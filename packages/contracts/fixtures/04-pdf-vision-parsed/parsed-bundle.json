@@ -1,0 +1,44 @@
+{
+  "documentVersionId": "doc-vision-1",
+  "format": "PDF_SCANNED",
+  "parseStatus": "PARSED",
+  "parserVersion": "pdf-vision-kimi-1",
+  "blocks": [
+    {
+      "id": "vb-1",
+      "kind": "heading",
+      "text": "采购审批规定",
+      "page": 1
+    },
+    {
+      "id": "vb-2",
+      "kind": "paragraph",
+      "text": "单笔采购订单金额超过 2000.00 元的，必须提交部门主管审批后执行。",
+      "page": 1
+    },
+    {
+      "id": "vb-3",
+      "kind": "paragraph",
+      "text": "本页右下角附则区域版面模糊，整页识别后仍不可读。",
+      "page": 1
+    }
+  ],
+  "spans": [
+    {
+      "id": "vspan-1",
+      "documentVersionId": "doc-vision-1",
+      "locator": { "kind": "pdf-page", "page": 1 },
+      "quotedText": "单笔采购订单金额超过 2000.00 元的，必须提交部门主管审批后执行。",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "vspan-2",
+      "documentVersionId": "doc-vision-1",
+      "locator": { "kind": "image-region", "bbox": [420.0, 780.0, 595.0, 842.0] },
+      "quotedText": null,
+      "extractionQuality": "UNPARSED"
+    }
+  ],
+  "coverageSummary": { "totalBlocks": 3, "goodSpans": 1, "lowSpans": 0, "unparsedSpans": 1 },
+  "warnings": ["第 1 页右下角附则区域整页识别后仍不可读，已标记 UNPARSED"]
+}

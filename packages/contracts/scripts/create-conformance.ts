@@ -4,7 +4,7 @@ import { RuleExtractionInput, RuleExtractionOutput, CaseGenerationInput, CaseGen
 const root = fileURLToPath(new URL('../fixtures/', import.meta.url));
 const read = (dir: string, name: string) => JSON.parse(readFileSync(root + dir + '/' + name, 'utf8'));
 const vectors: any[] = [];
-for (const dir of ['01-explicit-prd','02-conflict-prd','03-missing-boundary']) {
+for (const dir of ['01-explicit-prd','02-conflict-prd','03-missing-boundary','04-pdf-vision-parsed','05-pdf-vision-low']) {
   const input = RuleExtractionInput.parse({documentVersions:[read(dir,'parsed-bundle.json')],promptVersion:'handoff-1'});
   const output = RuleExtractionOutput.parse(read(dir,'expected-rule-drafts.json'));
   vectors.push({name:dir,kind:'rules',input,output,valid:true});
@@ -35,4 +35,32 @@ mutate('case-invented-fixture',index,v=>v.output.caseDrafts[0].dataSpec={strateg
 mutate('case-missing-coverage',index,v=>v.output.coverageMap=[]);
 mutate('case-numeric-without-unit',index,v=>{v.output.caseDrafts[0].assertions[0].operator='gt';v.output.caseDrafts[0].assertions[0].expected=500000;});
 mutate('case-unapproved-rule',index,v=>v.input.approvedRuleVersions[0].reviewStatus='DRAFT');
+// A review: quality provenance and coverage must be enforced, not just demonstrated.
+for (const classification of ['EXPLICIT', 'INFERRED', 'UNKNOWN']) {
+  mutate(`rule-unparsed-source-${classification.toLowerCase()}`,3,v=>{
+    v.output.ruleDrafts[0].classification=classification;
+    v.output.ruleDrafts[0].sources[0].sourceSpanIds=['vspan-2'];
+  });
+}
+mutate('rule-low-source-explicit',4,v=>v.output.ruleDrafts[0].classification='EXPLICIT');
+mutate('rule-missing-unparsed-range',3,v=>v.output.unparsedRanges=[]);
+mutate('rule-self-conflict',0,v=>v.output.ruleDrafts[0].conflictsWith=[v.output.ruleDrafts[0].key]);
+mutate('rule-duplicate-document',0,v=>v.input.documentVersions.push(structuredClone(v.input.documentVersions[0])));
+mutate('rule-duplicate-span',0,v=>{const b=v.input.documentVersions[0];b.spans.push(structuredClone(b.spans[0]));b.coverageSummary.goodSpans++;});
+mutate('case-fabricated-count',index,v=>v.output.coverageMap[0].caseCount=99);
+mutate('case-fabricated-dimension',index,v=>v.output.coverageMap[0].dimensionsCovered=['PERMISSION']);
+mutate('case-duplicate-coverage',index,v=>v.output.coverageMap.push(structuredClone(v.output.coverageMap[0])));
+mutate('case-empty-coverage-without-blocker',index,v=>{v.output.caseDrafts=[];v.output.coverageMap[0].caseCount=0;v.output.coverageMap[0].dimensionsCovered=[];});
+mutate('case-unasserted-rule',index,v=>{
+  v.input.approvedRuleVersions.push({...v.input.approvedRuleVersions[0],id:'rule-v2',ruleId:'rule-2'});
+  v.output.caseDrafts[0].ruleVersionIds.push('rule-v2');
+  v.output.coverageMap.push({...v.output.coverageMap[0],ruleVersionId:'rule-v2'});
+});
+const blockedValid = structuredClone(vectors[index]);
+blockedValid.name = 'case-explicit-blocker-valid';
+blockedValid.output.caseDrafts = [];
+blockedValid.output.coverageMap[0].caseCount = 0;
+blockedValid.output.coverageMap[0].dimensionsCovered = [];
+blockedValid.output.blockedRequirements = [{ruleVersionId:'rule-v1',reason:'MISSING_LOGIN',detail:'没有测试账号，不能执行'}];
+vectors.push(blockedValid);
 writeFileSync(root+'intelligence-conformance.json',JSON.stringify(vectors,null,2)+'\n');

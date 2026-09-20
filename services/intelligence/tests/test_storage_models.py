@@ -82,13 +82,14 @@ def test_real_requires_configuration(tmp_path, monkeypatch):
     assert exc.value.code == "MODEL_NOT_CONFIGURED"
 
 
-def test_real_http_protocol_without_external_network(tmp_path, monkeypatch):
+@pytest.mark.parametrize("model", ["model-test", "kimi-k2.6"])
+def test_real_http_protocol_without_external_network(tmp_path, monkeypatch, model):
     import json
 
     for name, value in {
         "PROVIDER": "moonshot",
         "BASE_URL": "https://model.invalid/v1",
-        "MODEL": "model-test",
+        "MODEL": model,
         "API_KEY": "fake-test-key",
     }.items():
         monkeypatch.setenv("AIQA_TEXT_" + name, value)
@@ -97,6 +98,8 @@ def test_real_http_protocol_without_external_network(tmp_path, monkeypatch):
     def handle(request):
         body = json.loads(request.content)
         assert body["max_tokens"] == 7
+        if model == "kimi-k2.6":
+            assert body["thinking"] == {"type": "disabled"}
         assert request.headers["authorization"] == "Bearer fake-test-key"
         return httpx.Response(
             200,

@@ -226,6 +226,7 @@ describe("用例生成联合校验（李琦双）", () => {
         expectation: draft.expectation,
         sources: [],
         origin: "model",
+        reviewStatus: "APPROVED",
         createdAt: "2026-09-18T00:00:00Z",
       }),
     );
@@ -272,8 +273,9 @@ describe("用例生成联合校验（李琦双）", () => {
       ],
       coverageMap: input.approvedRuleVersions
         .filter((r) => r.id !== overrides.dropCoverageRuleId)
-        .map((r) => ({ ruleVersionId: r.id, caseCount: 1, dimensionsCovered: ["BOUNDARY"] })),
-      blockedRequirements: [],
+        .map((r) => ({ ruleVersionId: r.id, caseCount: r.id === ruleId ? 1 : 0, dimensionsCovered: r.id === ruleId ? ["BOUNDARY"] : [] })),
+      blockedRequirements: input.approvedRuleVersions.filter(r => r.id !== ruleId && r.id !== overrides.dropCoverageRuleId)
+        .map(r => ({ ruleVersionId: r.id, reason: "INSUFFICIENT_INFO", detail: "本样例只构造第一条规则的用例" })),
     });
     return { input, output };
   }

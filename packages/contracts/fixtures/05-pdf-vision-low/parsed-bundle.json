@@ -1,0 +1,25 @@
+{
+  "documentVersionId": "doc-vision-low-1",
+  "format": "PDF_SCANNED",
+  "parseStatus": "PARSED",
+  "parserVersion": "pdf-vision-kimi-1",
+  "blocks": [
+    {
+      "id": "lb-1",
+      "kind": "paragraph",
+      "text": "报销单在提交后 3 个工作日内完成复核。",
+      "page": 2
+    }
+  ],
+  "spans": [
+    {
+      "id": "lspan-1",
+      "documentVersionId": "doc-vision-low-1",
+      "locator": { "kind": "pdf-page", "page": 2 },
+      "quotedText": "报销单在提交后 3 个工作日内完成复核。",
+      "extractionQuality": "LOW"
+    }
+  ],
+  "coverageSummary": { "totalBlocks": 1, "goodSpans": 0, "lowSpans": 1, "unparsedSpans": 0 },
+  "warnings": ["第 2 页为低对比度扫描件，文字由视觉模型转录，未经人工核对原文"]
+}

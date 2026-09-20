@@ -1,0 +1,355 @@
+{
+  "note": "Development trials retained, including timeout, schema and asymmetric-conflict failures. A stopped batch has no completedAt. Failed or cancelled calls without metadata have unknown token cost. These are not independent accuracy samples.",
+  "trials": [
+    {
+      "batch": "aiqa-c-kimi-eval",
+      "passed": null,
+      "completedAt": null,
+      "evaluations": [
+        {
+          "name": "01-explicit-prd",
+          "kind": "rules",
+          "passed": false,
+          "error": {
+            "code": "MODEL_TIMEOUT",
+            "message": "模型调用超时"
+          },
+          "invocations": []
+        },
+        {
+          "name": "02-conflict-prd",
+          "kind": "rules",
+          "passed": true,
+          "draftCount": 2,
+          "invocations": [
+            {
+              "provider": "moonshot",
+              "model": "kimi-k2.6",
+              "requestId": "chatcmpl-6aaf4e4e3b3cfa45da35e9fe",
+              "usage": {
+                "inputTokens": 2665,
+                "outputTokens": 1968,
+                "estimatedCost": null
+              },
+              "latencyMs": 52472
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "batch": "aiqa-c-kimi-eval-v2",
+      "passed": false,
+      "completedAt": "2026-09-20T03:12:23.492734+00:00",
+      "evaluations": [
+        {
+          "name": "01-explicit-prd",
+          "kind": "rules",
+          "passed": true,
+          "draftCount": 7,
+          "invocations": [
+            {
+              "provider": "moonshot",
+              "model": "kimi-k2.6",
+              "requestId": "chatcmpl-6aaf4ee417b0b0d8781813d8",
+              "usage": {
+                "inputTokens": 2851,
+                "outputTokens": 980,
+                "estimatedCost": null
+              },
+              "latencyMs": 25950
+            }
+          ]
+        },
+        {
+          "name": "02-conflict-prd",
+          "kind": "rules",
+          "passed": true,
+          "draftCount": 2,
+          "invocations": [
+            {
+              "provider": "moonshot",
+              "model": "kimi-k2.6",
+              "requestId": "chatcmpl-6aaf4efe304258b32c72b8f0",
+              "usage": {
+                "inputTokens": 2665,
+                "outputTokens": 337,
+                "estimatedCost": null
+              },
+              "latencyMs": 9667
+            }
+          ]
+        },
+        {
+          "name": "03-missing-boundary",
+          "kind": "rules",
+          "passed": false,
+          "error": {
+            "code": "MODEL_OUTPUT_INVALID",
+            "message": "模型输出不符合 outputSchema"
+          },
+          "invocations": []
+        }
+      ]
+    },
+    {
+      "batch": "aiqa-c-kimi-edge",
+      "passed": true,
+      "completedAt": "2026-09-20T03:15:59.507826+00:00",
+      "evaluations": [
+        {
+          "name": "03-missing-boundary",
+          "kind": "rules",
+          "passed": true,
+          "draftCount": 4,
+          "invocations": [
+            {
+              "provider": "moonshot",
+              "model": "kimi-k2.6",
+              "requestId": "chatcmpl-6aaf4fd817b0b0d87818142b",
+              "usage": {
+                "inputTokens": 2580,
+                "outputTokens": 402,
+                "estimatedCost": null
+              },
+              "latencyMs": 11468
+            }
+          ]
+        },
+        {
+          "name": "04-pdf-vision-parsed",
+          "kind": "rules",
+          "passed": true,
+          "draftCount": 1,
+          "invocations": [
+            {
+              "provider": "moonshot",
+              "model": "kimi-k2.6",
+              "requestId": "chatcmpl-6aaf4fe466b3944e3b6dc5ad",
+              "usage": {
+                "inputTokens": 2480,
+                "outputTokens": 156,
+                "estimatedCost": null
+              },
+              "latencyMs": 5130
+            }
+          ]
+        },
+        {
+          "name": "05-pdf-vision-low",
+          "kind": "rules",
+          "passed": true,
+          "draftCount": 1,
+          "invocations": [
+            {
+              "provider": "moonshot",
+              "model": "kimi-k2.6",
+              "requestId": "chatcmpl-6aaf4fe9d08e920b104a9d47",
+              "usage": {
+                "inputTokens": 2285,
+                "outputTokens": 183,
+                "estimatedCost": null
+              },
+              "latencyMs": 6316
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "batch": "aiqa-c-kimi-cases",
+      "passed": true,
+      "completedAt": "2026-09-20T03:17:31.260334+00:00",
+      "evaluations": [
+        {
+          "name": "case-real-threshold",
+          "kind": "cases",
+          "passed": true,
+          "draftCount": 3,
+          "invocations": [
+            {
+              "provider": "moonshot",
+              "model": "kimi-k2.6",
+              "requestId": "chatcmpl-6aaf501c6469cf08913788c6",
+              "usage": {
+                "inputTokens": 2760,
+                "outputTokens": 1686,
+                "estimatedCost": null
+              },
+              "latencyMs": 47643
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "batch": "aiqa-c-kimi-final",
+      "passed": false,
+      "completedAt": "2026-09-20T03:19:06.630117+00:00",
+      "evaluations": [
+        {
+          "name": "01-explicit-prd",
+          "kind": "rules",
+          "passed": true,
+          "draftCount": 7,
+          "invocations": [
+            {
+              "provider": "moonshot",
+              "model": "kimi-k2.6",
+              "requestId": "chatcmpl-6aaf508911fd26700f1abe77",
+              "usage": {
+                "inputTokens": 2874,
+                "outputTokens": 1082,
+                "estimatedCost": null
+              },
+              "latencyMs": 24907
+            }
+          ]
+        },
+        {
+          "name": "02-conflict-prd",
+          "kind": "rules",
+          "passed": false,
+          "error": {
+            "code": "MODEL_OUTPUT_INVALID",
+            "message": "冲突没有互指"
+          },
+          "invocations": [
+            {
+              "provider": "moonshot",
+              "model": "kimi-k2.6",
+              "requestId": "chatcmpl-6aaf50a2304258b32c72b9e6",
+              "usage": {
+                "inputTokens": 2688,
+                "outputTokens": 279,
+                "estimatedCost": null
+              },
+              "latencyMs": 8564
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "batch": "aiqa-c-kimi-final2",
+      "passed": true,
+      "completedAt": "2026-09-20T03:23:48.125117+00:00",
+      "evaluations": [
+        {
+          "name": "01-explicit-prd",
+          "kind": "rules",
+          "passed": true,
+          "draftCount": 7,
+          "invocations": [
+            {
+              "provider": "moonshot",
+              "model": "kimi-k2.6",
+              "requestId": "chatcmpl-6aaf516101d7e9c25942d74e",
+              "usage": {
+                "inputTokens": 2927,
+                "outputTokens": 735,
+                "estimatedCost": null
+              },
+              "latencyMs": 16120
+            }
+          ]
+        },
+        {
+          "name": "02-conflict-prd",
+          "kind": "rules",
+          "passed": true,
+          "draftCount": 2,
+          "invocations": [
+            {
+              "provider": "moonshot",
+              "model": "kimi-k2.6",
+              "requestId": "chatcmpl-6aaf51714c1c72344d1d70bf",
+              "usage": {
+                "inputTokens": 2741,
+                "outputTokens": 340,
+                "estimatedCost": null
+              },
+              "latencyMs": 9779
+            }
+          ]
+        },
+        {
+          "name": "03-missing-boundary",
+          "kind": "rules",
+          "passed": true,
+          "draftCount": 4,
+          "invocations": [
+            {
+              "provider": "moonshot",
+              "model": "kimi-k2.6",
+              "requestId": "chatcmpl-6aaf517b92d62104c27ff6d4",
+              "usage": {
+                "inputTokens": 2633,
+                "outputTokens": 471,
+                "estimatedCost": null
+              },
+              "latencyMs": 13396
+            }
+          ]
+        },
+        {
+          "name": "04-pdf-vision-parsed",
+          "kind": "rules",
+          "passed": true,
+          "draftCount": 2,
+          "invocations": [
+            {
+              "provider": "moonshot",
+              "model": "kimi-k2.6",
+              "requestId": "chatcmpl-6aaf51897eb9586e5bd98294",
+              "usage": {
+                "inputTokens": 2533,
+                "outputTokens": 395,
+                "estimatedCost": null
+              },
+              "latencyMs": 11619
+            }
+          ]
+        },
+        {
+          "name": "05-pdf-vision-low",
+          "kind": "rules",
+          "passed": true,
+          "draftCount": 1,
+          "invocations": [
+            {
+              "provider": "moonshot",
+              "model": "kimi-k2.6",
+              "requestId": "chatcmpl-6aaf51947eb9586e5bd9829f",
+              "usage": {
+                "inputTokens": 2338,
+                "outputTokens": 174,
+                "estimatedCost": null
+              },
+              "latencyMs": 5414
+            }
+          ]
+        },
+        {
+          "name": "case-real-threshold",
+          "kind": "cases",
+          "passed": true,
+          "draftCount": 5,
+          "invocations": [
+            {
+              "provider": "moonshot",
+              "model": "kimi-k2.6",
+              "requestId": "chatcmpl-6aaf519ab708263b1ca64887",
+              "usage": {
+                "inputTokens": 2754,
+                "outputTokens": 1995,
+                "estimatedCost": null
+              },
+              "latencyMs": 42346
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

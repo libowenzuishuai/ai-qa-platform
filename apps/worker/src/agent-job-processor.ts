@@ -235,7 +235,7 @@ async function runRuleExtraction(
     projectGlossary: request.glossaryUpdates ?? [],
     documentVersions: bundles,
     images: [],
-    promptVersion: config.intelligenceBackend === "python" ? "agents-v1" : REFERENCE_PROMPT_VERSION,
+    promptVersion: config.intelligenceBackend === "python" ? "agents-v2" : REFERENCE_PROMPT_VERSION,
   });
   const remote = config.intelligenceBackend === "python"
     ? await callIntelligence(config, "rules", job.id, request.mode, input) : null;
@@ -406,7 +406,7 @@ async function runCaseGeneration(prisma: PrismaClient, job: JobRow, config: Work
 
   if (request.mode === "real" && await prisma.ruleVersion.count({ where: { id: { in: request.ruleVersionIds }, origin: "model", OR: [{ generationMode: null }, { generationMode: { not: "real" } }] } })) throw Object.assign(new Error("模拟或模式未核验的规则不能用于真实用例生成"), { code: "VALIDATION_ERROR" });
   const input = await buildCaseGenerationJobInput(prisma, job.projectId, request.ruleVersionIds,
-    config.intelligenceBackend === "python" ? "agents-v1" : REFERENCE_PROMPT_VERSION);
+    config.intelligenceBackend === "python" ? "agents-v2" : REFERENCE_PROMPT_VERSION);
   const remote = config.intelligenceBackend === "python"
     ? await callIntelligence(config, "cases", job.id, request.mode, input) : null;
   const output = remote ? CaseGenerationOutput.parse(remote.output) : await referenceCaseGenerationPipeline(

@@ -1,7 +1,11 @@
 """TEST ONLY: real document parser + narrowly registered C outputs, never a real model.
-The production agents package remains unimplemented; this proves platform integration only.
+The default production AgentPipelines runs against a narrowly registered model gateway.
+Mock proves integration and persistence, not real model quality.
 """
 
+import json
+from types import SimpleNamespace
+from aiqa_intelligence.models import Gateway
 from aiqa_intelligence.app import create_app
 from aiqa_intelligence.contracts.generated import (
     RuleExtractionOutput,
@@ -113,4 +117,24 @@ class RegisteredAgents:
         )
 
 
-app = create_app(token="platform-test-token", agents=RegisteredAgents())
+class RegisteredGateway(Gateway):
+    async def complete_text(self, request):
+        if self.mode != "mock":
+            raise ServiceError("MODEL_OUTPUT_INVALID", "test fixture only accepts mock")
+        data = json.loads(request.user)
+        context = SimpleNamespace(mode="mock")
+        fixture = RegisteredAgents()
+        if request.purpose == "RULE_EXTRACTION":
+            documents = [SimpleNamespace(documentVersionId=b["documentVersionId"], spans=[SimpleNamespace(**s) for s in b["sourceSpans"]]) for b in data["documentVersions"]]
+            result = await fixture.extract_rules(SimpleNamespace(documentVersions=documents), context)
+        elif request.purpose == "CASE_GENERATION":
+            input = SimpleNamespace(approvedRuleVersions=[SimpleNamespace(**r) for r in data["approvedRuleVersions"]], clarificationSources=[SimpleNamespace(**c) for c in data["clarificationSources"]])
+            result = await fixture.generate_cases(input, context)
+        else:
+            raise ServiceError("MODEL_OUTPUT_INVALID", "test registration miss")
+        self.register_mock(request, result.model_dump(mode="json", exclude_unset=True))
+        return await super().complete_text(request)
+
+
+# Default AgentPipelines: only model responses are substituted.
+app = create_app(token="platform-test-token", gateway_factory=RegisteredGateway)

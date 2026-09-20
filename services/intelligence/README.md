@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-已提供服务、协议、生成类型、业务校验、模型网关、只读文件访问、测试与 TS 客户端。B 的首版 Python 文档解析已实现，`documentParse=true`；C 的规则/用例算法仍未实现，对应 capabilities=false、调用返回 503。文档上传与 DOCUMENT_PARSE 作业已接入平台，来源和解析文件由 worker 落库；最小审阅工作台已提供。
+已提供服务、协议、生成类型、业务校验、模型网关、只读文件访问、测试与 TS 客户端。B 的首版 Python 文档解析已实现，`documentParse=true`；C 的规则提取与用例生成已实现，`ruleExtraction=true`、`caseGeneration=true`；A 已补公共来源质量与覆盖对账。文档上传与 DOCUMENT_PARSE 作业已接入平台，来源和解析文件由 worker 落库；最小审阅工作台已提供。
 
 ## 本地启动（从仓库根目录）
 
@@ -21,7 +21,7 @@ pnpm dev:intelligence
 
 服务监听 `127.0.0.1:7500`。以上令牌只用于本机开发示例；共享/部署环境使用自己的令牌。服务不自动读取根 `.env`，凭据由进程环境注入，避免测试意外调用付费模型。
 
-需要模型时设置现有 `AIQA_TEXT_*` / `AIQA_VISION_*` 环境变量。只有显式 real 调用会访问 Moonshot；mock 查表未命中直接失败。Python 网关目前严格 JSON 解析（修复次数为 0），不修改业务正文；网络协议用 mock transport 测试。2026-09-18 已完成 Kimi 2.6 真实文本连通和两页 PDF 视觉识别验证，见 [验收记录](../../docs/reviews/pdf-kimi-vision-2026-09-18.md)；这不代表 C 的生成算法已验收。
+需要模型时设置现有 `AIQA_TEXT_*` / `AIQA_VISION_*` 环境变量。只有显式 real 调用会访问 Moonshot；mock 查表未命中直接失败。Python 网关目前严格 JSON 解析（修复次数为 0），不修改业务正文；网络协议用 mock transport 测试。2026-09-18 已完成 Kimi 2.6 真实文本连通和两页 PDF 视觉识别验证，见 [验收记录](../../docs/reviews/pdf-kimi-vision-2026-09-18.md)；这是历史视觉小样；C 正式生成验收见 [2026-09-20 合并记录](../../docs/reviews/python-agents-2026-09-20.md)。
 
 ## API 与 worker 切换
 
@@ -33,7 +33,7 @@ export AIQA_INTELLIGENCE_TOKEN='与 Python 服务相同的令牌'
 export AIQA_INTELLIGENCE_TIMEOUT_MS='120000'
 ```
 
-默认 `reference` 是迁移兼容模式，继续使用已存在的 TS 参考管线；Python 出错不会回退。C 完成前切换 Python 的规则/用例管线仍会得到“模块待实现”的明确失败。文档解析同时支持内部 HTTP 和平台上传作业，不受 reference 开关影响。
+默认 `python` 使用正式规则/用例管线，提示词版本 `agents-v2`。`reference` 只在显式配置时使用已有 TS 参考管线；Python 出错不会回退。缺内部 URL/令牌、模型配置或输出无效均明确失败。文档解析同时支持内部 HTTP 和平台上传作业，不受 reference 开关影响。
 
 ## 内部接口 v1
 
@@ -107,3 +107,20 @@ PYTHONPATH=services/intelligence/src services/intelligence/.venv/bin/python \
 本地 `.env.local`（已被 Git 忽略）使用 `AIQA_VISION_PROVIDER=moonshot`、`AIQA_VISION_BASE_URL=https://api.moonshot.cn/v1`、`AIQA_VISION_MODEL=kimi-k2.6` 和自己的 `AIQA_VISION_API_KEY`。服务启动时将这些变量注入进程环境；脚本的 `--env-file` 不会自动影响其他进程。若本机设置了 SOCKS `ALL_PROXY` 但没有安装对应 httpx 可选依赖，可仅在该次命令前使用 `env -u ALL_PROXY -u all_proxy`；无需修改全局代理。
 
 PDF/图片的 mock 或模式未知解析产物都不能进入 real 规则提取，API 和 worker 会重复检查。旧状态名 `NEEDS_OCR` 为兼容协议保留，界面含义是“待识别/人工复核”，不代表采用了 OCR 引擎。
+
+
+### 正式规则 / 用例管线验收
+
+```sh
+PYTHONPATH=services/intelligence/src services/intelligence/.venv/bin/python \
+  services/intelligence/scripts/verify_kimi_agents.py --env-file .env.local \
+  --output /tmp/aiqa-kimi-agents.json
+pnpm --filter @ai-qa/contracts exec node --import tsx scripts/verify-real-vectors.ts \
+  /tmp/aiqa-kimi-agents.vectors.json
+```
+
+显式读取 `AIQA_TEXT_*` 凭据，只发送五套公开合成资料与一套已确认阈值规则；最多六次调用，失败即停止，不自动重试。输出保存实际 requestId、用量、提示词版本 / 源文件哈希、输入与模型结果供 TS 落库契约复验。文本 Kimi 2.6 请求关闭 thinking，最长 120 秒、输出最多 8192 token；超时、截断或不合法数据不修补为成功。
+
+UNPARSED 不得成为任何规则来源，且必须出现在遗漏说明中；LOW 不能升级为 EXPLICIT。覆盖表必须与实际用例数和维度一致；没有用例时明确列阻塞。长文档先执行 150000 字符上限，不静默截断；自动分块尚未实现。
+
+本地服务不会自动读取 `.env` / `.env.local`。启动前分别把配置注入 API/worker/Python 进程；模型凭据只需给 Python，内部令牌在 worker/Python 一致。Docker 启用 `intelligence` profile；完整应用容器化仍需单独验收。

@@ -342,9 +342,11 @@ describe("阶段 2 纵向链路（mock 全链路）", () => {
         },
       ],
       coverageMap: caseInput.approvedRuleVersions.map((r) => ({
-        ruleVersionId: r.id, caseCount: 1, dimensionsCovered: ["BOUNDARY"],
+        ruleVersionId: r.id, caseCount: r.id === approvedIds[0] ? 1 : 0, dimensionsCovered: r.id === approvedIds[0] ? ["BOUNDARY"] : [],
       })),
-      blockedRequirements: [],
+      blockedRequirements: caseInput.approvedRuleVersions.filter(r => r.id !== approvedIds[0]).map(r => ({
+        ruleVersionId: r.id, reason: "INSUFFICIENT_INFO", detail: "该测试仅注册第一条规则的用例，其余保留缺口",
+      })),
     });
     registerMockResponse(inputHash("CASE_GENERATION", system, user), golden);
 
@@ -482,7 +484,7 @@ it("Python 输出经平台联合校验后落库，调用记录保留实际提示
  const docId=(job.request as {documentVersionIds:string[]}).documentVersionIds[0]!;
  const output=rebaseGolden(loadFixture("01-explicit-prd","expected-rule-drafts.json"),docId);
  const fetch=vi.spyOn(globalThis,"fetch").mockResolvedValue(new Response(JSON.stringify({
-  schemaVersion:"1.0",requestId:job.id,mode:"mock",output,invocations:[{purpose:"RULE_EXTRACTION",promptVersion:"agents-v1",response:{
+  schemaVersion:"1.0",requestId:job.id,mode:"mock",output,invocations:[{purpose:"RULE_EXTRACTION",promptVersion:"agents-v2",response:{
    parsedJson:output,rawText:JSON.stringify(output),repairsApplied:[],provider:"mock",model:"mock",requestId:"py-model-1",
    usage:{inputTokens:1,outputTokens:2},latencyMs:1,outcome:"SUCCESS",
   }}],
@@ -491,8 +493,8 @@ it("Python 输出经平台联合校验后落库，调用记录保留实际提示
  finally {fetch.mockRestore();}
  const done=await env.prisma.job.findUniqueOrThrow({where:{id:job.id}});
  expect(done.status).toBe("SUCCEEDED");
- expect(await env.prisma.ruleVersion.count({where:{rule:{projectId:job.projectId},promptVersion:"agents-v1"}})).toBe(3);
- expect(await env.prisma.modelInvocation.count({where:{projectId:job.projectId,promptVersion:"agents-v1",requestId:"py-model-1"}})).toBe(1);
+ expect(await env.prisma.ruleVersion.count({where:{rule:{projectId:job.projectId},promptVersion:"agents-v2"}})).toBe(3);
+ expect(await env.prisma.modelInvocation.count({where:{projectId:job.projectId,promptVersion:"agents-v2",requestId:"py-model-1"}})).toBe(1);
 });
 it("Python 传回伪造来源也被平台阻断，不能写入草稿", async()=>{
  const job=await extractionJob();

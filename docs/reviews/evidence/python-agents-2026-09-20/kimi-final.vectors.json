@@ -1,0 +1,1325 @@
+[
+  {
+    "name": "01-explicit-prd",
+    "kind": "rules",
+    "input": {
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-v-01",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "fixture-manual-1",
+          "blocks": [
+            {
+              "id": "blk-01-1",
+              "kind": "heading",
+              "text": "采购审批系统需求"
+            },
+            {
+              "id": "blk-01-2",
+              "kind": "heading",
+              "text": "1. 概述"
+            },
+            {
+              "id": "blk-01-3",
+              "kind": "paragraph",
+              "text": "本系统用于管理采购申请的创建、提交与审批流程，覆盖申请人与部门主管两类角色。"
+            },
+            {
+              "id": "blk-01-4",
+              "kind": "heading",
+              "text": "2. 审批规则"
+            },
+            {
+              "id": "blk-01-5",
+              "kind": "paragraph",
+              "text": "订单金额超过 5000.00 元的采购单必须提交部门主管审批。订单金额不超过 5000.00 元的采购单直接进入付款待办。"
+            },
+            {
+              "id": "blk-01-6",
+              "kind": "heading",
+              "text": "3. 角色权限"
+            },
+            {
+              "id": "blk-01-7",
+              "kind": "paragraph",
+              "text": "申请人可以创建并提交采购单。部门主管可以审批采购单。申请人不可审批自己提交的采购单。"
+            },
+            {
+              "id": "blk-01-8",
+              "kind": "heading",
+              "text": "4. 数据要求"
+            },
+            {
+              "id": "blk-01-9",
+              "kind": "paragraph",
+              "text": "采购单金额以分为单位存储，精确到分。金额展示时保留两位小数。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "span-01-1",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "采购审批系统需求",
+                  "2. 审批规则"
+                ]
+              },
+              "quotedText": "审批规则",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-2",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 9,
+                "endLine": 9
+              },
+              "quotedText": "订单金额超过 5000.00 元的采购单必须提交部门主管审批",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-3",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 13,
+                "endLine": 13
+              },
+              "quotedText": "申请人不可审批自己提交的采购单",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-01-4",
+              "documentVersionId": "doc-v-01",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 17,
+                "endLine": 17
+              },
+              "quotedText": "采购单金额以分为单位存储，精确到分",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 9,
+            "goodSpans": 4,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          },
+          "warnings": []
+        }
+      ],
+      "projectGlossary": [],
+      "images": [],
+      "promptVersion": "agents-v2"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "订单金额超过5000.00元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "precondition": "创建采购单且订单金额超过5000.00元",
+          "action": "提交采购单",
+          "condition": "订单金额 > 5000.00元",
+          "expectation": "必须提交部门主管审批",
+          "businessFields": [
+            {
+              "key": "orderAmount",
+              "operator": "gt",
+              "value": 500000.0,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "订单金额不超过5000.00元的采购单直接进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "系统",
+          "precondition": "创建采购单且订单金额不超过5000.00元",
+          "action": "处理采购单",
+          "condition": "订单金额 ≤ 5000.00元",
+          "expectation": "直接进入付款待办，无需部门主管审批",
+          "businessFields": [
+            {
+              "key": "orderAmount",
+              "operator": "lte",
+              "value": 500000.0,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ]
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人可以创建并提交采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "创建并提交采购单",
+          "expectation": "系统允许申请人执行创建和提交操作",
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ]
+        },
+        {
+          "key": "rule-draft-04",
+          "statement": "部门主管可以审批采购单",
+          "classification": "EXPLICIT",
+          "role": "部门主管",
+          "action": "审批采购单",
+          "expectation": "系统允许部门主管执行审批操作",
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ]
+        },
+        {
+          "key": "rule-draft-05",
+          "statement": "申请人不可审批自己提交的采购单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "precondition": "申请人自己提交了采购单",
+          "action": "审批该采购单",
+          "expectation": "系统禁止申请人审批自己提交的采购单",
+          "forbiddenBehaviors": [
+            "申请人审批自己提交的采购单"
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-3"
+              ]
+            }
+          ]
+        },
+        {
+          "key": "rule-draft-06",
+          "statement": "采购单金额以分为单位存储，精确到分",
+          "classification": "EXPLICIT",
+          "action": "存储采购单金额",
+          "expectation": "金额以分为单位存储，精确到分",
+          "businessFields": [
+            {
+              "key": "orderAmountStorageUnit",
+              "operator": "eq",
+              "value": "fen",
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-4"
+              ]
+            }
+          ]
+        },
+        {
+          "key": "rule-draft-07",
+          "statement": "金额展示时保留两位小数",
+          "classification": "EXPLICIT",
+          "action": "展示采购单金额",
+          "expectation": "金额展示保留两位小数",
+          "businessFields": [
+            {
+              "key": "orderAmountDisplayDecimal",
+              "operator": "eq",
+              "value": 2.0,
+              "unit": "decimalPlaces"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-4"
+              ]
+            }
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "规则中'超过5000.00元'与'不超过5000.00元'在5000.00元整的边界上是否存在冲突？需要确认5000.00元整的采购单应走哪条流程",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "valid": true
+  },
+  {
+    "name": "02-conflict-prd",
+    "kind": "rules",
+    "input": {
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-v-02",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "fixture-manual-1",
+          "blocks": [
+            {
+              "id": "blk-02-1",
+              "kind": "heading",
+              "text": "差旅报销系统需求"
+            },
+            {
+              "id": "blk-02-2",
+              "kind": "heading",
+              "text": "2.1 金额修改"
+            },
+            {
+              "id": "blk-02-3",
+              "kind": "paragraph",
+              "text": "报销单提交审批后，申请人仍可修改报销金额。"
+            },
+            {
+              "id": "blk-02-4",
+              "kind": "heading",
+              "text": "4.2 金额锁定"
+            },
+            {
+              "id": "blk-02-5",
+              "kind": "paragraph",
+              "text": "报销单进入审批流程后，报销金额锁定，任何角色不可修改。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "span-02-1",
+              "documentVersionId": "doc-v-02",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "差旅报销系统需求",
+                  "2.1 金额修改"
+                ]
+              },
+              "quotedText": "金额修改",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-02-2",
+              "documentVersionId": "doc-v-02",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 5,
+                "endLine": 5
+              },
+              "quotedText": "报销单提交审批后，申请人仍可修改报销金额",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-02-3",
+              "documentVersionId": "doc-v-02",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "差旅报销系统需求",
+                  "4.2 金额锁定"
+                ]
+              },
+              "quotedText": "金额锁定",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-02-4",
+              "documentVersionId": "doc-v-02",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 9,
+                "endLine": 9
+              },
+              "quotedText": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 5,
+            "goodSpans": 4,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          },
+          "warnings": []
+        }
+      ],
+      "projectGlossary": [],
+      "images": [],
+      "promptVersion": "agents-v2"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交审批后，申请人仍可修改报销金额",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "precondition": "报销单已提交审批",
+          "action": "修改报销金额",
+          "condition": "报销单处于审批流程中",
+          "expectation": "申请人具有修改报销金额的权限",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-02",
+              "sourceSpanIds": [
+                "span-02-2"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-02"
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "报销单进入审批流程后，报销金额锁定，任何角色不可修改",
+          "classification": "EXPLICIT",
+          "role": "任何角色",
+          "precondition": "报销单已进入审批流程",
+          "action": "修改报销金额",
+          "condition": "报销单处于审批流程中",
+          "expectation": "任何角色均不可修改报销金额，金额被锁定",
+          "businessFields": [],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-02",
+              "sourceSpanIds": [
+                "span-02-4"
+              ]
+            }
+          ],
+          "conflictsWith": [
+            "rule-draft-01"
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "2.1节规定'报销单提交审批后，申请人仍可修改报销金额'，但4.2节规定'报销单进入审批流程后，报销金额锁定，任何角色不可修改'。'提交审批后'与'进入审批流程后'是否为同一状态？申请人是否属于'任何角色'之一？若两者描述的是同一状态，则规则存在直接矛盾，需确认以哪条规则为准。",
+          "kind": "CONFLICT"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "valid": true
+  },
+  {
+    "name": "03-missing-boundary",
+    "kind": "rules",
+    "input": {
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-v-03",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "fixture-manual-1",
+          "blocks": [
+            {
+              "id": "blk-03-1",
+              "kind": "heading",
+              "text": "采购审批需求（边界缺失）"
+            },
+            {
+              "id": "blk-03-2",
+              "kind": "heading",
+              "text": "审批规则"
+            },
+            {
+              "id": "blk-03-3",
+              "kind": "paragraph",
+              "text": "高额采购订单需提交主管审批。审批通过后订单进入付款待办。"
+            },
+            {
+              "id": "blk-03-4",
+              "kind": "heading",
+              "text": "角色"
+            },
+            {
+              "id": "blk-03-5",
+              "kind": "paragraph",
+              "text": "申请人提交订单，主管审批订单。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "span-03-1",
+              "documentVersionId": "doc-v-03",
+              "locator": {
+                "kind": "markdown-heading",
+                "path": [
+                  "采购审批需求（边界缺失）",
+                  "审批规则"
+                ]
+              },
+              "quotedText": "审批规则",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-03-2",
+              "documentVersionId": "doc-v-03",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 4,
+                "endLine": 4
+              },
+              "quotedText": "高额采购订单需提交主管审批",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "span-03-3",
+              "documentVersionId": "doc-v-03",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 4,
+                "endLine": 4
+              },
+              "quotedText": "审批通过后订单进入付款待办",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 5,
+            "goodSpans": 3,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          },
+          "warnings": []
+        }
+      ],
+      "projectGlossary": [],
+      "images": [],
+      "promptVersion": "agents-v2"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "高额采购订单需提交主管审批",
+          "classification": "UNKNOWN",
+          "role": "申请人",
+          "precondition": "订单为高额采购订单",
+          "action": "提交主管审批",
+          "expectation": "订单进入审批流程",
+          "priority": "P1",
+          "businessFields": [
+            {
+              "key": "orderAmount",
+              "operator": "gt",
+              "value": null,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-03",
+              "sourceSpanIds": [
+                "span-03-2"
+              ]
+            }
+          ]
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "审批通过后订单进入付款待办",
+          "classification": "EXPLICIT",
+          "role": "系统",
+          "precondition": "主管审批通过",
+          "action": "将订单状态更新为付款待办",
+          "expectation": "订单进入付款待办列表",
+          "priority": "P1",
+          "sources": [
+            {
+              "documentVersionId": "doc-v-03",
+              "sourceSpanIds": [
+                "span-03-3"
+              ]
+            }
+          ]
+        },
+        {
+          "key": "rule-draft-03",
+          "statement": "申请人提交订单",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "action": "提交订单",
+          "expectation": "订单被创建并进入相应流程",
+          "priority": "P1",
+          "sources": [
+            {
+              "documentVersionId": "doc-v-03",
+              "sourceSpanIds": [
+                "span-03-2"
+              ]
+            }
+          ]
+        },
+        {
+          "key": "rule-draft-04",
+          "statement": "主管审批订单",
+          "classification": "EXPLICIT",
+          "role": "主管",
+          "action": "审批订单",
+          "expectation": "审批结果决定订单是否进入付款待办",
+          "priority": "P1",
+          "sources": [
+            {
+              "documentVersionId": "doc-v-03",
+              "sourceSpanIds": [
+                "span-03-2"
+              ]
+            }
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01"
+          ],
+          "question": "'高额'的具体金额阈值是多少？文档未提供明确的金额边界（如大于多少元）",
+          "kind": "MISSING_INFO"
+        },
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01"
+          ],
+          "question": "'高额'是否包含等于阈值的情况（即gt还是gte）？",
+          "kind": "MISSING_INFO"
+        },
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "审批未通过时的订单状态和后续处理流程是什么？",
+          "kind": "MISSING_INFO"
+        },
+        {
+          "ruleDraftKeys": [
+            "rule-draft-02"
+          ],
+          "question": "'付款待办'是系统状态还是业务队列？是否需要通知财务人员？",
+          "kind": "MISSING_INFO"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "valid": true
+  },
+  {
+    "name": "04-pdf-vision-parsed",
+    "kind": "rules",
+    "input": {
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-vision-1",
+          "format": "PDF_SCANNED",
+          "parseStatus": "PARSED",
+          "parserVersion": "pdf-vision-kimi-1",
+          "blocks": [
+            {
+              "id": "vb-1",
+              "kind": "heading",
+              "text": "采购审批规定",
+              "page": 1
+            },
+            {
+              "id": "vb-2",
+              "kind": "paragraph",
+              "text": "单笔采购订单金额超过 2000.00 元的，必须提交部门主管审批后执行。",
+              "page": 1
+            },
+            {
+              "id": "vb-3",
+              "kind": "paragraph",
+              "text": "本页右下角附则区域版面模糊，整页识别后仍不可读。",
+              "page": 1
+            }
+          ],
+          "spans": [
+            {
+              "id": "vspan-1",
+              "documentVersionId": "doc-vision-1",
+              "locator": {
+                "kind": "pdf-page",
+                "page": 1
+              },
+              "quotedText": "单笔采购订单金额超过 2000.00 元的，必须提交部门主管审批后执行。",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "vspan-2",
+              "documentVersionId": "doc-vision-1",
+              "locator": {
+                "kind": "image-region",
+                "bbox": [
+                  420.0,
+                  780.0,
+                  595.0,
+                  842.0
+                ]
+              },
+              "quotedText": null,
+              "extractionQuality": "UNPARSED"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 3,
+            "goodSpans": 1,
+            "lowSpans": 0,
+            "unparsedSpans": 1
+          },
+          "warnings": [
+            "第 1 页右下角附则区域整页识别后仍不可读，已标记 UNPARSED"
+          ]
+        }
+      ],
+      "projectGlossary": [],
+      "images": [],
+      "promptVersion": "agents-v2"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "单笔采购订单金额超过2000.00元时，必须提交部门主管审批后执行",
+          "classification": "EXPLICIT",
+          "role": "部门主管",
+          "precondition": "单笔采购订单金额超过2000.00元",
+          "action": "提交部门主管审批",
+          "expectation": "审批通过后方可执行采购",
+          "businessFields": [
+            {
+              "key": "purchaseOrderAmount",
+              "operator": "gt",
+              "value": 200000.0,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-vision-1",
+              "sourceSpanIds": [
+                "vspan-1"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        },
+        {
+          "key": "rule-draft-02",
+          "statement": "单笔采购订单金额不超过2000.00元时，无需提交部门主管审批（隐含）",
+          "classification": "INFERRED",
+          "precondition": "单笔采购订单金额不超过2000.00元",
+          "action": "无需提交部门主管审批",
+          "expectation": "可直接执行采购",
+          "businessFields": [
+            {
+              "key": "purchaseOrderAmount",
+              "operator": "lte",
+              "value": 200000.0,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-vision-1",
+              "sourceSpanIds": [
+                "vspan-1"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01",
+            "rule-draft-02"
+          ],
+          "question": "金额边界2000.00元是否包含等于的情况？原文'超过'表示gt，但等于2000.00元时的审批要求未明确说明",
+          "kind": "AMBIGUITY"
+        },
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01"
+          ],
+          "question": "'部门主管'的具体定义、层级范围、以及是否存在代理审批机制未明确",
+          "kind": "MISSING_INFO"
+        },
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01"
+          ],
+          "question": "审批流程的时效要求、驳回后的处理方式、以及是否需要多级审批未明确",
+          "kind": "MISSING_INFO"
+        }
+      ],
+      "unparsedRanges": [
+        {
+          "spanId": "vspan-2",
+          "reason": "LOW_QUALITY_IMAGE"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "05-pdf-vision-low",
+    "kind": "rules",
+    "input": {
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-vision-low-1",
+          "format": "PDF_SCANNED",
+          "parseStatus": "PARSED",
+          "parserVersion": "pdf-vision-kimi-1",
+          "blocks": [
+            {
+              "id": "lb-1",
+              "kind": "paragraph",
+              "text": "报销单在提交后 3 个工作日内完成复核。",
+              "page": 2
+            }
+          ],
+          "spans": [
+            {
+              "id": "lspan-1",
+              "documentVersionId": "doc-vision-low-1",
+              "locator": {
+                "kind": "pdf-page",
+                "page": 2
+              },
+              "quotedText": "报销单在提交后 3 个工作日内完成复核。",
+              "extractionQuality": "LOW"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 1,
+            "goodSpans": 0,
+            "lowSpans": 1,
+            "unparsedSpans": 0
+          },
+          "warnings": [
+            "第 2 页为低对比度扫描件，文字由视觉模型转录，未经人工核对原文"
+          ]
+        }
+      ],
+      "projectGlossary": [],
+      "images": [],
+      "promptVersion": "agents-v2"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单提交后应在3个工作日内完成复核",
+          "classification": "INFERRED",
+          "role": "复核人员",
+          "precondition": "报销单已提交",
+          "action": "完成复核",
+          "expectation": "在3个工作日内完成复核操作",
+          "businessFields": [
+            {
+              "key": "复核时限",
+              "operator": "lte",
+              "value": 3.0,
+              "unit": "工作日"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-vision-low-1",
+              "sourceSpanIds": [
+                "lspan-1"
+              ]
+            }
+          ]
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01"
+          ],
+          "question": "提取质量为LOW的span lspan-1，文字识别可能存在误差，'3个工作日内'是否准确？是否需要人工核对原始扫描件确认数字'3'及'工作日'单位？",
+          "kind": "MISSING_INFO"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "valid": true
+  },
+  {
+    "name": "case-real-threshold",
+    "kind": "cases",
+    "input": {
+      "approvedRuleVersions": [
+        {
+          "statement": "订单金额超过5000.00元的采购单必须提交部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "申请人",
+          "precondition": "创建采购单且订单金额超过5000.00元",
+          "action": "提交采购单",
+          "condition": "订单金额 > 5000.00元",
+          "expectation": "必须提交部门主管审批",
+          "businessFields": [
+            {
+              "key": "orderAmount",
+              "operator": "gt",
+              "value": 500000.0,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-v-01",
+              "sourceSpanIds": [
+                "span-01-2"
+              ]
+            }
+          ],
+          "id": "eval-rule-v1",
+          "ruleId": "eval-rule-1",
+          "version": 1,
+          "reviewStatus": "APPROVED",
+          "origin": "model",
+          "createdAt": "2026-09-20T03:23:05.768577+00:00",
+          "conflictsWith": []
+        }
+      ],
+      "clarificationSources": [],
+      "roles": [
+        "申请人",
+        "部门主管"
+      ],
+      "fixtureCapabilities": [],
+      "executorCapabilities": [
+        "navigate",
+        "click",
+        "fill",
+        "assert",
+        "switchRole",
+        "capture",
+        "waitFor"
+      ],
+      "promptVersion": "agents-v2"
+    },
+    "output": {
+      "caseDrafts": [
+        {
+          "title": "采购单金额5000.01元触发部门主管审批流程",
+          "description": "验证订单金额超过5000元时，申请人提交采购单后必须进入部门主管审批环节",
+          "ruleVersionIds": [
+            "eval-rule-v1"
+          ],
+          "roles": [
+            "申请人",
+            "部门主管"
+          ],
+          "preconditions": [
+            "申请人已登录系统",
+            "申请人所属部门存在有效的部门主管角色配置"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "创建采购单，商品明细需确保订单金额精确为500001 fen（即5000.01元），申请人角色为部门普通员工，部门主管角色已配置且与申请人同部门"
+          },
+          "steps": [
+            {
+              "role": "申请人",
+              "action": "进入采购单创建页面，填写商品明细使订单金额合计为5000.01元",
+              "expectedResult": "页面显示订单金额5000.01元，提交按钮可点击"
+            },
+            {
+              "role": "申请人",
+              "action": "点击提交采购单按钮",
+              "expectedResult": "系统提示提交成功，采购单状态变更为待审批，并流转至部门主管审批队列"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "assert-001",
+              "description": "采购单提交后状态为待部门主管审批",
+              "kind": "data.value",
+              "required": true,
+              "ruleVersionId": "eval-rule-v1",
+              "operator": "equals",
+              "expected": "待部门主管审批"
+            },
+            {
+              "id": "assert-002",
+              "description": "订单金额精确值为500001 fen",
+              "kind": "data.value",
+              "required": true,
+              "ruleVersionId": "eval-rule-v1",
+              "operator": "equals",
+              "expected": 500001.0,
+              "unit": "fen"
+            },
+            {
+              "id": "assert-003",
+              "description": "部门主管审批队列中出现该采购单",
+              "kind": "ui.element",
+              "required": true,
+              "ruleVersionId": "eval-rule-v1",
+              "operator": "exists",
+              "expected": true
+            },
+            {
+              "id": "assert-004",
+              "description": "当前处理角色为部门主管",
+              "kind": "data.value",
+              "required": true,
+              "ruleVersionId": "eval-rule-v1",
+              "operator": "equals",
+              "expected": "部门主管"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual",
+            "note": "手动删除测试产生的采购单数据，或标记为测试数据由定时任务清理"
+          },
+          "priority": "P0",
+          "dimensions": [
+            "HAPPY_PATH",
+            "STATE"
+          ]
+        },
+        {
+          "title": "采购单金额恰好5000.00元不触发部门主管审批",
+          "description": "验证边界值5000.00元时，不满足超过5000元的条件，不应强制提交部门主管审批（正常流程直接通过或进入下一环节）",
+          "ruleVersionIds": [
+            "eval-rule-v1"
+          ],
+          "roles": [
+            "申请人"
+          ],
+          "preconditions": [
+            "申请人已登录系统"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "创建采购单，订单金额精确为500000 fen（即5000.00元），验证边界值不触发审批规则"
+          },
+          "steps": [
+            {
+              "role": "申请人",
+              "action": "进入采购单创建页面，填写商品明细使订单金额合计为5000.00元",
+              "expectedResult": "页面显示订单金额5000.00元"
+            },
+            {
+              "role": "申请人",
+              "action": "点击提交采购单按钮",
+              "expectedResult": "采购单提交成功，不进入部门主管审批环节（根据系统实际流程，可能直接完成或进入其他非强制审批环节）"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "assert-005",
+              "description": "采购单状态不为待部门主管审批",
+              "kind": "data.value",
+              "required": true,
+              "ruleVersionId": "eval-rule-v1",
+              "operator": "notEquals",
+              "expected": "待部门主管审批"
+            },
+            {
+              "id": "assert-006",
+              "description": "订单金额精确值为500000 fen",
+              "kind": "data.value",
+              "required": true,
+              "ruleVersionId": "eval-rule-v1",
+              "operator": "equals",
+              "expected": 500000.0,
+              "unit": "fen"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual",
+            "note": "手动删除测试产生的采购单数据"
+          },
+          "priority": "P0",
+          "dimensions": [
+            "BOUNDARY",
+            "STATE"
+          ]
+        },
+        {
+          "title": "采购单金额4999.99元不触发部门主管审批",
+          "description": "验证小于5000元的订单金额不满足规则条件，不强制进入部门主管审批",
+          "ruleVersionIds": [
+            "eval-rule-v1"
+          ],
+          "roles": [
+            "申请人"
+          ],
+          "preconditions": [
+            "申请人已登录系统"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "创建采购单，订单金额精确为499999 fen（即4999.99元）"
+          },
+          "steps": [
+            {
+              "role": "申请人",
+              "action": "进入采购单创建页面，填写商品明细使订单金额合计为4999.99元",
+              "expectedResult": "页面显示订单金额4999.99元"
+            },
+            {
+              "role": "申请人",
+              "action": "点击提交采购单按钮",
+              "expectedResult": "采购单提交成功，不进入部门主管审批环节"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "assert-007",
+              "description": "采购单状态不为待部门主管审批",
+              "kind": "data.value",
+              "required": true,
+              "ruleVersionId": "eval-rule-v1",
+              "operator": "notEquals",
+              "expected": "待部门主管审批"
+            },
+            {
+              "id": "assert-008",
+              "description": "订单金额精确值为499999 fen",
+              "kind": "data.value",
+              "required": true,
+              "ruleVersionId": "eval-rule-v1",
+              "operator": "equals",
+              "expected": 499999.0,
+              "unit": "fen"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual",
+            "note": "手动删除测试产生的采购单数据"
+          },
+          "priority": "P1",
+          "dimensions": [
+            "HAPPY_PATH",
+            "STATE"
+          ]
+        },
+        {
+          "title": "申请人提交超5000元采购单后切换部门主管视角审批",
+          "description": "验证跨角色场景：申请人提交后，部门主管能够在其审批队列中看到并处理该采购单",
+          "ruleVersionIds": [
+            "eval-rule-v1"
+          ],
+          "roles": [
+            "申请人",
+            "部门主管"
+          ],
+          "preconditions": [
+            "申请人已登录系统",
+            "部门主管已登录系统或可通过switchRole切换"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "创建采购单金额500001 fen（5000.01元），确保申请人和部门主管属于同一部门"
+          },
+          "steps": [
+            {
+              "role": "申请人",
+              "action": "创建并提交订单金额为5000.01元的采购单",
+              "expectedResult": "提交成功，系统提示进入审批流程"
+            },
+            {
+              "role": "部门主管",
+              "action": "通过switchRole切换至部门主管角色，进入审批队列查看",
+              "expectedResult": "审批列表中显示该采购单，包含申请人信息、订单金额、提交时间等"
+            },
+            {
+              "role": "部门主管",
+              "action": "点击该采购单进行审批操作（同意或驳回）",
+              "expectedResult": "审批操作成功，采购单状态根据操作结果变更"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "assert-009",
+              "description": "部门主管审批队列中存在该采购单记录",
+              "kind": "ui.element",
+              "required": true,
+              "ruleVersionId": "eval-rule-v1",
+              "operator": "exists",
+              "expected": true
+            },
+            {
+              "id": "assert-010",
+              "description": "采购单显示的订单金额为500001 fen",
+              "kind": "data.value",
+              "required": true,
+              "ruleVersionId": "eval-rule-v1",
+              "operator": "equals",
+              "expected": 500001.0,
+              "unit": "fen"
+            },
+            {
+              "id": "assert-011",
+              "description": "审批操作后采购单状态发生变更（非待审批状态）",
+              "kind": "data.value",
+              "required": true,
+              "ruleVersionId": "eval-rule-v1",
+              "operator": "notEquals",
+              "expected": "待部门主管审批"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual",
+            "note": "手动删除或归档测试采购单，恢复角色至默认状态"
+          },
+          "priority": "P0",
+          "dimensions": [
+            "CROSS_MODULE",
+            "STATE",
+            "PERMISSION"
+          ]
+        },
+        {
+          "title": "超大金额采购单持久化验证",
+          "description": "验证超过5000元的采购单在数据库持久化时，金额精度和审批状态标记正确存储",
+          "ruleVersionIds": [
+            "eval-rule-v1"
+          ],
+          "roles": [
+            "申请人"
+          ],
+          "preconditions": [
+            "申请人已登录系统",
+            "具备数据库查询权限或可通过API查询持久化数据"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "创建采购单金额999999999 fen（即9999999.99元），验证大金额场景下的精度和审批标记持久化"
+          },
+          "steps": [
+            {
+              "role": "申请人",
+              "action": "创建并提交超大金额采购单",
+              "expectedResult": "提交成功"
+            },
+            {
+              "role": "申请人",
+              "action": "通过API或数据库查询该采购单的持久化记录",
+              "expectedResult": "获取到采购单持久化数据"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "assert-012",
+              "description": "数据库中订单金额字段值为999999999 fen",
+              "kind": "data.value",
+              "required": true,
+              "ruleVersionId": "eval-rule-v1",
+              "operator": "equals",
+              "expected": 999999999.0,
+              "unit": "fen"
+            },
+            {
+              "id": "assert-013",
+              "description": "数据库中审批状态标记为需要部门主管审批",
+              "kind": "data.value",
+              "required": true,
+              "ruleVersionId": "eval-rule-v1",
+              "operator": "equals",
+              "expected": "PENDING_SUPERVISOR_APPROVAL"
+            },
+            {
+              "id": "assert-014",
+              "description": "数据库中审批人角色标记为部门主管",
+              "kind": "data.value",
+              "required": true,
+              "ruleVersionId": "eval-rule-v1",
+              "operator": "equals",
+              "expected": "部门主管"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual",
+            "note": "从数据库物理删除测试数据或标记为测试数据隔离"
+          },
+          "priority": "P1",
+          "dimensions": [
+            "PERSISTENCE",
+            "BOUNDARY"
+          ]
+        }
+      ],
+      "coverageMap": [
+        {
+          "ruleVersionId": "eval-rule-v1",
+          "caseCount": 5,
+          "dimensionsCovered": [
+            "HAPPY_PATH",
+            "BOUNDARY",
+            "STATE",
+            "CROSS_MODULE",
+            "PERMISSION",
+            "PERSISTENCE"
+          ]
+        }
+      ],
+      "blockedRequirements": [
+        {
+          "ruleVersionId": "eval-rule-v1",
+          "reason": "MISSING_LOGIN",
+          "detail": "规则要求验证'申请人'和'部门主管'两个角色的交互，但fixtureCapabilities为空，未提供任何预设登录凭据或角色切换的fixture支持；需要确认申请人如何登录、部门主管如何切换角色，以及同部门关系的配置方式"
+        },
+        {
+          "ruleVersionId": "eval-rule-v1",
+          "reason": "INSUFFICIENT_INFO",
+          "detail": "规则中'必须提交部门主管审批'的具体系统行为未明确：需要确认超过5000元时是强制阻断提交（必须选审批人）还是提交后自动流转；审批状态的具体枚举值（如'待部门主管审批'）未在规则中定义，断言中的状态值为推测"
+        }
+      ]
+    },
+    "valid": true
+  }
+]

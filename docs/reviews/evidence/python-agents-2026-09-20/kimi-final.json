@@ -1,0 +1,126 @@
+{
+  "mode": "real",
+  "startedAt": "2026-09-20T03:22:09.395589+00:00",
+  "model": "kimi-k2.6",
+  "scope": "5 synthetic rule samples + 1 case generation; not an accuracy benchmark",
+  "promptVersion": "agents-v2",
+  "promptSourceSha256": "5909c40f26bff202b8c95ed3e84679d9b29a72e5e125fd955f69e7fe49b1b05b",
+  "evaluations": [
+    {
+      "name": "01-explicit-prd",
+      "kind": "rules",
+      "passed": true,
+      "draftCount": 7,
+      "invocations": [
+        {
+          "provider": "moonshot",
+          "model": "kimi-k2.6",
+          "requestId": "chatcmpl-6aaf516101d7e9c25942d74e",
+          "usage": {
+            "inputTokens": 2927,
+            "outputTokens": 735,
+            "estimatedCost": null
+          },
+          "latencyMs": 16120
+        }
+      ]
+    },
+    {
+      "name": "02-conflict-prd",
+      "kind": "rules",
+      "passed": true,
+      "draftCount": 2,
+      "invocations": [
+        {
+          "provider": "moonshot",
+          "model": "kimi-k2.6",
+          "requestId": "chatcmpl-6aaf51714c1c72344d1d70bf",
+          "usage": {
+            "inputTokens": 2741,
+            "outputTokens": 340,
+            "estimatedCost": null
+          },
+          "latencyMs": 9779
+        }
+      ]
+    },
+    {
+      "name": "03-missing-boundary",
+      "kind": "rules",
+      "passed": true,
+      "draftCount": 4,
+      "invocations": [
+        {
+          "provider": "moonshot",
+          "model": "kimi-k2.6",
+          "requestId": "chatcmpl-6aaf517b92d62104c27ff6d4",
+          "usage": {
+            "inputTokens": 2633,
+            "outputTokens": 471,
+            "estimatedCost": null
+          },
+          "latencyMs": 13396
+        }
+      ]
+    },
+    {
+      "name": "04-pdf-vision-parsed",
+      "kind": "rules",
+      "passed": true,
+      "draftCount": 2,
+      "invocations": [
+        {
+          "provider": "moonshot",
+          "model": "kimi-k2.6",
+          "requestId": "chatcmpl-6aaf51897eb9586e5bd98294",
+          "usage": {
+            "inputTokens": 2533,
+            "outputTokens": 395,
+            "estimatedCost": null
+          },
+          "latencyMs": 11619
+        }
+      ]
+    },
+    {
+      "name": "05-pdf-vision-low",
+      "kind": "rules",
+      "passed": true,
+      "draftCount": 1,
+      "invocations": [
+        {
+          "provider": "moonshot",
+          "model": "kimi-k2.6",
+          "requestId": "chatcmpl-6aaf51947eb9586e5bd9829f",
+          "usage": {
+            "inputTokens": 2338,
+            "outputTokens": 174,
+            "estimatedCost": null
+          },
+          "latencyMs": 5414
+        }
+      ]
+    },
+    {
+      "name": "case-real-threshold",
+      "kind": "cases",
+      "passed": true,
+      "draftCount": 5,
+      "invocations": [
+        {
+          "provider": "moonshot",
+          "model": "kimi-k2.6",
+          "requestId": "chatcmpl-6aaf519ab708263b1ca64887",
+          "usage": {
+            "inputTokens": 2754,
+            "outputTokens": 1995,
+            "estimatedCost": null
+          },
+          "latencyMs": 42346
+        }
+      ]
+    }
+  ],
+  "passed": true,
+  "completedAt": "2026-09-20T03:23:48.125117+00:00"
+}
