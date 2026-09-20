@@ -17,8 +17,27 @@ from ..contracts.generated import (
     TextModelRequest,
 )
 from ..contracts.validation import SCHEMA
+from ..errors import ServiceError
 
 DEFAULT_TIMEOUT_MS = 120_000
+
+# 评审修正 4：两条管线显式 maxOutputTokens；输入超限在调用模型之前拒绝。
+# 上限是工程护栏不是业务规则，调整改这里（不动契约）；分块尚未实现，
+# 超限明确报错，绝不静默截断。
+DEFAULT_MAX_OUTPUT_TOKENS = 8_192
+MAX_PROMPT_CHARS = 150_000  # system+user+schema 序列化总字符；先保守，纯中文≈1字符1token
+
+
+def ensure_within_limits(request: TextModelRequest) -> None:
+    """超限拒绝（VALIDATION_ERROR）：给出实际值与上限，不静默截断。"""
+    schema_chars = len(json.dumps(request.outputSchema, ensure_ascii=False)) if request.outputSchema else 0
+    total = len(request.system) + len(request.user) + schema_chars
+    if total > MAX_PROMPT_CHARS:
+        raise ServiceError(
+            "VALIDATION_ERROR",
+            f"输入超限：提示词共 {total} 字符，上限 {MAX_PROMPT_CHARS}；"
+            "分块尚未实现，请缩小本次输入的资料范围",
+        )
 
 
 def _definition_closure(root: str) -> dict[str, Any]:
@@ -108,6 +127,7 @@ def build_rule_extraction_request(input: RuleExtractionInput) -> TextModelReques
         # 网关会把它追加进 system 并对模型输出做 Draft7 结构校验；
         # 语义校验（互指/覆盖等）由公共 validate_rules 负责，不重复。
         outputSchema=rule_extraction_output_schema(),
+        maxOutputTokens=DEFAULT_MAX_OUTPUT_TOKENS,
         timeoutMs=DEFAULT_TIMEOUT_MS,
     )
 
@@ -159,5 +179,6 @@ def build_case_generation_request(input: CaseGenerationInput) -> TextModelReques
         system=CASE_GENERATION_SYSTEM,
         user=user,
         outputSchema=case_generation_output_schema(),
+        maxOutputTokens=DEFAULT_MAX_OUTPUT_TOKENS,
         timeoutMs=DEFAULT_TIMEOUT_MS,
     )

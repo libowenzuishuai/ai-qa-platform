@@ -9,7 +9,11 @@ from ..contracts.generated import (
 )
 from ..contracts.validation import validate_case_input, validate_cases, validate_rules
 from ..errors import ServiceError
-from .prompts import build_case_generation_request, build_rule_extraction_request
+from .prompts import (
+    build_case_generation_request,
+    build_rule_extraction_request,
+    ensure_within_limits,
+)
 
 
 class AgentPipelines:
@@ -31,7 +35,22 @@ class AgentPipelines:
             raise ServiceError(
                 "DEPENDENCY_UNAVAILABLE", "Python 规则提取模块待 C 通道验收", 503
             )
+        # 入口门 1：只提取 PARSED 的版本。NEEDS_OCR 是合法解析终态，
+        # 由下游（这里）明确拒绝；PDF_SCANNED+PARSED（Kimi 整页识别）不因格式被拒。
+        for b in input.documentVersions:
+            if b.parseStatus == "NEEDS_OCR":
+                raise ServiceError(
+                    "NEEDS_OCR",
+                    f"文档 {b.documentVersionId} 需要 OCR，请先完成识别再提取规则",
+                )
+            if b.parseStatus != "PARSED":
+                raise ServiceError(
+                    "VALIDATION_ERROR",
+                    f"文档 {b.documentVersionId} 状态为 {b.parseStatus}，只有 PARSED 可提取",
+                )
         request = build_rule_extraction_request(input)
+        # 入口门 2（评审修正 4）：超限在调用模型之前拒绝，不静默截断。
+        ensure_within_limits(request)
         response = await context.models.complete_text(request)
         try:
             output = RuleExtractionOutput.model_validate(response.parsedJson)
@@ -64,6 +83,8 @@ class AgentPipelines:
         input_wire = input.model_dump(mode="json", exclude_unset=True)
         validate_case_input(input_wire)
         request = build_case_generation_request(input)
+        # 评审修正 4：超限在调用模型之前拒绝，不静默截断。
+        ensure_within_limits(request)
         response = await context.models.complete_text(request)
         try:
             output = CaseGenerationOutput.model_validate(response.parsedJson)
