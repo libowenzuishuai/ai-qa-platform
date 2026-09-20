@@ -64,3 +64,43 @@ def test_missing_boundary_stays_unknown_without_fabricated_value(tmp_path):
     assert clar.kind == "MISSING_INFO"
     assert clar.ruleDraftKeys == ["rule-draft-01"]
     assert "边界" in clar.question
+
+
+def test_pdf_vision_parsed_unparsed_region_not_fabricated(tmp_path):
+    """评审修正 6：整页识别后的 PARSED 仍含 UNPARSED 片段——
+    未识别区域进遗漏说明与澄清，不补造规则；EXPLICIT 不引用 UNPARSED 片段。"""
+    v, output = run_extract("04-pdf-vision-parsed", tmp_path)
+
+    (draft,) = output.ruleDrafts
+    assert draft.classification == "EXPLICIT"
+    # EXPLICIT 只引用可逐字核对的 GOOD 片段
+    (source,) = draft.sources
+    assert [str(s.root) for s in source.sourceSpanIds] == ["vspan-1"]
+
+    # UNPARSED 片段进入遗漏说明，且没有规则引用它
+    (unparsed,) = output.unparsedRanges
+    assert unparsed.spanId == "vspan-2"
+    assert all(
+        "vspan-2" not in [str(x.root) for x in s.sourceSpanIds]
+        for d in output.ruleDrafts
+        for s in d.sources
+    )
+
+    # 不可读区域生成澄清问题而非编造规则
+    (clar,) = output.clarifications
+    assert clar.kind == "MISSING_INFO"
+    assert clar.ruleDraftKeys == ["rule-draft-01"]
+
+
+def test_pdf_vision_low_quality_stays_inferred(tmp_path):
+    """评审修正 6：LOW 质量来源是模型转录，规则保持 INFERRED 并给出人工核对澄清，
+    不把转录冒充人工核实的原文（EXPLICIT）。"""
+    v, output = run_extract("05-pdf-vision-low", tmp_path)
+
+    (draft,) = output.ruleDrafts
+    assert draft.classification == "INFERRED", "低质量转录不得冒充 EXPLICIT 原文"
+    assert [str(s.root) for s in draft.sources[0].sourceSpanIds] == ["lspan-1"]
+
+    (clar,) = output.clarifications
+    assert clar.kind == "AMBIGUITY"
+    assert "核对" in clar.question

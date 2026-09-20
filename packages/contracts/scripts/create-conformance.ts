@@ -4,7 +4,7 @@ import { RuleExtractionInput, RuleExtractionOutput, CaseGenerationInput, CaseGen
 const root = fileURLToPath(new URL('../fixtures/', import.meta.url));
 const read = (dir: string, name: string) => JSON.parse(readFileSync(root + dir + '/' + name, 'utf8'));
 const vectors: any[] = [];
-for (const dir of ['01-explicit-prd','02-conflict-prd','03-missing-boundary']) {
+for (const dir of ['01-explicit-prd','02-conflict-prd','03-missing-boundary','04-pdf-vision-parsed','05-pdf-vision-low']) {
   const input = RuleExtractionInput.parse({documentVersions:[read(dir,'parsed-bundle.json')],promptVersion:'handoff-1'});
   const output = RuleExtractionOutput.parse(read(dir,'expected-rule-drafts.json'));
   vectors.push({name:dir,kind:'rules',input,output,valid:true});

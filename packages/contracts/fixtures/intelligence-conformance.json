@@ -511,6 +511,215 @@
     "valid": true
   },
   {
+    "name": "04-pdf-vision-parsed",
+    "kind": "rules",
+    "input": {
+      "projectGlossary": [],
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-vision-1",
+          "format": "PDF_SCANNED",
+          "parseStatus": "PARSED",
+          "parserVersion": "pdf-vision-kimi-1",
+          "blocks": [
+            {
+              "id": "vb-1",
+              "kind": "heading",
+              "text": "采购审批规定",
+              "page": 1
+            },
+            {
+              "id": "vb-2",
+              "kind": "paragraph",
+              "text": "单笔采购订单金额超过 2000.00 元的，必须提交部门主管审批后执行。",
+              "page": 1
+            },
+            {
+              "id": "vb-3",
+              "kind": "paragraph",
+              "text": "本页右下角附则区域版面模糊，整页识别后仍不可读。",
+              "page": 1
+            }
+          ],
+          "spans": [
+            {
+              "id": "vspan-1",
+              "documentVersionId": "doc-vision-1",
+              "locator": {
+                "kind": "pdf-page",
+                "page": 1
+              },
+              "quotedText": "单笔采购订单金额超过 2000.00 元的，必须提交部门主管审批后执行。",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "vspan-2",
+              "documentVersionId": "doc-vision-1",
+              "locator": {
+                "kind": "image-region",
+                "bbox": [
+                  420,
+                  780,
+                  595,
+                  842
+                ]
+              },
+              "quotedText": null,
+              "extractionQuality": "UNPARSED"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 3,
+            "goodSpans": 1,
+            "lowSpans": 0,
+            "unparsedSpans": 1
+          },
+          "warnings": [
+            "第 1 页右下角附则区域整页识别后仍不可读，已标记 UNPARSED"
+          ]
+        }
+      ],
+      "images": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "单笔采购订单金额超过 2000.00 元需部门主管审批",
+          "classification": "EXPLICIT",
+          "role": "采购员",
+          "action": "提交采购订单",
+          "condition": "金额超过 2000.00 元",
+          "expectation": "订单进入部门主管审批，未批准前不得执行",
+          "forbiddenBehaviors": [],
+          "priority": "P1",
+          "businessFields": [
+            {
+              "key": "amountCents",
+              "operator": "gt",
+              "value": 200000,
+              "unit": "fen"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-vision-1",
+              "sourceSpanIds": [
+                "vspan-1"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01"
+          ],
+          "question": "第 1 页右下角附则区域整页识别后仍不可读，其中是否包含对审批金额或角色的其他限制？",
+          "kind": "MISSING_INFO"
+        }
+      ],
+      "unparsedRanges": [
+        {
+          "spanId": "vspan-2",
+          "reason": "LOW_QUALITY_IMAGE"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "05-pdf-vision-low",
+    "kind": "rules",
+    "input": {
+      "projectGlossary": [],
+      "documentVersions": [
+        {
+          "documentVersionId": "doc-vision-low-1",
+          "format": "PDF_SCANNED",
+          "parseStatus": "PARSED",
+          "parserVersion": "pdf-vision-kimi-1",
+          "blocks": [
+            {
+              "id": "lb-1",
+              "kind": "paragraph",
+              "text": "报销单在提交后 3 个工作日内完成复核。",
+              "page": 2
+            }
+          ],
+          "spans": [
+            {
+              "id": "lspan-1",
+              "documentVersionId": "doc-vision-low-1",
+              "locator": {
+                "kind": "pdf-page",
+                "page": 2
+              },
+              "quotedText": "报销单在提交后 3 个工作日内完成复核。",
+              "extractionQuality": "LOW"
+            }
+          ],
+          "coverageSummary": {
+            "totalBlocks": 1,
+            "goodSpans": 0,
+            "lowSpans": 1,
+            "unparsedSpans": 0
+          },
+          "warnings": [
+            "第 2 页为低对比度扫描件，文字由视觉模型转录，未经人工核对原文"
+          ]
+        }
+      ],
+      "images": [],
+      "promptVersion": "handoff-1"
+    },
+    "output": {
+      "ruleDrafts": [
+        {
+          "key": "rule-draft-01",
+          "statement": "报销单应在提交后 3 个工作日内完成复核（低质量扫描件转录，待人工核对）",
+          "classification": "INFERRED",
+          "role": "复核员",
+          "action": "提交报销单",
+          "expectation": "3 个工作日内完成复核",
+          "forbiddenBehaviors": [],
+          "priority": "P1",
+          "businessFields": [
+            {
+              "key": "slaDays",
+              "operator": "lte",
+              "value": 3,
+              "unit": "workday"
+            }
+          ],
+          "sources": [
+            {
+              "documentVersionId": "doc-vision-low-1",
+              "sourceSpanIds": [
+                "lspan-1"
+              ]
+            }
+          ],
+          "conflictsWith": []
+        }
+      ],
+      "clarifications": [
+        {
+          "ruleDraftKeys": [
+            "rule-draft-01"
+          ],
+          "question": "第 2 页为低质量扫描件，视觉模型转录内容是否与原文一致？请人工核对后再批准该规则。",
+          "kind": "AMBIGUITY"
+        }
+      ],
+      "unparsedRanges": []
+    },
+    "valid": true
+  },
+  {
     "name": "invented-span",
     "kind": "rules",
     "input": {
