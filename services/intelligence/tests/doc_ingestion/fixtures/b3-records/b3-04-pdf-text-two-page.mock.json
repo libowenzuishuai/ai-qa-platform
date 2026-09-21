@@ -1,0 +1,17 @@
+{
+  "caseId": "b3-04-pdf-text-two-page",
+  "mode": "mock",
+  "fixtureRef": "tests/doc_ingestion/fixtures/b1-two-page.pdf",
+  "command": "pnpm test:doc-ingestion -k b1-two-page",
+  "parseStatus": "PARSED",
+  "format": "PDF_TEXT",
+  "coverageSummary": {
+    "totalBlocks": 2,
+    "goodSpans": 2,
+    "lowSpans": 0,
+    "unparsedSpans": 0
+  },
+  "warningCount": 1,
+  "spanCount": 2,
+  "blockCount": 2
+}

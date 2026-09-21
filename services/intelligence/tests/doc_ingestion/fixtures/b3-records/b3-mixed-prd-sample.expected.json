@@ -1,0 +1,38 @@
+{
+  "fixtureId": "b3-mixed-prd-sample",
+  "description": "混排 PDF：第 1 页可选中文字层 + 第 2–3 页栅格扫描（中文与表格）。人工核对 PDF 与下列 visible 是否一致。",
+  "pages": [
+    {
+      "page": 1,
+      "kind": "PDF_TEXT_LAYER",
+      "humanCheck": [
+        "THRESHOLD > 500000 fen",
+        "Keep punctuation: ,} ,]",
+        "TEXT_LAYER page-1"
+      ]
+    },
+    {
+      "page": 2,
+      "kind": "PDF_SCAN_RASTER",
+      "humanCheck": [
+        "【扫描页-2】",
+        "审批规则",
+        "<=500000",
+        ">500000",
+        ",} ,]"
+      ]
+    },
+    {
+      "page": 3,
+      "kind": "PDF_SCAN_TABLE",
+      "humanCheck": [
+        "角色",
+        "上限",
+        "申请人",
+        "主管",
+        "<=500000",
+        ">500000"
+      ]
+    }
+  ]
+}

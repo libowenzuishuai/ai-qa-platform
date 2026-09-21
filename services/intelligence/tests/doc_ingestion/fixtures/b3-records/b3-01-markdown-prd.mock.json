@@ -1,0 +1,17 @@
+{
+  "caseId": "b3-01-markdown-prd",
+  "mode": "mock",
+  "fixtureRef": "packages/contracts/fixtures/01-explicit-prd/source.md",
+  "command": "pnpm test:doc-ingestion -k test_existing_prds",
+  "parseStatus": "PARSED",
+  "format": "MARKDOWN",
+  "coverageSummary": {
+    "totalBlocks": 9,
+    "goodSpans": 9,
+    "lowSpans": 0,
+    "unparsedSpans": 0
+  },
+  "warningCount": 0,
+  "spanCount": 9,
+  "blockCount": 9
+}

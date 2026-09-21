@@ -1,0 +1,79 @@
+{
+  "version": "b3-v1",
+  "note": "B3 资料质量评测清单（占位）。mock 进 CI；真实 Kimi 单独记录，不混入默认 pytest。",
+  "cases": [
+    {
+      "id": "b3-01-markdown-prd",
+      "format": "MARKDOWN",
+      "fixture": "packages/contracts/fixtures/01-explicit-prd/source.md",
+      "status": "mock-covered",
+      "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-01-markdown-prd.mock.json",
+      "focus": "正文行级来源、标点保留"
+    },
+    {
+      "id": "b3-02-docx-grid",
+      "format": "DOCX",
+      "fixture": "pytest-generated",
+      "status": "mock-covered",
+      "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-02-docx-grid.mock.json",
+      "focus": "普通表格行列坐标"
+    },
+    {
+      "id": "b3-03-docx-merge-nested",
+      "format": "DOCX",
+      "fixture": "pytest-generated",
+      "status": "mock-covered",
+      "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-03-docx-merge-nested.mock.json",
+      "focus": "合并单元格、嵌套 tableIndex"
+    },
+    {
+      "id": "b3-04-pdf-text-two-page",
+      "format": "PDF_TEXT",
+      "fixture": "tests/doc_ingestion/fixtures/b1-two-page.pdf",
+      "status": "mock-covered",
+      "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-04-pdf-text-two-page.mock.json",
+      "focus": "文字层页码与第二页内容"
+    },
+    {
+      "id": "b3-05-pdf-scanned-table",
+      "format": "PDF_SCANNED",
+      "fixture": "pytest-generated-table-image-pdf",
+      "status": "mock-covered",
+      "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-05-pdf-scanned-table.mock.json",
+      "realEvalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-05-pdf-scanned-table.real.json",
+      "focus": "扫描页表格视觉转录（mock NEEDS_OCR；真实 Kimi 见 verify_b3_05_kimi_real.py）"
+    },
+    {
+      "id": "b3-06-png-vision",
+      "format": "PNG",
+      "fixture": "pytest-generated",
+      "status": "mock-covered",
+      "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-06-png-vision.mock.json",
+      "focus": "整图 region；默认 subprocess 解析为 NEEDS_OCR"
+    },
+    {
+      "id": "b3-07-broken-input",
+      "format": "DOCX",
+      "fixture": "pytest-generated",
+      "status": "mock-covered",
+      "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-07-broken-input.mock.json",
+      "focus": "损坏输入 → FAILED"
+    },
+    {
+      "id": "b3-09-mixed-prd-sample",
+      "format": "PDF_TEXT",
+      "fixture": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-mixed-prd-sample.pdf",
+      "status": "mock-covered",
+      "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-mixed-prd-sample.parse-mock.json",
+      "expectedForHuman": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-mixed-prd-sample.expected.json",
+      "focus": "混排：P1 文字层 + P2–3 扫描栅格；夹具人工已验收；真实 Kimi 混排见后续 verify 脚本（opt-in）"
+    },
+    {
+      "id": "b3-08-real-pilot-sample",
+      "format": "TBD",
+      "fixture": "external-pilot-storage",
+      "status": "blocked-pilot",
+      "focus": "试点脱敏资料；真实视觉用量单列验收"
+    }
+  ]
+}

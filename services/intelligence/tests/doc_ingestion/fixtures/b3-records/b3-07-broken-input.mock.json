@@ -1,0 +1,17 @@
+{
+  "caseId": "b3-07-broken-input",
+  "mode": "mock",
+  "fixtureRef": "pytest-generated",
+  "command": "pnpm test:doc-ingestion -k test_broken_files",
+  "parseStatus": "FAILED",
+  "format": "DOCX",
+  "coverageSummary": {
+    "totalBlocks": 0,
+    "goodSpans": 0,
+    "lowSpans": 0,
+    "unparsedSpans": 0
+  },
+  "warningCount": 1,
+  "spanCount": 0,
+  "blockCount": 0
+}

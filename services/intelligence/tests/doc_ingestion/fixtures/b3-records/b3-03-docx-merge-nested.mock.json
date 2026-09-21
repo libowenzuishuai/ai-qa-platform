@@ -1,0 +1,17 @@
+{
+  "caseId": "b3-03-docx-merge-nested",
+  "mode": "mock",
+  "fixtureRef": "pytest-generated",
+  "command": "pnpm test:doc-ingestion -k nested_table",
+  "parseStatus": "PARSED",
+  "format": "DOCX",
+  "coverageSummary": {
+    "totalBlocks": 4,
+    "goodSpans": 4,
+    "lowSpans": 0,
+    "unparsedSpans": 0
+  },
+  "warningCount": 0,
+  "spanCount": 4,
+  "blockCount": 4
+}

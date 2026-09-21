@@ -63,6 +63,30 @@ def scanned_pdf(labels: list[str]) -> bytes:
     return output.getvalue()
 
 
+def table_image_pdf(rows: list[list[str]]) -> bytes:
+    """Raster table for PDF_SCANNED vision path (mock in tests)."""
+    import importlib.util
+
+    path = Path(__file__).resolve().parent / "fixtures" / "drawing.py"
+    spec = importlib.util.spec_from_file_location("b3_drawing", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.table_image_pdf(rows)
+
+
+def docx_with_nested_table() -> bytes:
+    doc = Document()
+    outer = doc.add_table(rows=1, cols=1)
+    inner = outer.cell(0, 0).add_table(rows=2, cols=2)
+    for row in range(2):
+        for col in range(2):
+            inner.cell(row, col).text = f"N{row}{col}"
+    doc.add_paragraph("Below nested table")
+    output = BytesIO()
+    doc.save(output)
+    return output.getvalue()
+
+
 def pdf(pages):
     writer = PdfWriter()
     font = writer._add_object(
@@ -177,6 +201,75 @@ def test_docx_merged_cells_and_embedded_image_are_explicit():
     assert sum(b["text"] == "Merged" for b in body["blocks"]) == 1
     assert body["coverageSummary"]["unparsedSpans"] == 1
     assert any("合并" in w for w in body["warnings"])
+
+
+def test_docx_horizontal_and_vertical_merged_cells_record_primary_grid():
+    doc = Document()
+    table = doc.add_table(rows=3, cols=3)
+    table.cell(0, 0).merge(table.cell(0, 1)).text = "Wide"
+    table.cell(1, 0).merge(table.cell(2, 0)).text = "Tall"
+    table.cell(2, 2).text = "Corner"
+    output = BytesIO()
+    doc.save(output)
+    body = parsed(output.getvalue(), "DOCX")
+    texts = {s["quotedText"]: s["locator"] for s in body["spans"] if s["quotedText"]}
+    assert texts["Wide"] == {"kind": "docx-cell", "tableIndex": 0, "row": 0, "col": 0}
+    assert texts["Tall"] == {"kind": "docx-cell", "tableIndex": 0, "row": 1, "col": 0}
+    assert texts["Corner"] == {"kind": "docx-cell", "tableIndex": 0, "row": 2, "col": 2}
+    assert sum(b["text"] == "Wide" for b in body["blocks"]) == 1
+    assert sum(b["text"] == "Tall" for b in body["blocks"]) == 1
+    assert any("合并" in w for w in body["warnings"])
+
+
+def test_docx_footnotes_part_warns_without_parsing():
+    doc = Document()
+    doc.add_paragraph("Body")
+    output = BytesIO()
+    doc.save(output)
+    data = output.getvalue()
+    patched = BytesIO()
+    with ZipFile(patched, "w") as out, ZipFile(BytesIO(data)) as src:
+        for item in src.infolist():
+            out.writestr(item, src.read(item.filename))
+        out.writestr(
+            "word/footnotes.xml",
+            '<?xml version="1.0"?><w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"></w:footnotes>',
+        )
+    body = parsed(patched.getvalue(), "DOCX")
+    assert body["parseStatus"] == "PARSED"
+    assert any("脚注与尾注未提取" in w for w in body["warnings"])
+
+
+def test_docx_header_and_footer_use_auxiliary_paragraph_index():
+    doc = Document()
+    doc.sections[0].header.paragraphs[0].text = "LIMIT <= 500000 FEN"
+    doc.add_paragraph("Body approval rule")
+    doc.sections[0].footer.paragraphs[0].text = "Page footer ,} ,]"
+    output = BytesIO()
+    doc.save(output)
+    body = parsed(output.getvalue(), "DOCX")
+    spans = {s["quotedText"]: s for s in body["spans"] if s["quotedText"]}
+    assert spans["Body approval rule"]["locator"]["paragraphIndex"] == 0
+    assert spans["Body approval rule"]["extractionQuality"] == "GOOD"
+    header = spans["LIMIT <= 500000 FEN"]
+    footer = spans["Page footer ,} ,]"]
+    assert header["extractionQuality"] == "LOW"
+    assert footer["extractionQuality"] == "LOW"
+    assert header["locator"]["paragraphIndex"] == 1
+    assert footer["locator"]["paragraphIndex"] == 2
+    assert any("paragraphIndex>=1" in w for w in body["warnings"])
+
+
+def test_docx_nested_table_uses_incrementing_table_index():
+    body = parsed(docx_with_nested_table(), "DOCX")
+    locators = {
+        s["quotedText"]: s["locator"]
+        for s in body["spans"]
+        if s["quotedText"] and s["quotedText"].startswith("N")
+    }
+    assert locators["N11"] == {"kind": "docx-cell", "tableIndex": 1, "row": 1, "col": 1}
+    assert all(loc["tableIndex"] == 1 for loc in locators.values())
+    assert body["spans"][-1]["quotedText"] == "Below nested table"
 
 
 def test_pdf_page_two_is_not_page_one():
@@ -365,7 +458,7 @@ def test_cancellation_terminates_actual_parser_child():
     asyncio.run(cancel())
 
 
-def register_pdf_ocr_mocks(gateway, pages: dict[int, str], input):
+def register_pdf_vision_mocks(gateway, pages: dict[int, str], input):
     for page, text in pages.items():
         gateway.register_mock(
             page_vision_request(input, page), {"text": text, "complete": True}
@@ -375,13 +468,34 @@ def register_pdf_ocr_mocks(gateway, pages: dict[int, str], input):
 def parse_pdf_with_ocr(tmp_path, pdf_data, pages: dict[int, str], *, format="PDF_TEXT"):
     input = input_for(tmp_path, pdf_data, format)
     gateway = Gateway("mock", ArtifactReader(tmp_path), "test", [])
-    register_pdf_ocr_mocks(gateway, pages, input)
+    register_pdf_vision_mocks(gateway, pages, input)
     context = RequestContext("req", "mock", ArtifactReader(tmp_path), gateway)
     result = asyncio.run(DocumentParser().parse_document(input, context)).model_dump(
         mode="json", exclude_unset=True
     )
     validate_bundle(result)
     return result
+
+
+def test_scanned_pdf_table_image_vision_mock_preserves_cell_text(tmp_path):
+    try:
+        pdf_bytes = table_image_pdf(
+            [["角色", "上限"], ["申请人", "<=500000分"], ["主管", ">500000分"]]
+        )
+    except OSError as exc:
+        pytest.skip(str(exc))
+    table_text = "角色 | 上限\n申请人 | <=500000分\n主管 | >500000分"
+    body = parse_pdf_with_ocr(
+        tmp_path,
+        pdf_bytes,
+        {1: table_text},
+        format="PDF_SCANNED",
+    )
+    assert body["parseStatus"] == "PARSED"
+    assert body["format"] == "PDF_SCANNED"
+    assert "<=500000" in body["blocks"][0]["text"]
+    assert ">500000" in body["blocks"][0]["text"]
+    assert body["spans"][0]["extractionQuality"] == "LOW"
 
 
 def test_scanned_pdf_vision_preserves_source_format(tmp_path):
@@ -424,6 +538,19 @@ def test_blank_pdf_without_embedded_image_stays_needs_ocr(tmp_path):
     body = parse_pdf_with_ocr(tmp_path, pdf([None]), {})
     assert body["parseStatus"] == "NEEDS_OCR"
     assert body["coverageSummary"]["unparsedSpans"] == 1
+
+
+def test_mixed_prd_sample_fixture_text_layer_without_vision():
+    source = Path(__file__).resolve().parent / "fixtures" / "b3-records" / "b3-mixed-prd-sample.pdf"
+    if not source.exists():
+        pytest.skip("run fixtures/build_b3_mixed_fixture.py to generate sample")
+    body = parsed(source.read_bytes(), "PDF_TEXT")
+    assert body["parseStatus"] == "PARSED"
+    assert body["format"] == "PDF_TEXT"
+    pages = {s["locator"]["page"]: s for s in body["spans"] if s.get("quotedText")}
+    assert "500000" in pages[1]["quotedText"]
+    assert ",}" in pages[1]["quotedText"]
+    assert body["coverageSummary"]["unparsedSpans"] >= 2
 
 
 def test_original_b1_compressed_pdf_fixture():

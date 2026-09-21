@@ -1,0 +1,32 @@
+{
+  "caseId": "b3-05-pdf-scanned-table",
+  "mode": "real",
+  "fixtureRef": "pytest-generated-table-image-pdf",
+  "ranAt": "2026-09-21T09:49:45.267186+08:00",
+  "command": "services/intelligence/tests/doc_ingestion/fixtures/verify_b3_05_kimi_real.py",
+  "parseStatus": "PARSED",
+  "format": "PDF_SCANNED",
+  "coverageSummary": {
+    "totalBlocks": 1,
+    "goodSpans": 0,
+    "lowSpans": 1,
+    "unparsedSpans": 0
+  },
+  "warnings": [
+    "PDF 全页由视觉大模型识别，来源为页码，质量为 LOW；细小文字、表格关系及图示需人工复核"
+  ],
+  "sampleText": "角色\t上限\n申请人\t<=500000分\n主管\t>500000分",
+  "invocations": [
+    {
+      "provider": "moonshot",
+      "model": "kimi-k2.6",
+      "requestId": "chatcmpl-6ab08d33308c7d1a080e34b7",
+      "usage": {
+        "inputTokens": 541,
+        "outputTokens": 28,
+        "estimatedCost": null
+      },
+      "latencyMs": 1847
+    }
+  ]
+}
