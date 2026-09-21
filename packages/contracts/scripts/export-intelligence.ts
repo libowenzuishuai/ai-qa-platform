@@ -35,6 +35,8 @@ const schemas = {
   SourceChangeReport: c.SourceChangeReport,
   ImpactAnalysisInput: c.ImpactAnalysisInput,
   ImpactAnalysisOutput: c.ImpactAnalysisOutput,
+  ChangeReviewAnalysisInput:c.ChangeReviewAnalysisInput,ChangeReviewAnalysisOutput:c.ChangeReviewAnalysisOutput,
+  ChangeReviewAnalysisRequest:c.ChangeReviewAnalysisRequest,ChangeReviewAnalysisResponse:c.ChangeReviewAnalysisResponse,
 };
 const schema = zodToJsonSchema(z.object(schemas), {
   name: "IntelligenceContracts",

@@ -66,8 +66,8 @@
       "status": "mock-covered",
       "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-mixed-prd-sample.parse-mock.json",
       "expectedForHuman": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-mixed-prd-sample.expected.json",
-      "realEvalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-mixed-prd-sample.real.json",
-      "focus": "混排：P1 文字层 + P2–3 扫描栅格；夹具人工已验收；真实 Kimi opt-in：verify_b3_09_mixed_kimi_real.py"
+      "realEvalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/runs/b3-mixed-20260921T063847-6831cc09.real.json",
+      "focus": "混排：P1 文字层 + P2–3 扫描栅格；新真实 Kimi 记录通过 14 项逐页文本、4 项角色额度检查，未宣称人工验收"
     },
     {
       "id": "b3-08-real-pilot-sample",

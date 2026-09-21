@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
+from .agents.change_review import analyze as analyze_change_review
 from .agents.service import AgentPipelines
 from .agents.planner import propose_plan, classify_sources
 from .doc_ingestion.service import DocumentParser
@@ -106,6 +107,7 @@ def create_app(
             "cases": "CaseGeneration",
             "plan": "PlanProposal",
             "sources": "SourceClassification",
+            "change_review": "ChangeReviewAnalysis",
         }
         name = names[operation]
         validate_shape(name + "Request", wire)
@@ -159,6 +161,7 @@ def create_app(
             "cases": agents.generate_cases,
             "plan": propose_plan,
             "sources": classify_sources,
+            "change_review": analyze_change_review,
         }
         try:
             output = await asyncio.wait_for(
@@ -213,6 +216,10 @@ def create_app(
     @app.post("/v1/sources/classify")
     async def sources(request: Request):
         return await invoke(request, "sources")
+
+    @app.post("/v1/changes/analyze")
+    async def changes(request: Request):
+        return await invoke(request,"change_review")
 
     return app
 

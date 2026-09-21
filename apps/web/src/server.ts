@@ -1,3 +1,4 @@
+import {registerChangeReviewPages} from "./change-review.js";
 import { registerPreparationPages } from './preparation.js';
 import { registerProductPages } from "./product.js";
 import Fastify from "fastify";
@@ -34,6 +35,7 @@ await app.register(formbody);
 registerWorkbenchRoutes(app);
 registerProductPages(app);
 registerPreparationPages(app);
+registerChangeReviewPages(app);
 
 function sid(req: { cookies: Record<string, string | undefined> }): string | undefined {
   return req.cookies["web_sid"];

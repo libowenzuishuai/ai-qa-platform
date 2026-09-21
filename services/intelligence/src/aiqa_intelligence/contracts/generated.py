@@ -1336,6 +1336,49 @@ class ImpactAnalysisInput(BaseModel):
     approvedCaseVersions: list[TestCaseModel]
 
 
+class ChangeReviewAnalysisInput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    comparison: SourceComparisonInput
+    approvedRuleVersions: list[ItemsModel] = Field(..., max_length=500)
+    approvedCaseVersions: list[TestCaseModel] = Field(..., max_length=500)
+
+
+class ChangeReviewAnalysisOutput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    sourceReport: SourceChangeReport
+    impact: ImpactAnalysisOutput
+
+
+class ChangeReviewAnalysisRequest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    timeoutMs: int = Field(..., ge=1000, le=600000)
+    input: ChangeReviewAnalysisInput
+
+
+class ChangeReviewAnalysisResponse(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    invocations: list[InvocationRecord]
+    output: ChangeReviewAnalysisOutput
+
+
 class IntelligenceContracts(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -1400,6 +1443,18 @@ class IntelligenceContracts(BaseModel):
     ImpactAnalysisInput_1: ImpactAnalysisInput = Field(..., alias='ImpactAnalysisInput')
     ImpactAnalysisOutput_1: ImpactAnalysisOutput = Field(
         ..., alias='ImpactAnalysisOutput'
+    )
+    ChangeReviewAnalysisInput_1: ChangeReviewAnalysisInput = Field(
+        ..., alias='ChangeReviewAnalysisInput'
+    )
+    ChangeReviewAnalysisOutput_1: ChangeReviewAnalysisOutput = Field(
+        ..., alias='ChangeReviewAnalysisOutput'
+    )
+    ChangeReviewAnalysisRequest_1: ChangeReviewAnalysisRequest = Field(
+        ..., alias='ChangeReviewAnalysisRequest'
+    )
+    ChangeReviewAnalysisResponse_1: ChangeReviewAnalysisResponse = Field(
+        ..., alias='ChangeReviewAnalysisResponse'
     )
 
 

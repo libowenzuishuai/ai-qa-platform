@@ -1,3 +1,4 @@
+import {registerChangeReviewRoutes} from "./routes-change-review.js";
 import { registerRunnerRoutes } from "./routes-runners.js";
 import { registerDefectRoutes } from "./routes-defects.js";
 import { registerProductRoutes } from "./routes-product.js";
@@ -84,6 +85,7 @@ export async function buildServer() {
   registerDocumentRoutes(app, prisma, agentJobsQueue, artifactStore);
   registerReviewRoutes(app, prisma);
   registerProductRoutes(app, prisma, artifactStore, agentJobsQueue, runsQueue);
+  registerChangeReviewRoutes(app,prisma,artifactStore,agentJobsQueue);
   registerDefectRoutes(app, prisma, artifactStore, runsQueue);
   registerRunnerRoutes(app, prisma, artifactStore);
 

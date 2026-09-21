@@ -1,3 +1,4 @@
+import {runChangeReview} from "./change-review-job.js";
 import { runLoginCheck } from './login-check-job.js';
 import { runDataJob } from './data-plugin-job.js';
 import { processProductJob } from "./product-jobs.js";
@@ -149,7 +150,7 @@ export async function processAgentJob(
     void prisma.job.updateMany({
       where: ownedJob(job), data: { updatedAt: new Date() },
     }).then(r=>{if(!r.count)controller.abort();}).catch(() => controller.abort());
-  }, ((job.request as {workflowId?:string}).workflowId||["LOGIN_CHECK","DATA_PREPARE","DATA_CLEANUP","DATA_INSPECT"].includes(job.kind))?250:10_000);
+  }, ((job.request as {workflowId?:string}).workflowId||["LOGIN_CHECK","DATA_PREPARE","DATA_CLEANUP","DATA_INSPECT","CHANGE_REVIEW"].includes(job.kind))?250:10_000);
   heartbeat.unref();
   config={...config,executionSignal:controller.signal};
   try {
@@ -161,7 +162,9 @@ export async function processAgentJob(
       config={...config,executionBudget:request.workflowBudget};
     }
     const store = new ArtifactStore(config.artifactDir);
-    if(job.kind === "LOGIN_CHECK") {
+    if(job.kind === "CHANGE_REVIEW") {
+      await runChangeReview(prisma,store,job,config,commitJob);
+    } else if(job.kind === "LOGIN_CHECK") {
       await runLoginCheck(prisma,store,job,commitJob,controller.signal);
     } else if(["DATA_PREPARE","DATA_CLEANUP","DATA_INSPECT"].includes(job.kind)){
       await runDataJob(prisma,store,job,commitJob,controller.signal);

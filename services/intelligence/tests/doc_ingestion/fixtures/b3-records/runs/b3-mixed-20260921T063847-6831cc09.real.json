@@ -1,0 +1,215 @@
+{
+  "caseId": "b3-09-mixed-prd-sample",
+  "mode": "real",
+  "evaluationVersion": "b3-mixed-v2",
+  "ranAt": "2026-09-21T06:38:47.128593+00:00",
+  "status": "PASS",
+  "manualReviewPerformed": false,
+  "fixtureSha256": "fdbdb6f276ed1cf357cc39c8b7ed4d4b0d8eeb89802c0e6886d32a4fb49c1f20",
+  "expectedSha256": "6f675fb8565ee1c0455ac71063f81eb4e1eb5392cbef46476d374fdfd140bc0d",
+  "bundle": {
+    "documentVersionId": "b3-09-7064da5d74d141a99f25ac7987be44fd",
+    "format": "PDF_TEXT",
+    "parseStatus": "PARSED",
+    "parserVersion": "python-doc-ingestion-1.3",
+    "blocks": [
+      {
+        "id": "b-66ead3db6c3baa0152e98fe0-0",
+        "kind": "paragraph",
+        "text": "THRESHOLD > 500000 fen\nKeep punctuation: ,} ,]\nTEXT_LAYER page-1 (selectable)",
+        "page": 1
+      },
+      {
+        "id": "b-66ead3db6c3baa0152e98fe0-1",
+        "kind": "paragraph",
+        "text": "【扫描页-2】审批规则\n申请人单笔 <=500000 分\n主管审批 >500000 分\n保留标点：,} ,]",
+        "page": 2
+      },
+      {
+        "id": "b-66ead3db6c3baa0152e98fe0-2",
+        "kind": "paragraph",
+        "text": "角色\t上限\n申请人\t<=500000分\n主管\t>500000分",
+        "page": 3
+      }
+    ],
+    "spans": [
+      {
+        "id": "s-66ead3db6c3baa0152e98fe0-0",
+        "documentVersionId": "b3-09-7064da5d74d141a99f25ac7987be44fd",
+        "locator": {
+          "kind": "pdf-page",
+          "page": 1
+        },
+        "quotedText": "THRESHOLD > 500000 fen\nKeep punctuation: ,} ,]\nTEXT_LAYER page-1 (selectable)",
+        "extractionQuality": "LOW"
+      },
+      {
+        "id": "s-66ead3db6c3baa0152e98fe0-1",
+        "documentVersionId": "b3-09-7064da5d74d141a99f25ac7987be44fd",
+        "locator": {
+          "kind": "pdf-page",
+          "page": 2
+        },
+        "quotedText": "【扫描页-2】审批规则\n申请人单笔 <=500000 分\n主管审批 >500000 分\n保留标点：,} ,]",
+        "extractionQuality": "LOW"
+      },
+      {
+        "id": "s-66ead3db6c3baa0152e98fe0-2",
+        "documentVersionId": "b3-09-7064da5d74d141a99f25ac7987be44fd",
+        "locator": {
+          "kind": "pdf-page",
+          "page": 3
+        },
+        "quotedText": "角色\t上限\n申请人\t<=500000分\n主管\t>500000分",
+        "extractionQuality": "LOW"
+      }
+    ],
+    "coverageSummary": {
+      "totalBlocks": 3,
+      "goodSpans": 0,
+      "lowSpans": 3,
+      "unparsedSpans": 0
+    },
+    "warnings": [
+      "PDF 全页由视觉大模型识别，来源为页码，质量为 LOW；细小文字、表格关系及图示需人工复核"
+    ]
+  },
+  "evaluation": {
+    "passed": true,
+    "pageTextChecks": [
+      {
+        "page": 1,
+        "text": "THRESHOLD > 500000 fen",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "Keep punctuation: ,} ,]",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "TEXT_LAYER page-1",
+        "found": true
+      },
+      {
+        "page": 2,
+        "text": "【扫描页-2】",
+        "found": true
+      },
+      {
+        "page": 2,
+        "text": "审批规则",
+        "found": true
+      },
+      {
+        "page": 2,
+        "text": "<=500000",
+        "found": true
+      },
+      {
+        "page": 2,
+        "text": ">500000",
+        "found": true
+      },
+      {
+        "page": 2,
+        "text": ",} ,]",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "角色",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "上限",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "申请人",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "主管",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "<=500000",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": ">500000",
+        "found": true
+      }
+    ],
+    "rowAssociationChecks": [
+      {
+        "page": 2,
+        "role": "申请人",
+        "amount": "<=500000",
+        "found": true
+      },
+      {
+        "page": 2,
+        "role": "主管",
+        "amount": ">500000",
+        "found": true
+      },
+      {
+        "page": 3,
+        "role": "申请人",
+        "amount": "<=500000",
+        "found": true
+      },
+      {
+        "page": 3,
+        "role": "主管",
+        "amount": ">500000",
+        "found": true
+      }
+    ],
+    "completePages": true,
+    "manualReviewPerformed": false
+  },
+  "invocations": [
+    {
+      "provider": "moonshot",
+      "model": "kimi-k2.6",
+      "requestId": "chatcmpl-6ab0d0f8e72306f1a71241a5",
+      "usage": {
+        "inputTokens": 1531,
+        "outputTokens": 36,
+        "estimatedCost": null
+      },
+      "latencyMs": 2080
+    },
+    {
+      "provider": "moonshot",
+      "model": "kimi-k2.6",
+      "requestId": "chatcmpl-6ab0d0fa8feeee01f024dc3a",
+      "usage": {
+        "inputTokens": 1531,
+        "outputTokens": 42,
+        "estimatedCost": null
+      },
+      "latencyMs": 2030
+    },
+    {
+      "provider": "moonshot",
+      "model": "kimi-k2.6",
+      "requestId": "chatcmpl-6ab0d0fc0085c69c72173ac0",
+      "usage": {
+        "inputTokens": 541,
+        "outputTokens": 28,
+        "estimatedCost": null
+      },
+      "latencyMs": 1336
+    }
+  ]
+}

@@ -206,3 +206,20 @@ def validate_source_comparison(input: dict, report: dict) -> None:
             if c[side] is not None:
                 span=spans.get(c[side]['id'])
                 require(span is not None and {**span,'extractionQuality':span.get('extractionQuality','GOOD')} == {**c[side],'extractionQuality':c[side].get('extractionQuality','GOOD')}, '变更引用了不存在或被篡改的来源片段')
+
+    # No changed/low-quality span may disappear behind a structurally valid empty report.
+    from collections import defaultdict
+    def exact(span):
+        return json.dumps([span['locator'],span['quotedText']],sort_keys=True,ensure_ascii=False)
+    indices=[]
+    for side in ('old','new'):
+        index=defaultdict(list)
+        for span in input[side+'Bundle']['spans']: index[exact(span)].append(span)
+        indices.append(index)
+    for side in ('old','new'):
+        changed={c[side]['id'] for c in report['changes'] if c[side] is not None}
+        for span in input[side+'Bundle']['spans']:
+            a,b=(idx.get(exact(span),[]) for idx in indices)
+            unchanged=len(a)==len(b)==1 and all(s.get('extractionQuality','GOOD')=='GOOD' for s in a+b)
+            require(unchanged or span['id'] in changed,'差异报告遗漏了变化或低质量片段')
+            require(not unchanged or span['id'] not in changed,'差异报告将唯一未变片段标为变化')

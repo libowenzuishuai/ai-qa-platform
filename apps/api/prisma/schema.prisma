@@ -40,6 +40,7 @@ model Session {
 }
 
 model Project {
+  changeReviews ChangeReview[]
   id                String              @id @default(cuid())
   name              String
   settings          Json                @default("{}")
@@ -550,6 +551,7 @@ model DeploymentEvent {
  * 幂等（裁决点 4）：(projectId, kind, fingerprint) 唯一；同参数重复 POST 返回原 jobId。
  */
 model Job {
+  changeReview ChangeReview?
   id          String    @id @default(cuid())
   projectId   String
   kind        String
@@ -910,4 +912,25 @@ model WorkflowEvent {
 
   @@unique([workflowId, seq])
   @@index([workflowId, seq])
+}
+
+
+// Immutable inputs/results; resolutions are separately audited human decisions.
+model ChangeReview {
+  id String @id @default(cuid())
+  projectId String
+  jobId String @unique
+  baselineId String
+  oldDocumentVersionId String
+  newDocumentVersionId String
+  input Json
+  inputHash String
+  output Json?
+  outputHash String?
+  resolutions Json @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project Project @relation(fields:[projectId],references:[id],onDelete:Restrict)
+  job Job @relation(fields:[jobId],references:[id],onDelete:Restrict)
+  @@index([projectId,createdAt])
 }

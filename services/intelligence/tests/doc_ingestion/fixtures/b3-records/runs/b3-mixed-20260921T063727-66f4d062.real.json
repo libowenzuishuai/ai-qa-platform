@@ -1,0 +1,12 @@
+{
+  "caseId": "b3-09-mixed-prd-sample",
+  "mode": "real",
+  "evaluationVersion": "b3-mixed-v2",
+  "ranAt": "2026-09-21T06:37:27.868584+00:00",
+  "status": "ERROR",
+  "manualReviewPerformed": false,
+  "fixtureSha256": "fdbdb6f276ed1cf357cc39c8b7ed4d4b0d8eeb89802c0e6886d32a4fb49c1f20",
+  "expectedSha256": "6f675fb8565ee1c0455ac71063f81eb4e1eb5392cbef46476d374fdfd140bc0d",
+  "errorCode": "MODEL_NOT_CONFIGURED",
+  "invocations": []
+}

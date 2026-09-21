@@ -2745,6 +2745,106 @@
       ],
       "additionalProperties": false
     },
+    "ChangeReviewAnalysisInput": {
+      "type": "object",
+      "properties": {
+        "comparison": {
+          "$ref": "#/definitions/SourceComparisonInput"
+        },
+        "approvedRuleVersions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CaseGenerationInput/properties/approvedRuleVersions/items"
+          },
+          "maxItems": 500
+        },
+        "approvedCaseVersions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PlanProposalInput/properties/testCase"
+          },
+          "maxItems": 500
+        }
+      },
+      "required": [
+        "comparison",
+        "approvedRuleVersions",
+        "approvedCaseVersions"
+      ],
+      "additionalProperties": false
+    },
+    "ChangeReviewAnalysisOutput": {
+      "type": "object",
+      "properties": {
+        "sourceReport": {
+          "$ref": "#/definitions/SourceChangeReport"
+        },
+        "impact": {
+          "$ref": "#/definitions/ImpactAnalysisOutput"
+        }
+      },
+      "required": [
+        "sourceReport",
+        "impact"
+      ],
+      "additionalProperties": false
+    },
+    "ChangeReviewAnalysisRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "mode": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+        },
+        "timeoutMs": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+        },
+        "input": {
+          "$ref": "#/definitions/ChangeReviewAnalysisInput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "timeoutMs",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "ChangeReviewAnalysisResponse": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "mode": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+        },
+        "invocations": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+        },
+        "output": {
+          "$ref": "#/definitions/ChangeReviewAnalysisOutput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "invocations",
+        "output"
+      ],
+      "additionalProperties": false
+    },
     "IntelligenceContracts": {
       "type": "object",
       "properties": {
@@ -2834,6 +2934,18 @@
         },
         "ImpactAnalysisOutput": {
           "$ref": "#/definitions/ImpactAnalysisOutput"
+        },
+        "ChangeReviewAnalysisInput": {
+          "$ref": "#/definitions/ChangeReviewAnalysisInput"
+        },
+        "ChangeReviewAnalysisOutput": {
+          "$ref": "#/definitions/ChangeReviewAnalysisOutput"
+        },
+        "ChangeReviewAnalysisRequest": {
+          "$ref": "#/definitions/ChangeReviewAnalysisRequest"
+        },
+        "ChangeReviewAnalysisResponse": {
+          "$ref": "#/definitions/ChangeReviewAnalysisResponse"
         }
       },
       "required": [
@@ -2865,7 +2977,11 @@
         "SourceComparisonInput",
         "SourceChangeReport",
         "ImpactAnalysisInput",
-        "ImpactAnalysisOutput"
+        "ImpactAnalysisOutput",
+        "ChangeReviewAnalysisInput",
+        "ChangeReviewAnalysisOutput",
+        "ChangeReviewAnalysisRequest",
+        "ChangeReviewAnalysisResponse"
       ],
       "additionalProperties": false
     }

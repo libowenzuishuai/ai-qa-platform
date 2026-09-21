@@ -1,10 +1,11 @@
 import {
-  DocumentParseRequest, DocumentParseResponse, RuleExtractionRequest, RuleExtractionResponse,
+  ChangeReviewAnalysisRequest, ChangeReviewAnalysisResponse, DocumentParseRequest, DocumentParseResponse, RuleExtractionRequest, RuleExtractionResponse,
   CaseGenerationRequest, CaseGenerationResponse, PlanProposalRequest, PlanProposalResponse, SourceClassificationRequest, SourceClassificationResponse, ApiErrorBody,
 } from '@ai-qa/contracts';
 import type { WorkerConfig } from './config.js';
 
 const operations = {
+  changes: {path:"/v1/changes/analyze",request:ChangeReviewAnalysisRequest,response:ChangeReviewAnalysisResponse},
   sources: { path: "/v1/sources/classify", request: SourceClassificationRequest, response: SourceClassificationResponse },
   plan: { path: "/v1/plans/propose", request: PlanProposalRequest, response: PlanProposalResponse },
   document: { path: '/v1/documents/parse', request: DocumentParseRequest, response: DocumentParseResponse },

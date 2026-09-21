@@ -1,8 +1,10 @@
 # 实施状态
 
-更新日期：2026-09-20。当前新增交付：**前四步受支持路径已接通**。完整能力、验证记录、启动方式与明确限制统一见 [前四步实施与验收](delivery/v1-implementation.md)。
+当前 main 增量：账号准备、数据插件、持久化工作流、B/C 模块及 B3 评测、P0-4 变更复核闭环。完整验证与仍缺功能见 [最新交付和 PRD 差距](delivery/p04-completion-and-prd-review.md)。尚未达到通用商业版 1.0 的全部发布条件。
 
-后续增量：`v1/pilot-platform` 已补接入向导、完整用例编辑、准备检查与真实 Git 运行器整链，见 [试点平台进展](delivery/pilot-platform-progress.md)。本轮继续升级真实前端外观；代码收尾、可组合智能体与 GLM 任务见 [开发路线](product/v1.1/CODE-ROADMAP.md)、[GLM 开发任务书](product/v1.1/GLM-DEVELOPMENT-PROMPT.md) 和 [前端设计](product/v1.1/FRONTEND-DESIGN.md)。这部分目前在开发分支，不能按 main 的默认能力对外声明。
+更新日期：2026-09-21。当前新增交付：**前四步受支持路径已接通**。完整能力、验证记录、启动方式与明确限制统一见 [前四步实施与验收](delivery/v1-implementation.md)。
+
+后续增量：`v1/pilot-platform` 已补接入向导、完整用例编辑、准备检查与真实 Git 运行器整链，见 [试点平台进展](delivery/pilot-platform-progress.md)。本轮继续升级真实前端外观；代码收尾、可组合智能体与 GLM 任务见 [开发路线](product/v1.1/CODE-ROADMAP.md)、[GLM 开发任务书](product/v1.1/GLM-DEVELOPMENT-PROMPT.md) 和 [前端设计](product/v1.1/FRONTEND-DESIGN.md)。相关代码已合入 main；受支持范围与未验证条件以最新交付文档为准。
 
 Python 正式解析/规则/用例管线已合入；本次新增通用浏览器计划、GitHub 上下文、七个产品页面、任务/缺陷/复测、HTTP API 与自有运行器。小样本真实模型验证不代表任意项目都能自动完成验收。
 

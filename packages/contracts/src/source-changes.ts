@@ -290,5 +290,34 @@ export function validateSourceComparison(
         problems.push("变更引用了不存在或被篡改的来源片段");
     }
   }
+  const exact=(span:z.infer<typeof SourceSpanRecord>)=>canonical({locator:span.locator,quotedText:span.quotedText});
+  const index=(spans:z.infer<typeof SourceSpanRecord>[])=>{const result=new Map<string,z.infer<typeof SourceSpanRecord>[]>();for(const span of spans){const k=exact(span);result.set(k,[...(result.get(k)??[]),span]);}return result;};
+  const oldIndex=index(input.oldBundle.spans),newIndex=index(input.newBundle.spans);
+  for(const [side,bundle] of [['old',input.oldBundle],['new',input.newBundle]] as const){
+    const changed=new Set(report.changes.map(c=>c[side]?.id).filter(Boolean));
+    for(const span of bundle.spans){
+      const a=oldIndex.get(exact(span))??[],b=newIndex.get(exact(span))??[];
+      const unchanged=a.length===1&&b.length===1&&a[0]!.extractionQuality==='GOOD'&&b[0]!.extractionQuality==='GOOD';
+      if(!unchanged&&!changed.has(span.id))problems.push('差异报告遗漏了变化或低质量片段');
+      if(unchanged&&changed.has(span.id))problems.push('差异报告将唯一未变片段标为变化');
+    }
+  }
   return { ok: !problems.length, problems };
 }
+
+/** Platform loads all assets; callers only choose registered versions. */
+export const ChangeReviewJobRequest=z.object({
+  baselineId:EntityId,oldDocumentVersionId:EntityId,newDocumentVersionId:EntityId,
+  idempotencyKey:z.string().min(1).max(120),
+}).strict();
+export const ChangeReviewResolution=z.object({
+  assetType:z.enum(['RULE','CASE','SOURCES']),assetVersionId:EntityId,
+  decision:z.enum(['KEEP','REPLACED']),reason:z.string().trim().min(5).max(4000),
+  replacementVersionId:EntityId.optional(),
+}).strict().superRefine((v,c)=>{
+  if(v.decision==='REPLACED'&&!v.replacementVersionId)c.addIssue({code:'custom',message:'替换必须选择已批准的新版本'});
+  if(v.decision==='KEEP'&&v.replacementVersionId)c.addIssue({code:'custom',message:'保留不能带替换版本'});
+  if(v.assetType==='SOURCES'&&v.decision!=='KEEP')c.addIssue({code:'custom',message:'来源待办需说明如何处理新增或不确定内容'});
+});
+export const ChangeReviewAnalysisInput=z.object({comparison:SourceComparisonInput,approvedRuleVersions:z.array(RuleVersion).max(500),approvedCaseVersions:z.array(TestCaseVersion).max(500)}).strict();
+export const ChangeReviewAnalysisOutput=z.object({sourceReport:SourceChangeReport,impact:ImpactAnalysisOutput}).strict();
