@@ -127,6 +127,22 @@ def main():
         fixture="pytest-generated",
     )
 
+    pilot_root = ROOT / "packages/contracts/fixtures/pilot-dify-v1"
+    pilot_storage = json.loads((pilot_root / "manifest.json").read_text(encoding="utf-8"))[
+        "storage"
+    ]
+    pilot_md = (pilot_root / pilot_storage["storageKey"]).read_bytes()
+    write_record(
+        "b3-08-real-pilot-sample",
+        parse_bytes(
+            pilot_md,
+            pilot_storage["documentVersionId"],
+            pilot_storage["format"],
+        ),
+        command="pnpm test:doc-ingestion -k test_dify_sanitized_pack",
+        fixture="packages/contracts/fixtures/pilot-dify-v1/source.md",
+    )
+
 
 if __name__ == "__main__":
     main()

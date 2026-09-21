@@ -66,14 +66,17 @@
       "status": "mock-covered",
       "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-mixed-prd-sample.parse-mock.json",
       "expectedForHuman": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-mixed-prd-sample.expected.json",
-      "focus": "混排：P1 文字层 + P2–3 扫描栅格；夹具人工已验收；真实 Kimi 混排见后续 verify 脚本（opt-in）"
+      "realEvalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-mixed-prd-sample.real.json",
+      "focus": "混排：P1 文字层 + P2–3 扫描栅格；夹具人工已验收；真实 Kimi opt-in：verify_b3_09_mixed_kimi_real.py"
     },
     {
       "id": "b3-08-real-pilot-sample",
-      "format": "TBD",
-      "fixture": "external-pilot-storage",
-      "status": "blocked-pilot",
-      "focus": "试点脱敏资料；真实视觉用量单列验收"
+      "format": "MARKDOWN",
+      "fixture": "packages/contracts/fixtures/pilot-dify-v1/source.md",
+      "pilotManifestRef": "packages/contracts/fixtures/pilot-dify-v1/manifest.json",
+      "status": "mock-covered",
+      "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-08-real-pilot-sample.mock.json",
+      "focus": "脱敏观察记录（非官方 PRD）；与 bundle.json 对账见 test_pilot_pack；权限/多角色 BLOCKED，不得扩写"
     }
   ]
 }
