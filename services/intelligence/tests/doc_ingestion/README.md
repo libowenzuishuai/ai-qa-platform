@@ -2,7 +2,7 @@
 
 从仓库根运行 `pnpm test:doc-ingestion`。测试生成真实 DOCX/PDF/PNG/JPEG，验证原始坐标、遗漏覆盖率、错误响应与进程取消；不使用开发数据库或付费模型。
 
-DOCX：嵌套表按递增 `tableIndex` 递归解析；合并单元格只记录主网格坐标。页眉/页脚正文提取为 `docx-paragraph`，`paragraphIndex >= 正文段落数`，质量 LOW；脚注/尾注仍仅 warning。图片/修订等见 UNPARSED。`fixtures/b3-records/` 存 mock 评测快照（不含真实 Kimi 用量）。更新命令：`fixtures/refresh_b3_mock_records.py`。**B3-09 混排 PDF：** `b3-records/b3-mixed-prd-sample.pdf` + `b3-mixed-prd-sample.expected.json`（`fixtures/build_b3_mixed_fixture.py`）。默认 pytest 覆盖 P1 文字层（无 vision）。真实 Kimi（opt-in）：`fixtures/verify_b3_09_mixed_kimi_real.py --env-file .env.local` → `b3-mixed-prd-sample.real.json`（对照 expected 的 humanCheck；失败也保留记录需手动改脚本或放宽断言后再跑）。
+DOCX：嵌套表按递增 `tableIndex` 递归解析；合并单元格只记录主网格坐标。页眉/页脚正文提取为 `docx-paragraph`，`paragraphIndex >= 正文段落数`，质量 LOW；脚注/尾注仍仅 warning。图片/修订等见 UNPARSED。`fixtures/b3-records/` 存 mock 评测快照（不含真实 Kimi 用量）。更新命令：`fixtures/refresh_b3_mock_records.py`。**B3-09 混排 PDF：** `b3-records/b3-mixed-prd-sample.pdf` + `b3-mixed-prd-sample.expected.json`（`fixtures/build_b3_mixed_fixture.py`）。默认 pytest 覆盖 P1 文字层（无 vision）。真实 Kimi（opt-in）：`fixtures/verify_b3_09_mixed_kimi_real.py --env-file .env.local` → `b3-records/runs/` 中不可覆盖的独立记录（14 项逐页文本检查 + 4 项角色/额度对应检查；所有成功/失败均留档）。旧 `b3-mixed-prd-sample.real.json` 为 B 提交的历史记录：12 个全篇去重关键词命中，不能解释为逐页验收或人工核对。失败应定位原因；不能为通过而放宽验收标准。
 
 B3-05 真实 Kimi（合成表格 PDF，opt-in）：`fixtures/verify_b3_05_kimi_real.py --env-file .env.local` → 写入 `b3-records/b3-05-pdf-scanned-table.real.json`。栅格表用 `fixtures/drawing.py` 加载系统中文字体（Windows msyh/simhei）；无 CJK 字体时生成会失败。样例 PDF：`b3-records/b3-05-table-source.pdf`。
 
