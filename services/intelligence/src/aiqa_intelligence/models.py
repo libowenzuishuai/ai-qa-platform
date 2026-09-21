@@ -41,6 +41,9 @@ class Gateway:
             mock_entries if mock_entries is not None else {}
         )
 
+    def set_budget(self, calls: int, tokens: int) -> None:
+        self.remaining_calls, self.remaining_tokens = calls, tokens
+
     def register_mock(
         self, request: TextModelRequest | VisionModelRequest, output: object
     ) -> None:
@@ -110,6 +113,16 @@ class Gateway:
         self, request, channel: str, messages: list, wire: dict
     ) -> ModelResponse:
         start = time.monotonic()
+        if hasattr(self, "remaining_calls"):
+            # Conservative UTF-8 byte reservation includes prompt/schema/image payload
+            # and framing overhead. Reservation is charged before any network effect.
+            input_reserve = len(json.dumps(messages, ensure_ascii=False).encode()) + 1024
+            output_limit = min(wire.get("maxOutputTokens", 4096), self.remaining_tokens - input_reserve)
+            if self.remaining_calls < 1 or output_limit < 1:
+                raise ServiceError("BUDGET_EXCEEDED", "模型调用或 token 预算耗尽")
+            self.remaining_calls -= 1
+            self.remaining_tokens -= input_reserve + output_limit
+            wire = {**wire, "maxOutputTokens": output_limit}
         if self.mode == "mock":
             key = mock_key(request)
             if key not in self.mock_entries:

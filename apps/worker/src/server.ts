@@ -10,8 +10,6 @@ import { processRun } from "./run-processor.js";
 import { finalizeCancelledFromRequest } from "@ai-qa/run-events";
 import { seedFixedAssets } from "./seed-processor.js";
 import { processAgentJob } from "./agent-job-processor.js";
-import { runLoginCheck } from "./login-check-job.js";
-import { runDataPrepare, runDataCleanup } from "./data-plugin-job.js";
 import { advanceWorkflow } from "./workflow-orchestrator.js";
 
 /**
@@ -59,47 +57,7 @@ const agentJobWorker = new BullWorker(
   "agent-jobs",
   async (job) => {
     if (job.name === "run") {
-      const jobId = String(job.data.jobId);
-      const row = await prisma.job.findUnique({ where: { id: jobId } });
-      if (row?.kind === "LOGIN_CHECK") {
-        // 登录检查有独立 BrowserContext；沿用 CAS 认领 + 心跳模式。
-        const claimed = await prisma.job.updateMany({ where: { id: jobId, status: "QUEUED" }, data: { status: "RUNNING", startedAt: new Date() } });
-        if (!claimed.count) return;
-        try {
-          await runLoginCheck(prisma, new ArtifactStore(config.artifactDir), { ...row, startedAt: new Date() }, config);
-        } catch (err) {
-          await prisma.job.update({ where: { id: jobId }, data: { status: "FAILED", error: { code: "INTERNAL", message: String(err).slice(0, 500), requestId: jobId } as never, finishedAt: new Date() } });
-        }
-      } else if (row?.kind === "DATA_PREPARE") {
-        const claimed = await prisma.job.updateMany({ where: { id: jobId, status: "QUEUED" }, data: { status: "RUNNING", startedAt: new Date() } });
-        if (claimed.count) {
-          try { await runDataPrepare(prisma, { ...row, startedAt: new Date() }); }
-          catch (err) {
-            await prisma.job.update({ where: { id: jobId }, data: { status: "FAILED", error: { code: "INTERNAL", message: String(err).slice(0, 500), requestId: jobId } as never, finishedAt: new Date() } });
-          }
-        }
-      } else if (row?.kind === "DATA_CLEANUP") {
-        const claimed = await prisma.job.updateMany({ where: { id: jobId, status: "QUEUED" }, data: { status: "RUNNING", startedAt: new Date() } });
-        if (claimed.count) {
-          try { await runDataCleanup(prisma, { ...row, startedAt: new Date() }); }
-          catch (err) {
-            await prisma.job.update({ where: { id: jobId }, data: { status: "FAILED", error: { code: "INTERNAL", message: String(err).slice(0, 500), requestId: jobId } as never, finishedAt: new Date() } });
-          }
-        }
-      } else if (row?.kind === "WORKFLOW_ADVANCE") {
-        const wfId = (row.request as Record<string, unknown>).workflowId as string;
-        const claimed = await prisma.job.updateMany({ where: { id: jobId, status: "QUEUED" }, data: { status: "RUNNING", startedAt: new Date() } });
-        if (claimed.count) {
-          try {
-            await advanceWorkflow(prisma, wfId);
-            await prisma.job.update({ where: { id: jobId }, data: { status: "SUCCEEDED", finishedAt: new Date() } });
-          } catch (err) {
-            await prisma.job.update({ where: { id: jobId }, data: { status: "FAILED", error: { code: "INTERNAL", message: String(err).slice(0, 500), requestId: jobId } as never, finishedAt: new Date() } });
-          }
-        }
-      } else {
-        await processAgentJob(prisma, config, jobId);
-      }
+      await processAgentJob(prisma,config,String(job.data.jobId));
     }
   },
   { connection, concurrency: 1 },
@@ -194,6 +152,16 @@ const reconciler = setInterval(() => {
   void reconcile().catch((err) => console.error("[reconciler]", err.message));
 }, RECONCILE_INTERVAL_MS);
 
+const workflowStore=new ArtifactStore(config.artifactDir);
+let workflowTickRunning=false;
+const workflowTimer=setInterval(()=>{
+  if(workflowTickRunning)return;workflowTickRunning=true;
+  void (async()=>{
+    const workflows=await prisma.workflowRun.findMany({where:{status:{in:['QUEUED','RUNNING','WAITING_HUMAN']}},orderBy:{updatedAt:'asc'},take:20});
+    for(const wf of workflows)await advanceWorkflow(prisma,wf.id,workflowStore).catch(err=>console.error('[workflow]',wf.id,err.message));
+  })().finally(()=>{workflowTickRunning=false;});
+},1000);
+
 // —— 健康服务 ——
 const app = Fastify({ logger: { level: config.logLevel } });
 app.get("/api/health", async () => ({
@@ -210,6 +178,7 @@ app.log.info(`worker ready on http://${host}:${port}`);
 
 const shutdown = async () => {
   clearInterval(reconciler);
+  clearInterval(workflowTimer);
   await runWorker.close();
   await agentJobWorker.close();
   await seedWorker.close();

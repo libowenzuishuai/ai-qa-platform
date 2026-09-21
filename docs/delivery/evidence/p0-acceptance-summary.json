@@ -1,0 +1,40 @@
+{
+  "date": "2026-09-21",
+  "branch": "v1/pilot-platform",
+  "baseline": "816e5f6",
+  "typescript": {
+    "passed": 359,
+    "skipped": 6
+  },
+  "python": {
+    "passed": 198
+  },
+  "p0Integration": {
+    "passed": 25,
+    "components": [
+      "temporary PostgreSQL",
+      "isolated Redis",
+      "real Chromium",
+      "two local HTTP services",
+      "production Python service",
+      "real worker process"
+    ],
+    "model": "local protocol simulator; no real Kimi quality claim",
+    "processKillCheckpoints": [
+      "parser job dispatch",
+      "human approval wait",
+      "run dispatch",
+      "resource created before HTTP response"
+    ]
+  },
+  "typecheck": "passed",
+  "crossLanguageSchema": "passed",
+  "developmentMigration": "20260921090000_p0_hardening; backup then deploy; no reset",
+  "remainingScope": [
+    "real Kimi customer evaluation",
+    "Dify automatic login",
+    "P0-4 impact integration",
+    "P0-6 full container distribution",
+    "arbitrary harness composition"
+  ]
+}

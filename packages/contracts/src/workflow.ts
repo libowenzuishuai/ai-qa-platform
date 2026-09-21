@@ -40,20 +40,22 @@ export const WORKFLOW_TEMPLATE_V1_NODES = [
 export type WorkflowTemplateNode = (typeof WORKFLOW_TEMPLATE_V1_NODES)[number];
 
 export const WorkflowBudget = z.object({
-  maxWallClockMs: z.number().int().min(60_000).default(3_600_000),
-  maxModelCalls: z.number().int().min(1).default(50),
-  maxToolCalls: z.number().int().min(1).default(200),
-  maxTokens: z.number().int().min(1000).default(2_000_000),
+  maxWallClockMs: z.number().int().min(60_000).max(86_400_000).default(3_600_000),
+  maxModelCalls: z.number().int().min(1).max(500).default(50),
+  maxToolCalls: z.number().int().min(1).max(10000).default(200),
+  maxTokens: z.number().int().min(1000).max(20_000_000).default(2_000_000),
 });
 
 export const WorkflowRunRequest = z.object({
+  idempotencyKey: z.string().min(1).max(120),
   missionId: EntityId.optional(),
   templateVersion: z.literal('v1'),
   inputs: z.object({
-    documentVersionIds: z.array(EntityId).default([]),
+    documentVersionIds: z.array(EntityId).max(20).default([]),
     baselineId: EntityId.optional(),
     environmentId: EntityId,
-    buildId: z.string().optional(),
+    buildId: z.string().min(1).max(200).optional(),
+    observationPages: z.array(z.object({role:z.string().min(1).max(80),path:z.string().regex(/^\/(?!\/)[^\\\r\n]*$/)}).strict()).max(20).optional(),
     goal: z.string().max(4000).optional(),
   }).strict(),
   budget: WorkflowBudget.default({}),

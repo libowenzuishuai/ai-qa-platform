@@ -13,7 +13,7 @@ function locate(page: Page, locator: ObservedLocator): Locator {
   if (locator.type === 'text') return page.getByText(locator.value, { exact: true });
   return page.getByRole(locator.role as never, { name: locator.name, exact: true });
 }
-export async function observeProject(prisma: PrismaClient, store: ArtifactStore, projectId: string, raw: unknown) {
+export async function observeProject(prisma: PrismaClient, store: ArtifactStore, projectId: string, raw: unknown, control?:{signal?:AbortSignal;deadline?:number}) {
   const input = ObservationRequest.parse(raw);
   const env = await prisma.environment.findFirstOrThrow({ where: { id: input.environmentId, projectId, isProduction: false } });
   const runtime = EnvironmentRuntime.parse(env.runtime);
@@ -25,12 +25,14 @@ export async function observeProject(prisma: PrismaClient, store: ArtifactStore,
   const bindings: typeof ObservationBundle._type.bindings = [];
   const pages: typeof ObservationBundle._type.pages = [];
   let timedOut = false;
-  const deadline = setTimeout(() => { timedOut = true; void browser?.close(); }, 120000);
+  const close=()=>{void browser?.close().catch(()=>undefined);};
+  control?.signal?.addEventListener('abort',close);
+  const deadline = setTimeout(() => { timedOut = true; close(); }, Math.min(120000,control?.deadline?Math.max(1,control.deadline-Date.now()):120000));
   try {
     browser = await chromium.launch({ headless: true, proxy: { server: 'per-context' } });
     const contexts = new Map<string, Awaited<ReturnType<typeof browser.newContext>>>();
     for (const target of input.pages) {
-      if (timedOut) throw new Error('观察超时');
+      if (timedOut||control?.signal?.aborted) throw new Error('观察超时或已取消');
       const url = new URL(target.path, env.baseUrl).href;
       if (!checkDestination(url, policy).allowed) throw new Error('观察目标不在白名单');
       let context = contexts.get(target.role);
@@ -77,5 +79,5 @@ export async function observeProject(prisma: PrismaClient, store: ArtifactStore,
     const saved = store.put({ runId: `observe-${observationId}`, attemptId: 'bundle', filename: 'observation.json', data: Buffer.from(JSON.stringify(bundle)) });
     const artifact = await prisma.artifact.create({ data: { projectId, type: 'OBSERVATION_BUNDLE', sensitivity: 'NORMAL', storageKey: saved.storageKey, checksum: saved.checksum } });
     return { artifactId: artifact.id, bindingCount: bindings.length };
-  } finally { clearTimeout(deadline); await browser?.close(); await proxy.close(); }
+  } finally { clearTimeout(deadline); control?.signal?.removeEventListener('abort',close); await browser?.close(); await proxy.close(); }
 }

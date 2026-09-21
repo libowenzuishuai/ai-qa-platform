@@ -1,3 +1,5 @@
+import { prepareData, operateData } from './data-plugin-job.js';
+import { validateDataParameters, parseDataDefinition } from '../../api/src/data-plugin-service.js';
 import { EnvironmentRuntime } from "@ai-qa/contracts";
 import { probeBuild } from "./build-verification.js";
 import type { PrismaClient, Prisma } from "@prisma/client";
@@ -184,9 +186,10 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
         continue;
       }
 
-      const dataSpec = caseVersion.dataSpec as { strategy: string };
+      const dataSpec = caseVersion.dataSpec as { strategy: string; fixtureId?:string; params?:Record<string,string|number|boolean> };
+      const plugin=dataSpec.strategy==="fixture"?await prisma.dataPlugin.findFirst({where:{id:dataSpec.fixtureId??"",projectId:run.projectId,environmentId:run.environmentId,enabled:true}}):null;
       const cleanup = caseVersion.cleanup as { strategy: string };
-      if (dataSpec.strategy === "fixture" || (cleanup.strategy !== "manual" && !fixture)) {
+      if ((dataSpec.strategy === "fixture" && !plugin) || (cleanup.strategy !== "manual" && !fixture && !plugin)) {
         await createBlockedAttempt(prisma, runId, run.projectId, caseVersionId, index, "UNSUPPORTED", "用例声明的业务夹具或自动清理能力未配置，未开始业务操作");
         continue;
       }
@@ -226,9 +229,27 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
         planVersionId: planVersion.id,
       });
 
+      let preparedResource:Awaited<ReturnType<typeof prepareData>>|undefined;
+      const prepareController=new AbortController();
+      const prepareTimer=setInterval(()=>{void isRunActive(prisma,runId).then(active=>{if(!active||Date.now()>=runDeadline)prepareController.abort();}).catch(()=>prepareController.abort());},250);
+      async function cleanPlugin(){
+        if(!plugin||cleanup.strategy==='manual')return;
+        const resources=await prisma.dataResource.findMany({where:{projectId:run.projectId,pluginId:plugin.id,attemptId:attempt.id,status:{not:'cleaned'}}});
+        if(!resources.length)return;
+        const cleaned=await operateData(prisma,store,run.projectId,plugin.id,resources.map(r=>r.id),'cleanup',AbortSignal.timeout(30000));
+        if(cleaned.some(r=>r.status!=='cleaned'))throw new Error('数据插件存在未清理资源');
+      }
       try {
+        if(plugin){
+          parseDataDefinition(plugin.definition);validateDataParameters(plugin.paramSchema,dataSpec.params??{});
+          if(!await isRunActive(prisma,runId))throw new Error('运行已停止');
+          preparedResource=await prepareData(prisma,store,run.projectId,{pluginId:plugin.id,params:dataSpec.params??{},idempotencyKey:attempt.id,runId,attemptId:attempt.id},prepareController.signal);
+          if(preparedResource.status!=='success')throw new Error('数据准备结果未确认');
+        }
         await fixture?.resetNamespace(namespace, runDeadline);
       } catch (err) {
+        clearInterval(prepareTimer);
+        await cleanPlugin().catch(()=>undefined);
         await emitRunEvent(prisma, runId, "attempt.fixture_error", {
           attemptId: attempt.id, phase: "pre-clean",
           detail: err instanceof Error ? err.message : String(err),
@@ -238,11 +259,14 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
         continue;
       }
 
+      clearInterval(prepareTimer);
       const sink = createArtifactSink(prisma, store, run.projectId, runId, attempt.id);
       // R9：attempt 预算受 run 截止时间约束。
       const remainingForCase = Math.max(1, runDeadline - Date.now());
       const wallClockMs = Math.min(budget.maxWallClockMsPerCase ?? 300_000, remainingForCase);
-      const result = await executePlan({
+      let result:Awaited<ReturnType<typeof executePlan>>;
+      let cleanupError:string|undefined;
+      try { result = await executePlan({
         plan,
         baseUrl: snapshot.baseUrl,
         policy: {
@@ -251,7 +275,7 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
         },
         namespace,
         resolveCredential,
-        dataRefs: runtime.dataRefs,
+        dataRefs: {...runtime.dataRefs,...(preparedResource?{"fixture.resourceId":preparedResource.externalRef,"fixture.namespace":preparedResource.namespace}:{})},
         apiTemplates: snapshot.apiTemplates,
         sink,
         budget: {
@@ -278,7 +302,7 @@ export async function processRun(prisma: PrismaClient, config: WorkerConfig, run
         },
       });
 
-      let cleanupError: string | undefined;
+      } finally {try{await cleanPlugin();}catch{cleanupError="数据插件清理失败，请在准备中心核对残留资源";}}
       try { await fixture?.resetNamespace(namespace, runDeadline); }
       catch (err) {
         cleanupError = "数据清理失败，请检查此运行的数据隔离区";

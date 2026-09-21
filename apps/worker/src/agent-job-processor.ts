@@ -1,3 +1,5 @@
+import { runLoginCheck } from './login-check-job.js';
+import { runDataJob } from './data-plugin-job.js';
 import { processProductJob } from "./product-jobs.js";
 import { randomUUID } from "node:crypto";
 import type { Prisma, PrismaClient } from "@prisma/client";
@@ -64,7 +66,10 @@ async function failJob(prisma: PrismaClient, job: JobRow & { kind: string }, err
       finishedAt: new Date(),
     },
   });
-  if (changed.count) await markDocumentFailed(tx, job);
+  if (changed.count) {
+    await markDocumentFailed(tx, job);
+    if(job.kind==='LOGIN_CHECK')await tx.loginPreparation.updateMany({where:{lastCheckJobId:job.id},data:{lastCheckStatus:'ERROR',lastCheckAt:null,lastCheckDetail:'检查作业失败，请核对配置后重新检查'}});
+  }
   });
 }
 
@@ -139,15 +144,28 @@ export async function processAgentJob(
   const job = { ...await prisma.job.findUniqueOrThrow({ where: { id: jobId } }), startedAt };
 
   // 心跳只续租仍由本次执行拥有的作业；失联对账后的旧执行不能复活。
+  const controller = new AbortController();
   const heartbeat = setInterval(() => {
     void prisma.job.updateMany({
       where: ownedJob(job), data: { updatedAt: new Date() },
-    }).catch(() => undefined);
-  }, 10_000);
+    }).then(r=>{if(!r.count)controller.abort();}).catch(() => controller.abort());
+  }, ((job.request as {workflowId?:string}).workflowId||["LOGIN_CHECK","DATA_PREPARE","DATA_CLEANUP","DATA_INSPECT"].includes(job.kind))?250:10_000);
   heartbeat.unref();
+  config={...config,executionSignal:controller.signal};
   try {
+    const request=job.request as {workflowId?:string;workflowBudget?:WorkerConfig['executionBudget']};
+    if(request.workflowId){
+      const wf=await prisma.workflowRun.findUniqueOrThrow({where:{id:request.workflowId}});
+      if(wf.status!=='RUNNING'||!request.workflowBudget||Date.now()>=request.workflowBudget.deadline)throw Object.assign(new Error('工作流已停止或预算到期'),{code:'BUDGET_EXCEEDED'});
+      if(config.intelligenceBackend!=='python'&&['DOCUMENT_PARSE','RULE_EXTRACTION','CASE_GENERATION','PLAN_PROPOSAL'].includes(job.kind))throw Object.assign(new Error('受预算约束的工作流要求 Python 网关'),{code:'DEPENDENCY_UNAVAILABLE'});
+      config={...config,executionBudget:request.workflowBudget};
+    }
     const store = new ArtifactStore(config.artifactDir);
-    if (job.kind === "DOCUMENT_PARSE") {
+    if(job.kind === "LOGIN_CHECK") {
+      await runLoginCheck(prisma,store,job,commitJob,controller.signal);
+    } else if(["DATA_PREPARE","DATA_CLEANUP","DATA_INSPECT"].includes(job.kind)){
+      await runDataJob(prisma,store,job,commitJob,controller.signal);
+    } else if (job.kind === "DOCUMENT_PARSE") {
       await runDocumentParse(prisma, store, job, config, commitJob);
     } else if (job.kind === "RULE_EXTRACTION") {
       await runRuleExtraction(prisma, store, job, config);

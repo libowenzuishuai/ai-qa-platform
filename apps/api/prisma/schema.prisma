@@ -710,6 +710,8 @@ model LoginPreparation {
    * secretRefs 中的角色 key，如 "applicant"。
    */
   credentialRef    String
+  configuration    Json?
+  lastCheckJobId    String?
   /**
    * 登录步骤：[{type:"fill",locator,value:{source:"credential",ref:"applicant.username"}}]
    */
@@ -750,6 +752,10 @@ model DataPlugin {
    * 插件类型标识，首版只有 "http-request"。
    */
   kind        String
+  environmentId String?
+  environmentRevision Int?
+  definition Json?
+  environmentSnapshot Json?
   version     Int      @default(1)
   /**
    * 参数 JSON Schema（前端据此生成表单）。
@@ -791,6 +797,7 @@ model DataResource {
    * 动作参数指纹（幂等判定）。
    */
   actionFingerprint String
+  parameters Json @default("{}")
   /**
    * pending|success|failed|unknown|cleaned|cleanup_failed。
    */
@@ -803,6 +810,7 @@ model DataResource {
   @@unique([namespace, externalRef, action, actionFingerprint])
   @@index([projectId, runId])
   @@index([namespace])
+  @@unique([projectId, pluginId, namespace, action])
 }
 
 // ============ P0-3: 持久化任务编排 ============
@@ -832,11 +840,15 @@ model WorkflowRun {
    */
   usage             Json           @default("{}")
   currentGate       String?
+  eventSeq Int @default(0)
+  idempotencyKey String?
+  inputFingerprint String?
   cancelRequestedAt DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
   @@index([projectId])
+  @@unique([projectId, idempotencyKey])
 }
 
 model WorkflowNode {
@@ -885,6 +897,7 @@ model WorkflowNode {
 
   @@unique([workflowId, nodeKey, idempotencyKey])
   @@index([workflowId, status])
+  @@unique([workflowId, nodeKey])
 }
 
 model WorkflowEvent {

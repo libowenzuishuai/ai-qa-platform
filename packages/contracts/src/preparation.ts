@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ObservedLocator, PlanValue } from './test-plan.js';
+import { ObservedLocator } from './test-plan.js';
 import { EntityId } from './common.js';
 
 /**
@@ -17,24 +17,28 @@ export const LoginStep = z.discriminatedUnion('type', [
     type: z.literal('fill'),
     locator: ObservedLocator,
     /** 只允许凭据引用（secretRef.role.username / role.password）。 */
-    value: z.object({ source: z.literal('credential'), ref: z.string().regex(/^[a-zA-Z][\w-]*\.(username|password)$/) }),
-  }),
-  z.object({ type: z.literal('click'), locator: ObservedLocator }),
+    value: z.object({ source: z.literal('credential'), ref: z.string().regex(/^[a-zA-Z][\w-]*\.(username|password)$/) }).strict(),
+  }).strict(),
+  z.object({ type: z.literal('click'), locator: ObservedLocator }).strict(),
 ]);
 
 /** 登录成功标识：页面上的稳定元素/文本。 */
 export const SuccessIndicator = z.object({
   locator: ObservedLocator,
   expectedText: z.string().max(500).optional(),
-  expectedUrl: z.string().optional(),
+  expectedUrl: z.string().regex(/^\/(?!\/)[^\\\x00-\x1f]*$/).optional(),
 });
 
 export const LoginPreparationConfig = z.object({
   environmentId: EntityId,
+  loginPath: z.string().regex(/^\/(?!\/)[^\\\x00-\x1f]*$/).default('/'),
+  timeoutMs: z.number().int().min(1000).max(60000).default(30000),
   role: z.string().min(1).max(50),
   credentialRef: z.string().regex(/^[a-zA-Z][\w-]*$/),
   steps: z.array(LoginStep).min(1).max(20),
   successIndicator: SuccessIndicator,
+  invalidIndicator: ObservedLocator.optional(),
+  interactiveIndicator: ObservedLocator.optional(),
   /** 检查有效期（小时）。 */
   validityHours: z.number().int().min(1).max(168).default(24),
 }).strict();

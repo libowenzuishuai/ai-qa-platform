@@ -1,227 +1,354 @@
-import type { PrismaClient } from '@prisma/client';
-import { createHash } from 'node:crypto';
-import { HttpTemplateParams } from '@ai-qa/contracts';
-import { checkDestination } from '@ai-qa/test-runtime';
+import type { PrismaClient } from "@prisma/client";
+import { randomUUID } from "node:crypto";
+import type { ArtifactStore } from "@ai-qa/artifact-store";
+import { checkDestination } from "@ai-qa/test-runtime";
+import { configHash } from "../../api/src/preparation-service.js";
+import {
+  validateDataParameters,
+  parseDataDefinition,
+} from "../../api/src/data-plugin-service.js";
+import type { PreparationJob, JobCommit } from "./login-check-job.js";
 
-/**
- * P0-2 数据准备与清理 worker。
- *
- * HTTP 模板插件：
- * - prepare：按模板向目标环境发请求（仅允许白名单 origin），登记资源。
- * - cleanup：对已登记资源发反向请求（DELETE 或模板定义的清理路径）。
- * - inspect：查询资源状态。
- *
- * 幂等：相同 (namespace, externalRef, action, fingerprint) 不重复创建。
- * 清理失败保留残留资源状态，不能静默 PASS。
- */
-
-type JobRow = { id: string; projectId: string; request: unknown; startedAt: Date | null };
-
-function fingerprint(x: unknown): string {
-  return createHash('sha256').update(JSON.stringify(x)).digest('hex');
-}
-
-function externalRefFor(params: { method: string; path: string }): string {
-  return `${params.method} ${params.path}`;
-}
-
-/** 仅允许白名单 origin 内的 HTTP 请求。 */
-function resolveUrl(baseUrl: string, path: string): { ok: true; url: string } | { ok: false; error: string } {
+/** Network requests are bounded, never redirect, and contain only registered template data. */
+async function requestResource(
+  baseUrl: string,
+  allowedOrigins: string[],
+  path: string,
+  method: string,
+  body: unknown,
+  timeoutMs: number,
+  signal: AbortSignal,
+) {
+  const url = new URL(path, baseUrl);
+  if (
+    !checkDestination(url.href, { allowedOrigins, dependencyOrigins: [] })
+      .allowed
+  )
+    throw new Error("模板目标不在环境白名单");
+  const controller = new AbortController(),
+    abort = () => controller.abort();
+  signal.addEventListener("abort", abort);
+  if (signal.aborted) controller.abort();
+  const timer = setTimeout(abort, timeoutMs);
   try {
-    const url = new URL(path, baseUrl);
-    const policy = { allowedOrigins: [baseUrl], dependencyOrigins: [] };
-    if (!checkDestination(url.toString(), policy).allowed) {
-      return { ok: false, error: `目标 ${url.origin} 不在环境白名单内` };
-    }
-    return { ok: true, url: url.toString() };
-  } catch {
-    return { ok: false, error: `无法解析目标 ${path}` };
-  }
-}
-
-export async function runDataPrepare(
-  prisma: PrismaClient,
-  job: JobRow,
-): Promise<void> {
-  const req = job.request as {
-    pluginId: string;
-    namespace: string;
-    params: Record<string, unknown>;
-    runId?: string | null;
-    attemptId?: string | null;
-  };
-
-  const plugin = await prisma.dataPlugin.findFirst({ where: { id: req.pluginId, projectId: job.projectId, enabled: true } });
-  if (!plugin) throw Object.assign(new Error('插件不存在或已禁用'), { code: 'VALIDATION_ERROR' });
-
-  const env = await prisma.environment.findFirst({ where: { projectId: job.projectId, isProduction: false } });
-  if (!env) throw Object.assign(new Error('环境不存在'), { code: 'VALIDATION_ERROR' });
-
-  if (plugin.kind !== 'http-request') {
-    throw Object.assign(new Error(`暂不支持插件类型 ${plugin.kind}`), { code: 'UNSUPPORTED' });
-  }
-
-  const parsed = HttpTemplateParams.safeParse(req.params);
-  if (!parsed.success) {
-    throw Object.assign(new Error('参数不符合 HTTP 模板 schema'), {
-      code: 'VALIDATION_ERROR',
-      details: parsed.error.issues.slice(0, 3),
-    });
-  }
-  const params = parsed.data;
-
-  const resolved = resolveUrl(env.baseUrl, params.path);
-  if (!resolved.ok) {
-    throw Object.assign(new Error(resolved.error), { code: 'VALIDATION_ERROR' });
-  }
-
-  const ref = externalRefFor(params);
-  const fp = fingerprint(req.params);
-
-  // 幂等：同 namespace+ref+action+fingerprint 已成功 → 直接返回。
-  const existing = await prisma.dataResource.findUnique({
-    where: { namespace_externalRef_action_actionFingerprint: { namespace: req.namespace, externalRef: ref, action: 'prepare', actionFingerprint: fp } },
-  });
-  if (existing?.status === 'success') {
-    await finishJob(prisma, job.id, 'SUCCEEDED', { resourceIds: [existing.id], alreadyDone: true });
-    return;
-  }
-
-  const resource = await prisma.dataResource.upsert({
-    where: { namespace_externalRef_action_actionFingerprint: { namespace: req.namespace, externalRef: ref, action: 'prepare', actionFingerprint: fp } },
-    create: {
-      projectId: job.projectId,
-      runId: req.runId ?? null,
-      attemptId: req.attemptId ?? null,
-      namespace: req.namespace,
-      pluginId: plugin.id,
-      externalRef: ref,
-      action: 'prepare',
-      actionFingerprint: fp,
-      status: 'pending',
-    },
-    update: { status: 'pending', detail: null },
-  });
-
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), params.timeoutMs);
-    const response = await fetch(resolved.url, {
-      method: params.method,
-      headers: { 'content-type': 'application/json' },
-      body: params.body ? JSON.stringify(params.body) : undefined,
+    const response = await fetch(url, {
+      method,
+      redirect: "manual",
+      headers: body === undefined ? {} : { "content-type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
     });
+    // Do not retain response bodies; they may contain customer data. Resource identity is supplied by us.
+    await response.body?.cancel();
+    return response.status;
+  } finally {
     clearTimeout(timer);
-
-    const status = response.ok ? 'success' : 'failed';
-    const detail = response.ok
-      ? `${params.method} ${params.path} → ${response.status}`
-      : `${params.method} ${params.path} → ${response.status} ${response.statusText}`;
-
-    await prisma.dataResource.update({
-      where: { id: resource.id },
-      data: { status, detail },
-    });
-    await finishJob(prisma, job.id, response.ok ? 'SUCCEEDED' : 'FAILED', {
-      resourceIds: [resource.id],
-      status,
-      detail,
-    });
-  } catch (err) {
-    await prisma.dataResource.update({
-      where: { id: resource.id },
-      data: { status: 'unknown', detail: String(err).slice(0, 500) },
-    });
-    await finishJob(prisma, job.id, 'FAILED', { resourceIds: [resource.id], status: 'unknown' });
+    signal.removeEventListener("abort", abort);
   }
 }
-
-export async function runDataCleanup(
+export async function prepareData(
   prisma: PrismaClient,
-  job: JobRow,
-): Promise<void> {
-  const req = job.request as {
+  store: ArtifactStore,
+  projectId: string,
+  input: {
     pluginId: string;
-    namespace: string;
-    resourceIds?: string[];
-  };
-
-  const plugin = await prisma.dataPlugin.findFirst({ where: { id: req.pluginId, projectId: job.projectId } });
-  if (!plugin) throw Object.assign(new Error('插件不存在'), { code: 'VALIDATION_ERROR' });
-
-  // 找待清理资源。
-  const resources = req.resourceIds?.length
-    ? await prisma.dataResource.findMany({
-        where: { id: { in: req.resourceIds }, projectId: job.projectId, namespace: req.namespace },
-      })
-    : await prisma.dataResource.findMany({
-        where: { projectId: job.projectId, namespace: req.namespace, action: 'prepare', status: 'success' },
-      });
-
-  if (resources.length === 0) {
-    await finishJob(prisma, job.id, 'SUCCEEDED', { cleaned: 0, note: '没有待清理资源' });
-    return;
-  }
-
-  const env = await prisma.environment.findFirst({ where: { projectId: job.projectId, isProduction: false } });
-  if (!env) throw Object.assign(new Error('环境不存在'), { code: 'VALIDATION_ERROR' });
-
-  let cleaned = 0;
-  let failures = 0;
-
-  for (const resource of resources) {
+    idempotencyKey: string;
+    params: unknown;
+    runId?: string;
+    attemptId?: string;
+  },
+  signal: AbortSignal,
+) {
+  const plugin = await prisma.dataPlugin.findFirstOrThrow({
+    where: { id: input.pluginId, projectId, enabled: true },
+  });
+  const env = await prisma.environment.findFirstOrThrow({
+    where: {
+      id: plugin.environmentId ?? "",
+      projectId,
+      isProduction: false,
+      revision: plugin.environmentRevision ?? -1,
+    },
+  });
+  const definition = parseDataDefinition(plugin.definition),
+    params = validateDataParameters(plugin.paramSchema, input.params);
+  if (
+    input.runId &&
+    !(await prisma.run.findFirst({
+      where: { id: input.runId, projectId, environmentId: env.id },
+    }))
+  )
+    throw new Error("运行环境归属不符");
+  if (
+    input.attemptId &&
+    !(await prisma.caseAttempt.findFirst({
+      where: { id: input.attemptId, projectId, runId: input.runId ?? "" },
+    }))
+  )
+    throw new Error("attempt 归属不符");
+  const namespace =
+    "data-" +
+    configHash({
+      projectId,
+      pluginId: plugin.id,
+      key: input.idempotencyKey,
+    }).slice(0, 32);
+  const fingerprint = configHash({
+    params,
+    runId: input.runId ?? null,
+    attemptId: input.attemptId ?? null,
+  });
+  // An immutable preallocated resource ID allows inspection even if create's response is lost.
+  let resource = await prisma.dataResource.findFirst({
+      where: { projectId, pluginId: plugin.id, namespace, action: "prepare" },
+    }),
+    owned = false;
+  if (!resource) {
     try {
-      // HTTP 模板：尝试 DELETE 同一路径。
-      const [method, path] = resource.externalRef.split(' ', 2);
-      const resolved = resolveUrl(env.baseUrl, path ?? '/');
-      if (!resolved.ok) {
-        await prisma.dataResource.update({
-          where: { id: resource.id },
-          data: { status: 'cleanup_failed', detail: `清理目标不在白名单：${resolved.error}` },
-        });
-        failures++;
-        continue;
-      }
-
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 10_000);
-      const response = await fetch(resolved.url, { method: 'DELETE', signal: controller.signal });
-      clearTimeout(timer);
-
-      // 2xx 或 404 = 已清理（404 视为"本来就不存在"）。
-      if (response.ok || response.status === 404) {
-        await prisma.dataResource.update({
-          where: { id: resource.id },
-          data: { status: 'cleaned', detail: `DELETE ${path} → ${response.status}` },
-        });
-        cleaned++;
-      } else {
-        await prisma.dataResource.update({
-          where: { id: resource.id },
-          data: { status: 'cleanup_failed', detail: `DELETE ${path} → ${response.status} ${response.statusText}` },
-        });
-        failures++;
-      }
-    } catch (err) {
-      await prisma.dataResource.update({
-        where: { id: resource.id },
-        data: { status: 'cleanup_failed', detail: String(err).slice(0, 500) },
+      resource = await prisma.dataResource.create({
+        data: {
+          projectId,
+          pluginId: plugin.id,
+          namespace,
+          runId: input.runId,
+          attemptId: input.attemptId,
+          externalRef: randomUUID(),
+          action: "prepare",
+          actionFingerprint: fingerprint,
+          parameters: params,
+          status: "pending",
+        },
       });
-      failures++;
+      owned = true;
+    } catch (e) {
+      resource = await prisma.dataResource.findFirst({
+        where: { projectId, pluginId: plugin.id, namespace, action: "prepare" },
+      });
+      if (!resource) throw e;
     }
   }
-
-  await finishJob(prisma, job.id, failures > 0 ? 'FAILED' : 'SUCCEEDED', {
-    cleaned,
-    failures,
-    resourceIds: resources.map(r => r.id),
+  if (resource.actionFingerprint !== fingerprint)
+    throw new Error("相同准备标识对应不同参数");
+  if (!owned) {
+    if (resource.status === "success") return resource;
+    throw new Error("资源创建已尝试或结果未知，必须核对；未重放写入");
+  }
+  let status = "unknown",
+    detail = "创建结果未知，需核对";
+  try {
+    if (signal.aborted) throw new Error("stopped");
+    const path = definition.prepare.path
+      .replaceAll("{resourceId}", resource.externalRef)
+      .replaceAll("{namespace}", namespace);
+    const code = await requestResource(
+      env.baseUrl,
+      env.allowedOrigins,
+      path,
+      definition.prepare.method,
+      { resourceId: resource.externalRef, namespace, parameters: params },
+      definition.timeoutMs,
+      signal,
+    );
+    if (code >= 200 && code < 300) {
+      const inspectPath = definition.inspect.path
+        .replaceAll("{resourceId}", resource.externalRef)
+        .replaceAll("{namespace}", namespace);
+      const checked = await requestResource(
+        env.baseUrl,
+        env.allowedOrigins,
+        inspectPath,
+        "GET",
+        undefined,
+        definition.timeoutMs,
+        signal,
+      );
+      if (checked >= 200 && checked < 300) {
+        status = "success";
+        detail = "创建后已核对预分配资源";
+      }
+    } else {
+      detail = `创建返回 ${code}，未确认资源状态`;
+    }
+  } catch {
+    /* Unknown writes are not retried. */
+  }
+  const evidence = store.put({
+    runId: "data-preparation",
+    attemptId: resource.id,
+    filename: `prepare-${randomUUID()}.json`,
+    data: Buffer.from(
+      JSON.stringify({ resourceId: resource.id, status, detail }),
+    ),
+  });
+  const artifact = await prisma.artifact.create({
+    data: {
+      projectId,
+      type: "DATA_RESOURCE",
+      sensitivity: "NORMAL",
+      storageKey: evidence.storageKey,
+      checksum: evidence.checksum,
+    },
+  });
+  await prisma.dataResource.updateMany({
+    where: {
+      id: resource.id,
+      status: "pending",
+      updatedAt: resource.updatedAt,
+    },
+    data: { status, detail, evidenceId: artifact.id },
+  });
+  return prisma.dataResource.findUniqueOrThrow({ where: { id: resource.id } });
+}
+export async function operateData(
+  prisma: PrismaClient,
+  store: ArtifactStore,
+  projectId: string,
+  pluginId: string,
+  resourceIds: string[],
+  operation: "cleanup" | "inspect",
+  signal: AbortSignal,
+) {
+  const plugin = await prisma.dataPlugin.findFirstOrThrow({
+      where: { id: pluginId, projectId },
+    }),
+    definition = parseDataDefinition(plugin.definition);
+  const env = await prisma.environment.findFirstOrThrow({
+    where: { id: plugin.environmentId ?? "", projectId, isProduction: false },
+  });
+  const frozen = plugin.environmentSnapshot as { baseUrl?: string } | null;
+  if (!frozen?.baseUrl || env.baseUrl !== frozen.baseUrl)
+    throw new Error("环境地址已改变，不能在新环境清理旧资源");
+  const resources = await prisma.dataResource.findMany({
+    where: { id: { in: resourceIds }, projectId, pluginId },
+  });
+  if (!resources.length || resources.length !== new Set(resourceIds).size)
+    throw new Error("资源归属不符");
+  const deadline = Date.now() + 30000;
+  for (const r of resources) {
+    if (["cleaned", "cleaning", "pending"].includes(r.status)) continue;
+    if (signal.aborted || Date.now() >= deadline) break;
+    const claimedAt = new Date();
+    const claim = await prisma.dataResource.updateMany({
+      where: { id: r.id, status: r.status, updatedAt: r.updatedAt },
+      data: { status: "cleaning", updatedAt: claimedAt },
+    });
+    if (!claim.count) continue;
+    let status = "unknown",
+      detail = "核对失败，保留资源记录";
+    try {
+      const path = definition.inspect.path
+        .replaceAll("{resourceId}", encodeURIComponent(r.externalRef))
+        .replaceAll("{namespace}", encodeURIComponent(r.namespace));
+      const inspected = await requestResource(
+        env.baseUrl,
+        env.allowedOrigins,
+        path,
+        "GET",
+        undefined,
+        Math.min(definition.timeoutMs, Math.max(1, deadline - Date.now())),
+        signal,
+      );
+      if (inspected === 404 && definition.cleanup.allow404) {
+        status = "cleaned";
+        detail = "核对确认资源不存在";
+      } else if (inspected >= 200 && inspected < 300) {
+        status = "success";
+        detail = "核对确认本资源存在";
+        if (operation === "cleanup") {
+          if (signal.aborted || Date.now() >= deadline)
+            throw new Error("清理预算到期");
+          const cleanupPath = definition.cleanup.path
+            .replaceAll("{resourceId}", encodeURIComponent(r.externalRef))
+            .replaceAll("{namespace}", encodeURIComponent(r.namespace));
+          const code = await requestResource(
+            env.baseUrl,
+            env.allowedOrigins,
+            cleanupPath,
+            "DELETE",
+            undefined,
+            Math.min(definition.timeoutMs, Math.max(1, deadline - Date.now())),
+            signal,
+          );
+          status =
+            (code >= 200 && code < 300) ||
+            (code === 404 && definition.cleanup.allow404)
+              ? "cleaned"
+              : "cleanup_failed";
+          detail = `本资源清理返回 ${code}`;
+        }
+      }
+    } catch {
+      status = operation === "cleanup" ? "cleanup_failed" : "unknown";
+    }
+    const saved = store.put({
+      runId: "data-preparation",
+      attemptId: r.id,
+      filename: `${operation}-${randomUUID()}.json`,
+      data: Buffer.from(JSON.stringify({ resourceId: r.id, status, detail })),
+    });
+    const evidence = await prisma.artifact.create({
+      data: {
+        projectId,
+        type: "DATA_RESOURCE",
+        sensitivity: "NORMAL",
+        storageKey: saved.storageKey,
+        checksum: saved.checksum,
+      },
+    });
+    await prisma.dataResource.updateMany({
+      where: { id: r.id, status: "cleaning", updatedAt: claimedAt },
+      data: { status, detail, evidenceId: evidence.id },
+    });
+  }
+  return prisma.dataResource.findMany({
+    where: { id: { in: resourceIds }, projectId, pluginId },
   });
 }
-
-async function finishJob(prisma: PrismaClient, jobId: string, status: string, result: unknown): Promise<void> {
-  await prisma.job.update({
-    where: { id: jobId },
-    data: { status, result: result as never, finishedAt: new Date() },
+export async function runDataJob(
+  prisma: PrismaClient,
+  store: ArtifactStore,
+  job: PreparationJob & { kind: string },
+  commit: JobCommit,
+  signal: AbortSignal,
+) {
+  const req = job.request as any;
+  const rows =
+    job.kind === "DATA_PREPARE"
+      ? [await prepareData(prisma, store, job.projectId, req, signal)]
+      : await operateData(
+          prisma,
+          store,
+          job.projectId,
+          req.pluginId,
+          req.resourceIds,
+          job.kind === "DATA_INSPECT" ? "inspect" : "cleanup",
+          signal,
+        );
+  const okay = rows.every((r) =>
+    job.kind === "DATA_CLEANUP"
+      ? r.status === "cleaned"
+      : ["success", "cleaned"].includes(r.status),
+  );
+  await commit(prisma, job, async (tx) => {
+    await tx.job.update({
+      where: { id: job.id },
+      data: {
+        status: okay ? "SUCCEEDED" : "FAILED",
+        finishedAt: new Date(),
+        result: {
+          resourceIds: rows.map((r) => r.id),
+          status: okay ? "complete" : "needs_review",
+        },
+        ...(!okay
+          ? {
+              error: {
+                code: "DEPENDENCY_UNAVAILABLE",
+                message: "数据资源仍需核对或清理",
+                requestId: job.id,
+              },
+            }
+          : {}),
+      },
+    });
   });
 }

@@ -1,3 +1,4 @@
+import { LoginCheckResult } from "./preparation.js";
 import { z } from "zod";
 import { EntityId, IsoDateTime } from "./common.js";
 import { RunMode } from "./enums.js";
@@ -19,10 +20,10 @@ import { DocumentFormat, ParseStatus } from "./document.js";
  * 不内联 bundle/draft 大对象。
  */
 
-export const JobKind = z.enum(["DOCUMENT_PARSE", "RULE_EXTRACTION", "CASE_GENERATION", "WEB_OBSERVATION", "PLAN_PROPOSAL", "REPO_DISCOVERY"]);
+export const JobKind = z.enum(["DOCUMENT_PARSE", "RULE_EXTRACTION", "CASE_GENERATION", "WEB_OBSERVATION", "PLAN_PROPOSAL", "REPO_DISCOVERY", "LOGIN_CHECK", "DATA_PREPARE", "DATA_CLEANUP", "DATA_INSPECT"]);
 export type JobKind = z.infer<typeof JobKind>;
 
-export const JobStatus = z.enum(["QUEUED", "RUNNING", "SUCCEEDED", "FAILED"]);
+export const JobStatus = z.enum(["QUEUED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED"]);
 export type JobStatus = z.infer<typeof JobStatus>;
 
 /**
@@ -101,6 +102,8 @@ export type CaseGenerationJobResult = z.infer<typeof CaseGenerationJobResult>;
 /** GET /api/jobs/:id —— 三作业共用信封（按 kind 判别 result 形状）。 */
 const JobEnvelopeBase = z.object({
   jobId: EntityId,
+  projectId:EntityId.optional(),
+  workflowId:EntityId.optional(),
   status: JobStatus,
   mode: RunMode.optional(),
   createdAt: IsoDateTime,
@@ -111,6 +114,8 @@ const JobEnvelopeBase = z.object({
 });
 
 export const JobEnvelope = z.discriminatedUnion("kind", [
+  JobEnvelopeBase.extend({kind:z.literal("LOGIN_CHECK"),result:z.object({loginPreparationId:EntityId,result:LoginCheckResult}).nullable()}),
+  ...(["DATA_PREPARE","DATA_CLEANUP","DATA_INSPECT"] as const).map(kind=>JobEnvelopeBase.extend({kind:z.literal(kind),result:z.object({resourceIds:z.array(EntityId),status:z.string()}).nullable()})),
   JobEnvelopeBase.extend({ kind: z.literal("WEB_OBSERVATION"), result: z.object({ artifactId: EntityId, bindingCount: z.number().int() }).nullable() }),
   JobEnvelopeBase.extend({ kind: z.literal("PLAN_PROPOSAL"), result: z.object({ proposalId: EntityId }).nullable() }),
   JobEnvelopeBase.extend({ kind: z.literal("REPO_DISCOVERY"), result: z.object({ snapshotId: EntityId, fileCount: z.number().int() }).nullable() }),

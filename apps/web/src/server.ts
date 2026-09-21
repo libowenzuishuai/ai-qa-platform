@@ -1,3 +1,4 @@
+import { registerPreparationPages } from './preparation.js';
 import { registerProductPages } from "./product.js";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
@@ -32,6 +33,7 @@ await app.register(cookie);
 await app.register(formbody);
 registerWorkbenchRoutes(app);
 registerProductPages(app);
+registerPreparationPages(app);
 
 function sid(req: { cookies: Record<string, string | undefined> }): string | undefined {
   return req.cookies["web_sid"];

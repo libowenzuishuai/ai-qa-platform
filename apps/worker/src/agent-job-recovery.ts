@@ -21,9 +21,13 @@ export async function reconcileAgentJobs(prisma: PrismaClient, queue: Pick<Queue
         error: { code: "DEPENDENCY_UNAVAILABLE", message: "作业执行进程失联，请检查 worker 后重新发起", requestId: job.id },
       },
     });
-    if (changed.count) await markDocumentFailed(tx, job);
+    if (changed.count) {
+      await markDocumentFailed(tx, job);
+      if(job.kind==='LOGIN_CHECK')await tx.loginPreparation.updateMany({where:{lastCheckJobId:job.id},data:{lastCheckStatus:'ERROR',lastCheckAt:null,lastCheckDetail:'检查进程失联，需重新检查'}});
+    }
     });
   }
+  await prisma.dataResource.updateMany({where:{status:{in:['pending','cleaning']},updatedAt:{lt:staleBefore}},data:{status:'unknown',detail:'执行失联，必须先核对资源，未重放写入'}});
   const pending = await prisma.job.findMany({
     where: { status: "QUEUED", updatedAt: { lt: new Date(now.getTime() - 10_000) } },
     orderBy: { updatedAt: "asc" }, select: { id: true }, take: 20,

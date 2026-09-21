@@ -26,14 +26,15 @@ export async function callIntelligence(
     throw failure('VALIDATION_ERROR', '智能服务 URL 不合法');
   }
   const contract = operations[operation];
-  const timeoutMs = config.intelligenceTimeoutMs ?? 120_000;
+  const timeoutMs = Math.min(config.intelligenceTimeoutMs ?? 120_000,config.executionBudget?Math.max(1000,config.executionBudget.deadline-Date.now()):600000);
+  if(config.executionBudget&&Date.now()>=config.executionBudget.deadline)throw failure('BUDGET_EXCEEDED','工作流预算已到期');
   const request = contract.request.parse({ schemaVersion: '1.0', requestId, mode, timeoutMs, input });
   let response: Response;
   let raw: unknown;
   try {
     response = await fetch(new URL(contract.path, base), {
-      method: 'POST', redirect: 'error', signal: AbortSignal.timeout(timeoutMs),
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${config.intelligenceToken}` },
+      method: 'POST', redirect: 'error', signal: AbortSignal.any([AbortSignal.timeout(timeoutMs),...(config.executionSignal?[config.executionSignal]:[])]),
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${config.intelligenceToken}`, ...(config.executionBudget?{'x-aiqa-model-calls':String(config.executionBudget.maxModelCalls),'x-aiqa-model-tokens':String(config.executionBudget.maxTokens)}:{}) },
       body: JSON.stringify(request),
     });
     raw = await response.json();

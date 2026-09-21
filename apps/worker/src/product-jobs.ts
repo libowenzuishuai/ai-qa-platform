@@ -8,9 +8,9 @@ import { discoverRepository } from './repository.js';
 
 type Job = { id: string; projectId: string; kind: string; request: unknown; startedAt: Date | null };
 export async function processProductJob(prisma: PrismaClient, store: ArtifactStore, config: WorkerConfig, job: Job, commit: (db: PrismaClient, job: Job, persist: (tx: Prisma.TransactionClient) => Promise<void>) => Promise<void>) {
-  const request = job.request as Record<string, any>;
+  const {workflowId,workflowBudget,...request} = job.request as Record<string, any>;
   let result: unknown;
-  if (job.kind === 'WEB_OBSERVATION') result = await observeProject(prisma, store, job.projectId, request);
+  if (job.kind === 'WEB_OBSERVATION') result = await observeProject(prisma, store, job.projectId, request,{signal:config.executionSignal,deadline:config.executionBudget?.deadline});
   else if (job.kind === 'REPO_DISCOVERY') {
     const discovered = await discoverRepository(request, store, job.id);
     if (discovered.files.length) {

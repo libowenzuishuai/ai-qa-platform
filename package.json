@@ -27,6 +27,7 @@
     "contracts:check": "pnpm --filter @ai-qa/contracts check:intelligence",
     "dev:intelligence": "services/intelligence/.venv/bin/python -m uvicorn aiqa_intelligence.app:app --app-dir services/intelligence/src --host 127.0.0.1 --port 7500",
     "test:intelligence": "services/intelligence/.venv/bin/python -m pytest services/intelligence/tests",
-    "contracts:python": "services/intelligence/.venv/bin/python services/intelligence/scripts/generate_models.py"
+    "contracts:python": "services/intelligence/.venv/bin/python services/intelligence/scripts/generate_models.py",
+    "test:p0": "pnpm --filter @ai-qa/worker exec vitest run test/p0-acceptance.test.ts"
   }
 }

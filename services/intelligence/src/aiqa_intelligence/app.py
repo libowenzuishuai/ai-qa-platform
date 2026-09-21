@@ -143,6 +143,16 @@ def create_app(
             ),
             records,
         )
+        calls_header = request.headers.get("x-aiqa-model-calls")
+        tokens_header = request.headers.get("x-aiqa-model-tokens")
+        if calls_header is not None or tokens_header is not None:
+            try:
+                calls, tokens = int(calls_header), int(tokens_header)
+                if not (0 <= calls <= 500 and 0 <= tokens <= 20_000_000):
+                    raise ValueError()
+                context.models.set_budget(calls, tokens)
+            except (ValueError, TypeError) as exc:
+                raise ServiceError("VALIDATION_ERROR", "模型预算不合法") from exc
         methods = {
             "document": parser.parse_document,
             "rules": agents.extract_rules,

@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 export const WorkerConfig = z.object({
+  executionSignal:z.custom<AbortSignal>().optional(),
+  executionBudget: z.object({maxModelCalls:z.number().int().nonnegative(),maxTokens:z.number().int().nonnegative(),deadline:z.number().int()}).optional(),
   port: z.number().int().default(7200),
   host: z.string().default("127.0.0.1"),
   databaseUrl: z.string().min(1),

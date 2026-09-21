@@ -66,7 +66,7 @@ export function registerProductRoutes(app: FastifyInstance, prisma: PrismaClient
   });
   app.get('/api/case-versions/:id', async req => {
     const row = await caseFor(req, false);
-    return { ...row, availableRules: await prisma.ruleVersion.findMany({where:{rule:{projectId:row.projectId},OR:[{reviewStatus:"APPROVED"},{id:{in:row.ruleVersionIds}}]},select:{id:true,statement:true,version:true,reviewStatus:true}}), plans: await prisma.testPlanVersion.findMany({ where: { caseVersionId: row.id }, orderBy: { version: 'desc' } }) };
+    return { ...row, availableDataPlugins:await prisma.dataPlugin.findMany({where:{projectId:row.projectId,enabled:true},select:{id:true,name:true,version:true,environmentId:true,paramSchema:true}}), availableRules: await prisma.ruleVersion.findMany({where:{rule:{projectId:row.projectId},OR:[{reviewStatus:"APPROVED"},{id:{in:row.ruleVersionIds}}]},select:{id:true,statement:true,version:true,reviewStatus:true}}), plans: await prisma.testPlanVersion.findMany({ where: { caseVersionId: row.id }, orderBy: { version: 'desc' } }) };
   });
   app.post('/api/case-versions/:id/revise', async req => {
     const row = await caseFor(req);

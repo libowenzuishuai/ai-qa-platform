@@ -165,6 +165,8 @@ export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jo
     const job = await prisma.job.findUnique({ where: { id } });
     if (!job) throw new ApiError("NOT_FOUND", "作业不存在");
     await requireProjectAccess(prisma, req, job.projectId, "LEAD");
+    if((job.request as {workflowId?:string}).workflowId)throw new ApiError('CONFLICT','工作流所属作业不能单独重放，请从工作流重新处理');
+    if(['DATA_PREPARE','DATA_CLEANUP','DATA_INSPECT','LOGIN_CHECK'].includes(job.kind))throw new ApiError('CONFLICT','请从准备中心重新检查或核对资源；禁止直接重放准备写入');
     const changed = await prisma.$transaction(async tx => {
     const changed = await tx.job.updateMany({
       where: { id, status: "FAILED" },
@@ -184,6 +186,16 @@ export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jo
     return reply.code(202).send({ jobId: id });
   });
 
+  app.post('/api/jobs/:id/cancel',async req=>{
+    const {id}=z.object({id:z.string()}).parse(req.params);
+    const job=await prisma.job.findUnique({where:{id}});if(!job)throw new ApiError('NOT_FOUND','作业不存在');
+    await requireProjectAccess(prisma,req,job.projectId,'LEAD');
+    if(!['LOGIN_CHECK','DATA_PREPARE','DATA_CLEANUP','DATA_INSPECT'].includes(job.kind))throw new ApiError('UNSUPPORTED','此类作业使用所属运行的取消入口');
+    const changed=await prisma.job.updateMany({where:{id,status:{in:['QUEUED','RUNNING']}},data:{status:'CANCELLED',finishedAt:new Date()}});
+    if(changed.count&&job.kind==='LOGIN_CHECK')await prisma.loginPreparation.updateMany({where:{lastCheckJobId:id},data:{lastCheckStatus:'CANCELLED',lastCheckAt:null}});
+    return {jobId:id,status:(await prisma.job.findUniqueOrThrow({where:{id}})).status};
+  });
+
   app.get("/api/jobs/:id", async (req) => {
     requireAuth(req);
     const { id } = z.object({ id: z.string() }).parse(req.params);
@@ -192,6 +204,8 @@ export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jo
     await requireProjectAccess(prisma, req, job.projectId, "VIEWER");
     const envelope = JobEnvelope.safeParse({
       jobId: job.id,
+      projectId:job.projectId,
+      workflowId:(job.request as {workflowId?:string}).workflowId,
       kind: job.kind,
       mode: (job.request as { mode?: string }).mode,
       status: job.status,

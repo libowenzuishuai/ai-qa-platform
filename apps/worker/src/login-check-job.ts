@@ -1,232 +1,257 @@
-import { randomUUID } from 'node:crypto';
-import type { PrismaClient } from '@prisma/client';
-import { chromium } from 'playwright';
+import type { PrismaClient, Prisma } from "@prisma/client";
+import { chromium, type Page, type Locator } from "playwright";
 import {
+  EnvironmentRuntime,
+  LoginPreparationConfig,
   LoginCheckResult,
-  ObservedLocator,
-} from '@ai-qa/contracts';
-import { ArtifactStore } from '@ai-qa/artifact-store';
-import type { WorkerConfig } from './config.js';
-import { makeCredentialResolver } from './credentials.js';
-
-/**
- * P0-1 登录检查作业：在独立 BrowserContext 执行已保存的登录流程。
- *
- * 明确状态分类：
- * - PASS：全部步骤完成 + 成功标识命中
- * - FAIL_INVALID_CREDENTIALS：填入凭据后出现错误提示/仍在登录页
- * - FAIL_MISSING_ENV：环境变量缺失（不读取值，只检查存在性）
- * - FAIL_LOCATOR_NOT_FOUND：步骤中的元素未出现
- * - FAIL_SITE_UNREACHABLE：目标地址不可达
- * - FAIL_TIMEOUT：整体超时
- * - FAIL_INTERACTIVE_AUTH_REQUIRED：检测到验证码/MFA/SSO 表单
- * - CANCELLED
- */
-
-type JobRow = { id: string; projectId: string; request: unknown; startedAt: Date | null };
-
-function locatorFor(page: import('playwright').Page, locator: ObservedLocator) {
-  switch (locator.type) {
-    case 'testId': return page.getByTestId(locator.value);
-    case 'role': return page.getByRole(locator.role as never, locator.name ? { name: locator.name } : undefined);
-    case 'label': return page.getByLabel(locator.value);
-    case 'text': return page.getByText(locator.value);
-  }
+  type ObservedLocator,
+} from "@ai-qa/contracts";
+import { startPolicyProxy, checkDestination } from "@ai-qa/test-runtime";
+import type { ArtifactStore } from "@ai-qa/artifact-store";
+import { makeCredentialResolver } from "./credentials.js";
+import {
+  validateLoginConfiguration,
+  configHash,
+} from "../../api/src/preparation-service.js";
+export type PreparationJob = {
+  id: string;
+  projectId: string;
+  request: unknown;
+  startedAt: Date | null;
+};
+export type JobCommit = (
+  db: PrismaClient,
+  job: PreparationJob,
+  persist: (tx: Prisma.TransactionClient) => Promise<void>,
+) => Promise<void>;
+export function loginLocator(page: Page, locator: ObservedLocator): Locator {
+  if (locator.type === "testId") return page.getByTestId(locator.value);
+  if (locator.type === "label")
+    return page.getByLabel(locator.value, { exact: true });
+  if (locator.type === "text")
+    return page.getByText(locator.value, { exact: true });
+  return page.getByRole(locator.role as never, {
+    name: locator.name,
+    exact: true,
+  });
 }
-
 export async function runLoginCheck(
   prisma: PrismaClient,
   store: ArtifactStore,
-  job: JobRow,
-  config: WorkerConfig,
-): Promise<void> {
+  job: PreparationJob,
+  commit: JobCommit,
+  signal: AbortSignal,
+) {
   const request = job.request as {
     loginPreparationId: string;
+    configuration: unknown;
+    configHash: string;
     environmentId: string;
     environmentRevision: number;
-    baseUrl: string;
   };
-
-  const prep = await prisma.loginPreparation.findUnique({ where: { id: request.loginPreparationId } });
-  if (!prep) throw new Error(`登录配置不存在: ${request.loginPreparationId}`);
-
-  const steps = prep.steps as Array<{
-    type: 'fill' | 'click';
-    locator: ObservedLocator;
-    value?: { source: 'credential'; ref: string };
-  }>;
-  const indicator = prep.successIndicator as {
-    locator: ObservedLocator;
-    expectedText?: string;
-    expectedUrl?: string;
-  };
-
-  // 检查环境变量存在性（不读取值进日志）。
-  const resolve = makeCredentialResolver({});
-  for (const step of steps) {
-    if (step.type === 'fill' && step.value?.ref) {
-      const value = resolve(step.value.ref);
-      if (!value) {
-        await recordResult(prisma, prep.id, 'FAIL_MISSING_ENV', `环境变量 ${step.value.ref} 未配置`, request, null);
-        return;
-      }
-    }
-  }
-
-  const started = Date.now();
-  const timeoutMs = 30_000;
-  let browser: import('playwright').Browser | null = null;
-  let evidenceArtifactId: string | null = null;
-
-  try {
-    browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext();
-    const page = await context.newPage();
-
-    // 导航到目标。
-    try {
-      await page.goto(request.baseUrl, { timeout: 10_000, waitUntil: 'domcontentloaded' });
-    } catch {
-      await recordResult(prisma, prep.id, 'FAIL_SITE_UNREACHABLE', `目标 ${request.baseUrl} 不可达`, request, null);
-      return;
-    }
-
-    // 执行步骤。
-    for (const step of steps) {
-      if (Date.now() - started > timeoutMs) {
-        await recordResult(prisma, prep.id, 'FAIL_TIMEOUT', `登录流程超过 ${timeoutMs}ms`, request, null);
-        return;
-      }
-      const loc = locatorFor(page, step.locator);
-      try {
-        if (step.type === 'fill' && step.value) {
-          const value = resolve(step.value.ref);
-          if (!value) {
-            await recordResult(prisma, prep.id, 'FAIL_MISSING_ENV', `环境变量 ${step.value.ref} 未配置`, request, null);
-            return;
-          }
-          await loc.fill(value, { timeout: 8_000 });
-        } else if (step.type === 'click') {
-          await loc.click({ timeout: 8_000 });
-          await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => undefined);
-        }
-      } catch {
-        // 检查是否因为验证码/MFA。
-        const hasCaptcha = await page.locator('input[type=file]').count() > 0;
-        const hasMfa = await page.getByText(/验证码|MFA|two.?factor|2fa/i).count() > 0;
-        if (hasCaptcha || hasMfa) {
-          await recordResult(prisma, prep.id, 'FAIL_INTERACTIVE_AUTH_REQUIRED', '检测到验证码/MFA，需要人工处理', request, null);
-          return;
-        }
-        await recordResult(prisma, prep.id, 'FAIL_LOCATOR_NOT_FOUND', `步骤 ${step.type} 的元素未找到`, request, null);
-        return;
-      }
-    }
-
-    // 检查成功标识。
-    try {
-      const indicatorLoc = locatorFor(page, indicator.locator);
-      await indicatorLoc.waitFor({ state: 'visible', timeout: 10_000 });
-      if (indicator.expectedText) {
-        const text = await indicatorLoc.textContent();
-        if (!text?.includes(indicator.expectedText)) {
-          await recordResult(prisma, prep.id, 'FAIL_INVALID_CREDENTIALS', `登录后标识文本不符`, request, null);
-          return;
-        }
-      }
-      if (indicator.expectedUrl && !page.url().includes(indicator.expectedUrl)) {
-        await recordResult(prisma, prep.id, 'FAIL_INVALID_CREDENTIALS', `登录后 URL 不含 ${indicator.expectedUrl}`, request, null);
-        return;
-      }
-    } catch {
-      // 标识未出现——检查是否仍在登录页。
-      const stillOnLogin = await page.locator('input[type=password]').count() > 0;
-      if (stillOnLogin) {
-        await recordResult(prisma, prep.id, 'FAIL_INVALID_CREDENTIALS', '凭据无效或登录被拒绝（仍在登录页）', request, null);
-        return;
-      }
-      await recordResult(prisma, prep.id, 'FAIL_TIMEOUT', '登录成功标识在限定时间内未出现', request, null);
-      return;
-    }
-
-    // 成功：保存脱敏截图。
-    const screenshot = await page.screenshot({ fullPage: false });
-    const stored = store.put({
-      runId: `login-check-${prep.id.slice(0, 12)}`,
-      attemptId: new Date().toISOString().slice(0, 10),
-      filename: `login-check-${randomUUID().slice(0, 8)}.png`,
-      data: screenshot,
-    });
-    const artifact = await prisma.artifact.create({
-      data: {
-        projectId: job.projectId,
-        attemptId: null,
-        storageKey: stored.storageKey,
-        type: 'LOGIN_CHECK',
-        sensitivity: 'RESTRICTED_RAW', // 登录截图可能含敏感信息
-        checksum: stored.checksum,
-      },
-      select: { id: true },
-    });
-    evidenceArtifactId = artifact.id;
-
-    const checkedAt = new Date();
-    const expiresAt = new Date(checkedAt.getTime() + prep.validityHours * 3600_000);
-    await prisma.loginPreparation.update({
-      where: { id: prep.id },
-      data: {
-        lastCheckStatus: 'PASS',
-        lastCheckDetail: '登录成功',
-        lastCheckAt: checkedAt,
-        lastCheckEnvRev: request.environmentRevision,
-      },
-    });
-    await finishJob(prisma, job.id, 'SUCCEEDED', {
-      loginPreparationId: prep.id,
-      result: LoginCheckResult.parse({
-        status: 'PASS',
-        detail: '登录成功',
-        checkedAt: checkedAt.toISOString(),
-        environmentRevision: request.environmentRevision,
-        configHash: prep.configHash,
-        expiresAt: expiresAt.toISOString(),
-        evidenceArtifactId,
-      }),
-    });
-  } catch (err) {
-    await recordResult(prisma, prep.id, 'ERROR', String(err).slice(0, 500), request, null);
-  } finally {
-    await browser?.close().catch(() => undefined);
-  }
-}
-
-async function recordResult(
-  prisma: PrismaClient,
-  prepId: string,
-  status: string,
-  detail: string,
-  request: { environmentRevision: number },
-  _evidence: string | null,
-): Promise<void> {
-  await prisma.loginPreparation.update({
-    where: { id: prepId },
-    data: {
-      lastCheckStatus: status,
-      lastCheckDetail: detail,
-      lastCheckAt: new Date(),
-      lastCheckEnvRev: request.environmentRevision,
+  const config = LoginPreparationConfig.parse(request.configuration);
+  const env = await prisma.environment.findFirstOrThrow({
+    where: {
+      id: request.environmentId,
+      projectId: job.projectId,
+      isProduction: false,
     },
   });
-}
-
-async function finishJob(
-  prisma: PrismaClient,
-  jobId: string,
-  status: string,
-  result: unknown,
-): Promise<void> {
-  await prisma.job.update({
-    where: { id: jobId },
-    data: { status, result: result as never, finishedAt: new Date() },
+  if (
+    env.revision !== request.environmentRevision ||
+    configHash(config) !== request.configHash
+  )
+    throw new Error("登录配置或环境版本已改变");
+  validateLoginConfiguration(config, env.runtime);
+  const runtime = EnvironmentRuntime.parse(env.runtime),
+    resolve = makeCredentialResolver(runtime.secretRefs);
+  const policy = {
+    allowedOrigins: env.allowedOrigins,
+    dependencyOrigins: env.dependencyOrigins,
+  };
+  let status: typeof LoginCheckResult._type.status = "ERROR",
+    detail = "登录检查未完成";
+  let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
+  let proxy: Awaited<ReturnType<typeof startPolicyProxy>> | undefined;
+  const deadline = Date.now() + config.timeoutMs;
+  const timeout = () => Math.max(1, Math.min(8000, deadline - Date.now()));
+  let expired = false;
+  const close = () => {
+    void browser?.close().catch(() => undefined);
+  };
+  const timer = setTimeout(() => {
+    expired = true;
+    close();
+  }, config.timeoutMs);
+  signal.addEventListener("abort", close);
+  try {
+    const missing = config.steps.some(
+      (s) => s.type === "fill" && !resolve(s.value.ref),
+    );
+    if (missing) {
+      status = "FAIL_MISSING_ENV";
+      detail = "已登记账号的环境变量未提供";
+    } else {
+      proxy = await startPolicyProxy(policy);
+      if (signal.aborted || expired) throw new Error("stopped");
+      browser = await chromium.launch({
+        headless: true,
+        proxy: { server: "per-context" },
+      });
+      if (signal.aborted || expired) throw new Error("stopped");
+      const context = await browser.newContext({
+        proxy: { server: proxy.url },
+        serviceWorkers: "block",
+      });
+      const page = await context.newPage();
+      page.setDefaultTimeout(timeout());
+      const url = new URL(config.loginPath, env.baseUrl).href;
+      if (!checkDestination(url, policy).allowed)
+        throw new Error("登录路径越界");
+      status = "FAIL_SITE_UNREACHABLE";
+      detail = "登录页面不可达";
+      await page.goto(url, {
+        waitUntil: "domcontentloaded",
+        timeout: timeout(),
+      });
+      const interactive = async () =>
+        !!config.interactiveIndicator &&
+        (await loginLocator(page, config.interactiveIndicator).isVisible());
+      const invalid = async () =>
+        !!config.invalidIndicator &&
+        (await loginLocator(page, config.invalidIndicator).isVisible());
+      for (const step of config.steps) {
+        if (signal.aborted || expired) throw new Error("stopped");
+        if (await interactive()) {
+          status = "FAIL_INTERACTIVE_AUTH_REQUIRED";
+          detail = "需要交互认证";
+          break;
+        }
+        status = "FAIL_LOCATOR_NOT_FOUND";
+        detail = "登录步骤目标未出现或不唯一";
+        const target = loginLocator(page, step.locator);
+        await target.waitFor({
+          state: "visible",
+          timeout: Math.max(1, Math.floor(timeout() / 2)),
+        });
+        if ((await target.count()) !== 1) throw new Error("目标不唯一");
+        status = "FAIL_TIMEOUT";
+        detail = "登录动作或页面跳转超时";
+        if (step.type === "fill")
+          await target.fill(resolve(step.value.ref)!, { timeout: timeout() });
+        else await target.click({ timeout: timeout() });
+      }
+      while (!signal.aborted && !expired && Date.now() < deadline) {
+        if (await interactive()) {
+          status = "FAIL_INTERACTIVE_AUTH_REQUIRED";
+          detail = "需要交互认证";
+          break;
+        }
+        if (await invalid()) {
+          status = "FAIL_INVALID_CREDENTIALS";
+          detail = "页面明确拒绝账号认证";
+          break;
+        }
+        status = "FAIL_TIMEOUT";
+        detail = "未在预算内观察到登录成功标识";
+        const indicator = loginLocator(page, config.successIndicator.locator);
+        if ((await indicator.count()) === 1 && (await indicator.isVisible())) {
+          const textMatches =
+            config.successIndicator.expectedText === undefined ||
+            (await indicator.innerText()) ===
+              config.successIndicator.expectedText;
+          const urlMatches =
+            !config.successIndicator.expectedUrl ||
+            page.url() ===
+              new URL(config.successIndicator.expectedUrl, env.baseUrl).href;
+          if (
+            textMatches &&
+            urlMatches &&
+            checkDestination(page.url(), policy).allowed
+          ) {
+            status = "PASS";
+            detail = "成功标识已验证；正式运行仍会验证身份";
+            break;
+          }
+        }
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    }
+  } catch {
+    /* Never persist browser errors: they may contain entered secrets or page text. */
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener("abort", close);
+    await browser?.close().catch(() => undefined);
+    await proxy?.close();
+  }
+  if (signal.aborted) {
+    status = "CANCELLED";
+    detail = "检查被取消或租约失效";
+  } else if (expired) {
+    status = "FAIL_TIMEOUT";
+    detail = "登录检查时间预算耗尽";
+  }
+  const checkedAt = new Date();
+  // Deliberately record metadata only. Raw login screenshots and traces can contain echoed credentials.
+  const result = LoginCheckResult.parse({
+    status,
+    detail,
+    checkedAt: checkedAt.toISOString(),
+    environmentRevision: env.revision,
+    configHash: request.configHash,
+    expiresAt:
+      status === "PASS"
+        ? new Date(
+            checkedAt.getTime() + config.validityHours * 3600000,
+          ).toISOString()
+        : null,
+    evidenceArtifactId: null,
+  });
+  await commit(prisma, job, async (tx) => {
+    const current = await tx.environment.findUniqueOrThrow({
+      where: { id: env.id },
+    });
+    if (current.revision !== env.revision) throw new Error("环境版本已失效");
+    await tx.loginPreparation.updateMany({
+      where: {
+        id: request.loginPreparationId,
+        projectId: job.projectId,
+        configHash: request.configHash,
+        lastCheckJobId: job.id,
+      },
+      data: {
+        lastCheckStatus: status,
+        lastCheckDetail: detail,
+        lastCheckAt: checkedAt,
+        lastCheckEnvRev: env.revision,
+      },
+    });
+    const stored = store.put({
+      runId: "login-check",
+      attemptId: job.id,
+      filename: "result.json",
+      data: Buffer.from(JSON.stringify(result)),
+    });
+    const artifact = await tx.artifact.create({
+      data: {
+        projectId: job.projectId,
+        type: "LOGIN_CHECK",
+        sensitivity: "NORMAL",
+        storageKey: stored.storageKey,
+        checksum: stored.checksum,
+      },
+    });
+    await tx.job.update({
+      where: { id: job.id },
+      data: {
+        status: "SUCCEEDED",
+        finishedAt: new Date(),
+        result: {
+          loginPreparationId: request.loginPreparationId,
+          result: { ...result, evidenceArtifactId: artifact.id },
+        },
+      },
+    });
   });
 }

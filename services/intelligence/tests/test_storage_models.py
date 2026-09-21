@@ -183,3 +183,37 @@ def test_kimi_vision_budget_and_truncated_json_rejected(
         with pytest.raises(ServiceError) as error:
             asyncio.run(gateway.describe_image_bytes(request, image.getvalue()))
         assert error.value.code == "MODEL_OUTPUT_INVALID"
+
+
+def test_workflow_budget_rejects_before_network(tmp_path):
+    gateway = Gateway("real", ArtifactReader(tmp_path), "budget", [])
+    gateway.set_budget(0, 100000)
+    with pytest.raises(ServiceError) as exc:
+        asyncio.run(gateway.complete_text(text_request()))
+    assert exc.value.code == "BUDGET_EXCEEDED"
+    gateway.set_budget(2, 10)
+    with pytest.raises(ServiceError) as exc:
+        asyncio.run(gateway.complete_text(text_request()))
+    assert exc.value.code == "BUDGET_EXCEEDED"
+
+
+def test_workflow_budget_caps_output_and_prevents_second_call(tmp_path, monkeypatch):
+    import json
+    for name, value in {"PROVIDER": "moonshot", "BASE_URL": "https://model.invalid/v1", "MODEL": "test", "API_KEY": "test-only"}.items():
+        monkeypatch.setenv("AIQA_TEXT_" + name, value)
+    calls = []
+    original = httpx.AsyncClient
+    def handle(request):
+        body = json.loads(request.content)
+        calls.append(body)
+        assert 0 < body["max_tokens"] < 4096
+        return httpx.Response(200, json={"id":"test", "choices":[{"finish_reason":"stop", "message":{"content":"{\"text\":\"ok\"}"}}],"usage":{"prompt_tokens":10,"completion_tokens":10}})
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: original(transport=httpx.MockTransport(handle), **kw))
+    gateway = Gateway("real", ArtifactReader(tmp_path), "budget", [])
+    gateway.set_budget(1, 2500)
+    req=text_request().model_copy(update={"maxOutputTokens":4096})
+    asyncio.run(gateway.complete_text(req))
+    with pytest.raises(ServiceError) as exc:
+        asyncio.run(gateway.complete_text(req))
+    assert exc.value.code == "BUDGET_EXCEEDED"
+    assert len(calls)==1

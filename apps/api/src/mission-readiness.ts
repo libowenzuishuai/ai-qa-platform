@@ -1,3 +1,5 @@
+import { parseDataDefinition, validateDataParameters } from './data-plugin-service.js';
+import { loginFresh } from './preparation-service.js';
 import type { PrismaClient } from '@prisma/client';
 import { EnvironmentRuntime, TestPlanV1 } from '@ai-qa/contracts';
 import { ApiError } from './errors.js';
@@ -30,9 +32,14 @@ export async function missionReadiness(prisma:PrismaClient,mission:{projectId:st
         if(runtime.fixture!=='demo'&&!(field==='username'?refs?.usernameEnv:refs?.passwordEnv))blockers.push(`${c.title}：角色 ${role} 缺少${field==='username'?'用户名':'密码'}配置`);
       }
     }
-    const data=c.dataSpec as {strategy:string};const cleanup=c.cleanup as {strategy:string;note?:string};
-    if(data.strategy==='fixture')blockers.push(`${c.title}：当前版本尚不支持业务夹具加载`);
-    if(cleanup.strategy!=='manual'&&runtime.fixture!=='demo')blockers.push(`${c.title}：尚未配置自动清理能力，请明确人工清理流程后重新批准`);
+    const data=c.dataSpec as {strategy:string;fixtureId?:string;params?:unknown};const cleanup=c.cleanup as {strategy:string;note?:string};
+    let pluginReady=false;
+    if(data.strategy==='fixture'){
+      const plugin=await prisma.dataPlugin.findFirst({where:{id:data.fixtureId??'',projectId:mission.projectId,environmentId:env.id,environmentRevision:env.revision,enabled:true}});
+      try{if(!plugin)throw new Error();parseDataDefinition(plugin.definition);validateDataParameters(plugin.paramSchema,data.params??{});pluginReady=true;}catch{blockers.push(`${c.title}：业务数据插件未配置或参数不合法`);}
+    }
+    for(const role of c.roles){if(runtime.secretRefs[role]){const prep=await prisma.loginPreparation.findFirst({where:{projectId:mission.projectId,environmentId:env.id,role}});if(!prep||!loginFresh(prep,env.revision))blockers.push(`${c.title}：角色 ${role} 尚无有效登录检查，请到准备中心检查`);}}
+    if(cleanup.strategy!=='manual'&&runtime.fixture!=='demo'&&!pluginReady)blockers.push(`${c.title}：尚未配置自动清理能力，请明确人工清理流程后重新批准`);
     for(const condition of c.preconditions as string[])notices.push(`${c.title} · 前置条件：${condition}`);
     if(cleanup.strategy==='manual')notices.push(`${c.title} · 人工清理：${cleanup.note||'尚未填写处理说明'}`);
   }

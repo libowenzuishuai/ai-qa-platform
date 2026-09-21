@@ -181,3 +181,17 @@ def test_model_invocations_survive_wire_validation(rule_vector, case_vector):
         assert record["purpose"] == "RULE_EXTRACTION"
         assert record["response"]["provider"] == "mock"
         assert "estimatedCost" not in record["response"]["usage"]
+
+
+def test_workflow_budget_headers_reach_gateway(rule_vector, case_vector):
+    from aiqa_intelligence.contracts.generated import TextModelRequest
+    class BudgetAgents(Agents):
+        async def extract_rules(self, input, context):
+            await context.models.complete_text(TextModelRequest.model_validate({"purpose":"RULE_EXTRACTION","system":"s","user":"u","timeoutMs":1000}))
+    with TestClient(create_app(token="service-test", agents=BudgetAgents(rule_vector["output"],case_vector["output"]))) as client:
+        response=client.post('/v1/rules/extract',headers={**HEADERS,'x-aiqa-model-calls':'0','x-aiqa-model-tokens':'1000'},json=request(rule_vector))
+        assert response.status_code==422
+        assert response.json()['code']=='BUDGET_EXCEEDED'
+        response=client.post('/v1/rules/extract',headers={**HEADERS,'x-aiqa-model-calls':'bad'},json=request(rule_vector))
+        assert response.status_code==422
+        assert response.json()['code']=='VALIDATION_ERROR'

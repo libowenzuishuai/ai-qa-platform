@@ -1,3 +1,4 @@
+export { emitWorkflowEvent, cancelWorkflowChildren } from './workflow.js';
 export { reconcileCodeChecks } from './code-checks.js';
 import { Prisma, type PrismaClient } from "@prisma/client";
 

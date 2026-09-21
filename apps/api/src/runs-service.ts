@@ -79,7 +79,7 @@ function validateBudget(input: CreateRunInput["budget"]): BudgetShape {
 }
 
 export async function createRun(
-  prisma: import("@prisma/client").PrismaClient,
+  prisma: import("@prisma/client").PrismaClient | Prisma.TransactionClient,
   store: ArtifactStore,
   input: CreateRunInput,
 ): Promise<CreateRunResult> {
@@ -260,7 +260,7 @@ export async function createRun(
 
   // —— 插入（唯一约束兜底并发）——
   try {
-    return await prisma.$transaction(async (tx) => {
+    const persist = async (tx: Prisma.TransactionClient) => {
       const run = await tx.run.create({
         data: {
           projectId,
@@ -281,7 +281,8 @@ export async function createRun(
         planPins: pins.map((p) => ({ caseVersionId: p.caseVersionId, planVersionId: p.planVersionId })),
       });
       return { runId: run.id, existed: false };
-    });
+    };
+    return await ("$transaction" in prisma ? prisma.$transaction(persist) : persist(prisma));
   } catch (err) {
     // R8：并发插入唯一冲突 → 重读并按指纹比对，绝不 500。
     if (String(err).includes("Unique constraint") || (err as { code?: string }).code === "P2002") {

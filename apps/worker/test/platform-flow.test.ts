@@ -199,7 +199,7 @@ it("真实浏览器：审阅页面、模拟标记、原文、上传表单与错�
     await page.getByRole("button", { name: "上传并解析" }).click(); await page.waitForURL(/\/jobs\//);
     const id = page.url().split("/").at(-1)!; expect((await waitJob(id)).status).toBe("SUCCEEDED");
     const jobPage = await page.reload(); expect(jobPage?.status()).toBe(200);
-    expect(await page.getByText(/状态：SUCCEEDED/).count()).toBe(1);
+    expect(await page.getByText(/状态：处理已结束/).count()).toBe(1);
     await page.goto(`${webUrl}/projects/${projectId}/review`);
     expect(await page.locator('script').filter({ hasText: 'alert("x")' }).count()).toBe(0);
     await page.goto(`${webUrl}/document-versions/${documentVersionId}`);

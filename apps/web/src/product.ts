@@ -21,6 +21,8 @@ export function registerProductPages(app:FastifyInstance){
     const sid=req.cookies.web_sid;if(!sid)return reply.redirect('/login');
     const {id}=req.params as {id:string}; const tab=String((req.query as any).tab??'overview');
     try{
+      if(tab==='preparation')return reply.redirect(`/preparation/${id}`);
+      if(tab==='workflows')return reply.redirect(`/workflows/project/${id}`);
       const {data:d}=await api<any>(`/api/projects/${encodeURIComponent(id)}/workspace`,{sid});
       const base=`/space/${encodeURIComponent(id)}`;
       const form=(action:string,body:string,button:string)=>`<form method="post" action="${base}/${action}">${body}<button>${button}</button></form>`;

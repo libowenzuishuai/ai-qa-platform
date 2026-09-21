@@ -1,208 +1,629 @@
-import type { PrismaClient } from '@prisma/client';
-import { createHash } from 'node:crypto';
+import type { PrismaClient, Prisma } from "@prisma/client";
+import { ArtifactStore } from "@ai-qa/artifact-store";
+import {
+  WORKFLOW_TEMPLATE_V1_NODES,
+  EnvironmentRuntime,
+  WorkflowBudget,
+} from "@ai-qa/contracts";
+import { emitWorkflowEvent, cancelWorkflowChildren } from "@ai-qa/run-events";
+import { buildRunReport } from "@ai-qa/reporting";
+import { createRun } from "../../api/src/runs-service.js";
+import {
+  workflowGateAssets,
+  type WorkflowInputs,
+} from "../../api/src/workflow-service.js";
+import { loginFresh } from "../../api/src/preparation-service.js";
 
-/**
- * P0-3 工作流编排引擎。
- *
- * 首版模板 v1 显式图（按序执行）：
- *   document_parse → rule_suggest → rule_approval_gate → case_suggest →
- *   case_approval_gate → page_observation → plan_proposal_gate →
- *   preparation_check → execution → evaluation
- *
- * - 已完成节点按结果引用续跑，不从头重放。
- * - 人工门（*_approval_gate）暂停工作流等人确认。
- * - 节点幂等键 = (workflowId, nodeKey, inputHash)。
- * - 只读操作有限重试；写入结果不确定进入 unknown。
- */
-
-type PrismaTx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
-
-/** 模板 v1 节点定义。 */
-const TEMPLATE_V1: Array<{ key: string; effect: 'READ' | 'WRITE'; gate: boolean }> = [
-  { key: 'document_parse', effect: 'READ', gate: false },
-  { key: 'rule_suggest', effect: 'READ', gate: false },
-  { key: 'rule_approval_gate', effect: 'READ', gate: true },
-  { key: 'case_suggest', effect: 'READ', gate: false },
-  { key: 'case_approval_gate', effect: 'READ', gate: true },
-  { key: 'page_observation', effect: 'WRITE', gate: false },
-  { key: 'plan_proposal_gate', effect: 'READ', gate: true },
-  { key: 'preparation_check', effect: 'READ', gate: false },
-  { key: 'execution', effect: 'WRITE', gate: false },
-  { key: 'evaluation', effect: 'READ', gate: false },
-];
-
-function inputHash(inputs: unknown): string {
-  return createHash('sha256').update(JSON.stringify(inputs)).digest('hex');
-}
-
-async function emitNodeEvent(prisma: PrismaClient, workflowId: string, type: string, payload: Record<string, unknown>) {
-  const [row] = await prisma.$queryRaw<Array<{ seq: number }>>`
-    SELECT COALESCE(MAX("seq"), 0) + 1 AS seq FROM "WorkflowEvent" WHERE "workflowId" = ${workflowId}
-  `;
-  await prisma.workflowEvent.create({
-    data: { workflowId, seq: row!.seq, type, payload: payload as never },
-  });
-}
-
-/**
- * 恢复/推进工作流。
- * 幂等：只处理 QUEUED→RUNNING / WAITING_HUMAN 恢复；已完成节点跳过。
- */
-export async function advanceWorkflow(prisma: PrismaClient, workflowId: string): Promise<void> {
-  // CAS 认领。
-  const claimed = await prisma.workflowRun.updateMany({
-    where: { id: workflowId, status: 'QUEUED' },
-    data: { status: 'RUNNING' },
-  });
-
-  const wf = await prisma.workflowRun.findUniqueOrThrow({
-    where: { id: workflowId },
-    include: { nodes: { orderBy: { seq: 'asc' } } },
-  });
-
-  // WAITING_HUMAN 状态的恢复由 confirm 端点处理，此处只推进。
-  if (wf.status === 'COMPLETED' || wf.status === 'FAILED' || wf.status === 'CANCELLED') return;
-  if (wf.status === 'WAITING_HUMAN') return;
-  if (!claimed.count && wf.status === 'RUNNING') {
-    // 已在运行中（可能是恢复/续跑），继续推进未完成节点。
-  }
-
-  const template = wf.templateVersion === 'v1' ? TEMPLATE_V1 : null;
-  if (!template) throw new Error(`未知模板版本 ${wf.templateVersion}`);
-
-  const inputs = wf.inputs as Record<string, unknown>;
-  const hash = inputHash(inputs);
-
-  // 确保所有节点已初始化。
-  for (const [seq, nodeDef] of template.entries()) {
-    const existing = wf.nodes.find(n => n.nodeKey === nodeDef.key);
-    if (!existing) {
-      await prisma.workflowNode.create({
-        data: {
-          workflowId,
-          nodeKey: nodeDef.key,
-          seq: seq + 1,
-          status: 'queued',
-          idempotencyKey: `${workflowId}:${nodeDef.key}:${hash}`,
-          inputHash: hash,
-        },
-      });
-    }
-  }
-
-  // 重新读取节点。
-  const nodes = await prisma.workflowNode.findMany({
-    where: { workflowId },
-    orderBy: { seq: 'asc' },
-  });
-
-  for (const node of nodes) {
-    if (node.status === 'completed' || node.status === 'skipped') continue;
-
-    if (node.status === 'failed') {
-      await prisma.workflowRun.update({
-        where: { id: workflowId },
-        data: { status: 'FAILED', currentGate: node.nodeKey },
-      });
-      await emitNodeEvent(prisma, workflowId, 'workflow.failed', { nodeKey: node.nodeKey });
-      return;
-    }
-
-    // CAS 认领节点。
-    const claimedNode = await prisma.workflowNode.updateMany({
-      where: { id: node.id, status: 'queued' },
-      data: { status: 'running', startedAt: new Date() },
-    });
-    if (!claimedNode.count && node.status !== 'running') continue;
-
-    await emitNodeEvent(prisma, workflowId, 'workflow.node_started', { nodeKey: node.nodeKey });
-
-    const nodeDef = template.find(t => t.key === node.nodeKey)!;
-
-    if (nodeDef.gate) {
-      // 人工门：设为 waiting_human，暂停工作流。
-      await prisma.workflowNode.update({
-        where: { id: node.id },
-        data: {
-          status: 'waiting_human',
-          humanTodo: {
-            description: `${node.nodeKey} 需要人工确认`,
+/** Each short transaction dispatches or polls durable children. No browser/model call holds a DB lock. */
+export async function advanceWorkflow(
+  prisma: PrismaClient,
+  workflowId: string,
+  store: ArtifactStore,
+): Promise<void> {
+  await prisma
+    .$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "WorkflowRun" WHERE id=${workflowId} FOR UPDATE`;
+        const wf = await tx.workflowRun.findUniqueOrThrow({
+          where: { id: workflowId },
+        });
+        if (!wf || ["COMPLETED", "FAILED", "CANCELLED"].includes(wf.status))
+          return;
+        const budget = WorkflowBudget.parse(wf.budget),
+          input = wf.inputs as WorkflowInputs;
+        const deadline = wf.createdAt.getTime() + budget.maxWallClockMs;
+        async function stop(message: string, nodeId?: string) {
+          if (nodeId)
+            await tx.workflowNode.update({
+              where: { id: nodeId },
+              data: {
+                status: "failed",
+                error: message,
+                finishedAt: new Date(),
+              },
+            });
+          await tx.workflowRun.update({
+            where: { id: workflowId },
+            data: { status: "FAILED", currentGate: null },
+          });
+          await cancelWorkflowChildren(tx, workflowId);
+          await emitWorkflowEvent(tx, workflowId, "workflow.failed", {
+            message,
+          });
+        }
+        if (Date.now() >= deadline) {
+          await stop("工作流时间预算已耗尽（包含等待人工确认）");
+          return;
+        }
+        const env = await tx.environment.findFirst({
+          where: {
+            id: input.environmentId,
+            projectId: wf.projectId,
+            revision: input.environmentRevision,
+            isProduction: false,
+          },
+        });
+        if (!env) {
+          await stop("环境配置发生变化，请重新创建工作流");
+          return;
+        }
+        if (wf.status === "WAITING_HUMAN") {
+          await tx.workflowRun.update({
+            where: { id: workflowId },
+            data: { updatedAt: new Date() },
+          });
+          return;
+        }
+        await tx.workflowRun.update({
+          where: { id: workflowId },
+          data: { status: "RUNNING" },
+        });
+        for (const [i, key] of WORKFLOW_TEMPLATE_V1_NODES.entries())
+          await tx.workflowNode.upsert({
+            where: { workflowId_nodeKey: { workflowId, nodeKey: key } },
+            create: {
+              workflowId,
+              nodeKey: key,
+              seq: i + 1,
+              idempotencyKey: `${workflowId}:${key}`,
+              inputHash: wf.inputFingerprint ?? workflowId,
+            },
+            update: {},
+          });
+        const nodes = await tx.workflowNode.findMany({
+          where: { workflowId },
+          orderBy: { seq: "asc" },
+        });
+        const node = nodes.find(
+          (n) => !["completed", "skipped"].includes(n.status),
+        );
+        if (!node) {
+          await tx.workflowRun.update({
+            where: { id: workflowId },
+            data: { status: "COMPLETED", currentGate: null },
+          });
+          await emitWorkflowEvent(tx, workflowId, "workflow.completed");
+          return;
+        }
+        if (node.status === "failed") {
+          await stop(node.error ?? "节点失败");
+          return;
+        }
+        const ref = (node.outputRef ?? {}) as Record<string, any>;
+        const output = (key: string) =>
+          (nodes.find((n) => n.nodeKey === key)?.outputRef ?? {}) as Record<
+            string,
+            any
+          >;
+        async function complete(
+          value: Record<string, unknown>,
+          skipped = false,
+        ) {
+          await tx.workflowNode.update({
+            where: { id: node!.id },
+            data: {
+              status: skipped ? "skipped" : "completed",
+              outputRef: { ...ref, ...value } as Prisma.InputJsonValue,
+              finishedAt: new Date(),
+            },
+          });
+          await emitWorkflowEvent(tx, workflowId, "workflow.node_completed", {
+            nodeKey: node!.nodeKey,
+            output: value,
+            skipped,
+          });
+        }
+        async function waitHuman(
+          description: string,
+          value: Record<string, unknown> = {},
+        ) {
+          await tx.workflowNode.update({
+            where: { id: node!.id },
+            data: {
+              status: "waiting_human",
+              outputRef: { ...ref, ...value } as Prisma.InputJsonValue,
+              humanTodo: {
+                nodeId: node!.id,
+                nodeKey: node!.nodeKey,
+                description,
+                createdAt: new Date().toISOString(),
+              },
+            },
+          });
+          await tx.workflowRun.update({
+            where: { id: workflowId },
+            data: { status: "WAITING_HUMAN", currentGate: node!.nodeKey },
+          });
+          await emitWorkflowEvent(tx, workflowId, "workflow.waiting_human", {
+            nodeKey: node!.nodeKey,
+            description,
+            ...value,
+          });
+        }
+        // Quotas are reserved durably before dispatch. Unused quota is deliberately not recycled.
+        async function children(
+          specs: Array<{ kind: string; request: Record<string, unknown> }>,
+        ): Promise<any[] | null> {
+          if (!ref.jobIds) {
+            const usage = {
+              toolCalls: 0,
+              modelCallsReserved: 0,
+              tokensReserved: 0,
+              ...(wf.usage as object),
+            };
+            const jobIds: string[] = [];
+            for (const spec of specs) {
+              usage.toolCalls++;
+              const model = [
+                "DOCUMENT_PARSE",
+                "RULE_EXTRACTION",
+                "CASE_GENERATION",
+                "PLAN_PROPOSAL",
+              ].includes(spec.kind);
+              const calls = model
+                ? spec.kind === "DOCUMENT_PARSE"
+                  ? Math.min(
+                      16,
+                      budget.maxModelCalls - usage.modelCallsReserved,
+                    )
+                  : 1
+                : 0;
+              const tokens = model
+                ? Math.min(200000, budget.maxTokens - usage.tokensReserved)
+                : 0;
+              if (
+                usage.toolCalls > budget.maxToolCalls ||
+                (model && (calls < 1 || tokens < 1000))
+              )
+                throw new Error("工作流工具或模型预算不足");
+              usage.modelCallsReserved += calls;
+              usage.tokensReserved += tokens;
+              const j = await tx.job.create({
+                data: {
+                  projectId: wf.projectId,
+                  kind: spec.kind,
+                  status: "QUEUED",
+                  fingerprint: `${node!.id}:${jobIds.length}`,
+                  request: {
+                    ...spec.request,
+                    workflowId,
+                    workflowBudget: {
+                      maxModelCalls: calls,
+                      maxTokens: tokens,
+                      deadline,
+                    },
+                  } as Prisma.InputJsonValue,
+                },
+              });
+              jobIds.push(j.id);
+              if (spec.kind === "LOGIN_CHECK")
+                await tx.loginPreparation.update({
+                  where: { id: String(spec.request.loginPreparationId) },
+                  data: {
+                    lastCheckJobId: j.id,
+                    lastCheckStatus: "QUEUED",
+                    lastCheckAt: null,
+                  },
+                });
+            }
+            await tx.workflowRun.update({
+              where: { id: workflowId },
+              data: { usage },
+            });
+            await tx.workflowNode.update({
+              where: { id: node!.id },
+              data: {
+                outputRef: { ...ref, jobIds },
+                toolCalls: specs.map((s, i) => ({
+                  jobId: jobIds[i],
+                  kind: s.kind,
+                })) as Prisma.InputJsonValue,
+              },
+            });
+            return null;
+          }
+          const jobs = await tx.job.findMany({
+            where: { id: { in: ref.jobIds }, projectId: wf.projectId },
+          });
+          if (jobs.length !== ref.jobIds.length)
+            throw new Error("子作业引用缺失");
+          const failed = jobs.find((j) =>
+            ["FAILED", "CANCELLED"].includes(j.status),
+          );
+          if (failed)
+            throw new Error(
+              `子作业 ${failed.kind} 未完成：${(failed.error as any)?.code ?? failed.status}，未自动重放`,
+            );
+          if (jobs.some((j) => j.status !== "SUCCEEDED")) return null;
+          return ref.jobIds.map(
+            (id: string) => jobs.find((j) => j.id === id)!.result,
+          );
+        }
+        if (node.status === "queued") {
+          await tx.workflowNode.update({
+            where: { id: node.id },
+            data: { status: "running", startedAt: new Date() },
+          });
+          await emitWorkflowEvent(tx, workflowId, "workflow.node_started", {
             nodeKey: node.nodeKey,
-          } as never,
-        },
+          });
+        }
+        const cases: string[] =
+          output("case_suggest").caseVersionIds ?? input.caseVersionIds ?? [];
+        const rules: string[] =
+          output("rule_suggest").ruleVersionIds ?? input.ruleVersionIds ?? [];
+        try {
+          switch (node.nodeKey) {
+            case "document_parse": {
+              if (input.baselineId) {
+                await complete(
+                  { reason: "使用已批准基线，无需重新解析" },
+                  true,
+                );
+                break;
+              }
+              // Uploaded documents may already have a parser job; never launch a second parser
+              // that would replace SourceSpan IDs referenced by approved rules.
+              if (!ref.jobIds) {
+                await tx.$queryRaw`SELECT id FROM "DocumentVersion" WHERE id = ANY(${input.documentVersionIds}::text[]) ORDER BY id FOR UPDATE`;
+                const docs = await tx.documentVersion.findMany({
+                  where: {
+                    id: { in: input.documentVersionIds },
+                    document: { projectId: wf.projectId },
+                  },
+                });
+                if (docs.length !== input.documentVersionIds.length)
+                  throw new Error("资料版本缺失");
+                if (docs.every((d) => d.parseStatus === "PARSED")) {
+                  await complete(
+                    { documentVersionIds: input.documentVersionIds },
+                    true,
+                  );
+                  break;
+                }
+                const outstanding = await tx.job.findMany({
+                  where: {
+                    projectId: wf.projectId,
+                    kind: "DOCUMENT_PARSE",
+                    status: { in: ["QUEUED", "RUNNING"] },
+                  },
+                });
+                const dependencies = outstanding.filter((j) =>
+                  input.documentVersionIds.includes(
+                    (j.request as any).documentVersionId,
+                  ),
+                );
+                if (dependencies.length) {
+                  await tx.workflowNode.update({
+                    where: { id: node.id },
+                    data: {
+                      outputRef: {
+                        dependencyJobIds: dependencies.map((j) => j.id),
+                      },
+                    },
+                  });
+                  break;
+                }
+                if (
+                  docs.some((d) =>
+                    ["FAILED", "NEEDS_OCR"].includes(d.parseStatus),
+                  )
+                )
+                  throw new Error("资料解析未完成，请先处理解析问题");
+                const result = await children(
+                  docs
+                    .filter((d) => d.parseStatus !== "PARSED")
+                    .map((d) => ({
+                      kind: "DOCUMENT_PARSE",
+                      request: { documentVersionId: d.id, mode: "real" },
+                    })),
+                );
+                if (result)
+                  await complete({
+                    documentVersionIds: input.documentVersionIds,
+                  });
+              } else {
+                const result = await children([]);
+                if (result) {
+                  if (result.some((r) => r.parseStatus !== "PARSED"))
+                    throw new Error("资料仍有未解析内容");
+                  await complete({
+                    documentVersionIds: input.documentVersionIds,
+                  });
+                }
+              }
+              break;
+            }
+            case "rule_suggest": {
+              if (input.baselineId) {
+                await complete({ ruleVersionIds: input.ruleVersionIds }, true);
+                break;
+              }
+              const r = await children([
+                {
+                  kind: "RULE_EXTRACTION",
+                  request: {
+                    documentVersionIds: input.documentVersionIds,
+                    glossaryUpdates: [],
+                    mode: "real",
+                  },
+                },
+              ]);
+              if (r) {
+                if (!r[0].ruleVersionIds.length)
+                  throw new Error("没有可审阅规则");
+                await complete(r[0]);
+              }
+              break;
+            }
+            case "rule_approval_gate":
+            case "case_approval_gate": {
+              if (input.baselineId) {
+                await complete(
+                  await workflowGateAssets(tx, workflowId, node.nodeKey),
+                  true,
+                );
+                break;
+              }
+              await waitHuman(
+                node.nodeKey === "rule_approval_gate"
+                  ? "请逐条批准规则并解决澄清后确认"
+                  : "请逐条批准用例并核对覆盖后确认",
+                { ruleVersionIds: rules, caseVersionIds: cases },
+              );
+              break;
+            }
+            case "case_suggest": {
+              if (input.baselineId) {
+                await complete({ caseVersionIds: input.caseVersionIds }, true);
+                break;
+              }
+              const r = await children([
+                {
+                  kind: "CASE_GENERATION",
+                  request: { ruleVersionIds: rules, mode: "real" },
+                },
+              ]);
+              if (r) await complete(r[0]);
+              break;
+            }
+            case "page_observation": {
+              if (input.pinnedPlans?.length === cases.length && cases.length) {
+                await complete({ reason: "复用创建时固定的已批准计划" }, true);
+                break;
+              }
+              if (!input.observationPages?.length)
+                throw new Error(
+                  "缺少明确的观察页面，请指定角色和相对路径后重新创建",
+                );
+              const r = await children([
+                {
+                  kind: "WEB_OBSERVATION",
+                  request: {
+                    environmentId: env.id,
+                    pages: input.observationPages,
+                    allowWrites: false,
+                  },
+                },
+              ]);
+              if (r) await complete(r[0]);
+              break;
+            }
+            case "plan_proposal_gate": {
+              if (input.pinnedPlans?.length === cases.length && cases.length) {
+                await complete(
+                  await workflowGateAssets(tx, workflowId, node.nodeKey),
+                  true,
+                );
+                break;
+              }
+              const r = await children(
+                cases.map((caseVersionId) => ({
+                  kind: "PLAN_PROPOSAL",
+                  request: {
+                    caseVersionId,
+                    observationId: output("page_observation").artifactId,
+                    mode: "real",
+                  },
+                })),
+              );
+              if (r)
+                await waitHuman("请审阅候选执行计划，逐一批准后确认", {
+                  proposalIds: r.map((x) => x.proposalId),
+                });
+              break;
+            }
+            case "preparation_check": {
+              const runtime = EnvironmentRuntime.parse(env.runtime);
+              const rows = await tx.testCaseVersion.findMany({
+                where: { id: { in: cases }, projectId: wf.projectId },
+              });
+              const required = [
+                ...new Set(
+                  rows
+                    .flatMap((c) => c.roles)
+                    .filter((role) => runtime.secretRefs[role]),
+                ),
+              ];
+              const checks = [];
+              for (const role of required) {
+                const prep = await tx.loginPreparation.findFirst({
+                  where: {
+                    environmentId: env.id,
+                    role,
+                    projectId: wf.projectId,
+                  },
+                });
+                if (!prep?.configuration)
+                  throw new Error(
+                    `角色 ${role} 尚未配置登录检查，请在准备中心配置`,
+                  );
+                if (!loginFresh(prep, env.revision))
+                  checks.push({
+                    kind: "LOGIN_CHECK",
+                    request: {
+                      loginPreparationId: prep.id,
+                      configuration: prep.configuration,
+                      configHash: prep.configHash,
+                      environmentId: env.id,
+                      environmentRevision: env.revision,
+                    },
+                  });
+              }
+              if (checks.length || ref.jobIds) {
+                const results = await children(checks);
+                if (!results) break;
+                if (results.some((r) => r.result.status !== "PASS"))
+                  throw new Error("登录准备检查未通过，请查看检查结果");
+              }
+              const pending = await tx.dataResource.count({
+                where: {
+                  projectId: wf.projectId,
+                  runId: null,
+                  status: {
+                    in: ["pending", "unknown", "cleaning", "cleanup_failed"],
+                  },
+                },
+              });
+              await complete({
+                checkedRoleCount: required.length,
+                residualResourceCount: pending,
+              });
+              break;
+            }
+            case "execution": {
+              if (!ref.runId) {
+                const approved = output("plan_proposal_gate");
+                let baselineId = input.baselineId;
+                if (!baselineId) {
+                  const baseline = await tx.baseline.create({
+                    data: {
+                      projectId: wf.projectId,
+                      name: `工作流 ${workflowId}`,
+                      caseVersionIds: cases,
+                      ruleVersionIds: rules,
+                    },
+                  });
+                  baselineId = baseline.id;
+                }
+                const remainingTools =
+                  budget.maxToolCalls -
+                  Number((wf.usage as any).toolCalls ?? 0);
+                if (remainingTools < cases.length)
+                  throw new Error("执行工具预算不足");
+                const remaining = deadline - Date.now();
+                if (remaining < 60000)
+                  throw new Error("执行剩余时间不足一分钟");
+                const run = await createRun(tx, store, {
+                  projectId: wf.projectId,
+                  baselineId,
+                  environmentId: env.id,
+                  caseVersionIds: cases,
+                  pinnedPlans: approved.pinnedPlans,
+                  buildId: input.buildId,
+                  mode: "real",
+                  idempotencyKey: `workflow-${workflowId}`,
+                  budget: {
+                    maxWallClockMsPerRun: Math.min(remaining, 7200000),
+                    maxToolActionsPerCase: Math.min(
+                      1000,
+                      Math.max(1, Math.floor(remainingTools / cases.length)),
+                    ),
+                  },
+                });
+                await tx.workflowRun.update({
+                  where: { id: workflowId },
+                  data: {
+                    usage: {
+                      ...(wf.usage as object),
+                      toolCalls: budget.maxToolCalls,
+                      executionActionsReserved: remainingTools,
+                    },
+                  },
+                });
+                await tx.workflowNode.update({
+                  where: { id: node.id },
+                  data: {
+                    outputRef: { runId: run.runId },
+                    toolCalls: [{ runId: run.runId, kind: "RUN" }],
+                  },
+                });
+              } else {
+                const run = await tx.run.findFirstOrThrow({
+                  where: { id: ref.runId, projectId: wf.projectId },
+                });
+                if (["ERROR", "CANCELLED"].includes(run.lifecycle))
+                  throw new Error(`执行终止：${run.lifecycle}`);
+                if (run.lifecycle === "FINISHED")
+                  await complete({ runId: run.id });
+              }
+              break;
+            }
+            case "evaluation": {
+              const runId = output("execution").runId;
+              // Reporting re-reads artifacts and computes the same verdict as the public report.
+              const report = await buildRunReport(
+                tx as unknown as PrismaClient,
+                store,
+                runId,
+              );
+              await complete({
+                runId,
+                acceptanceStatus: report.run.acceptanceStatus,
+                reportUrl: `/api/runs/${runId}/report`,
+              });
+              break;
+            }
+            default:
+              throw new Error("未知工作流节点");
+          }
+        } catch (err) {
+          await stop(
+            err instanceof Error ? err.message.slice(0, 500) : "节点执行失败",
+            node.id,
+          );
+        }
+      },
+      { timeout: 30000 },
+    )
+    .catch(async () => {
+      // A DB constraint/transaction failure must not leave a running workflow forever.
+      // The original transaction rolled back, so only committed child receipts are cancelled.
+      await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "WorkflowRun" WHERE id=${workflowId} FOR UPDATE`;
+        const changed = await tx.workflowRun.updateMany({
+          where: {
+            id: workflowId,
+            status: { in: ["QUEUED", "RUNNING", "WAITING_HUMAN"] },
+          },
+          data: { status: "FAILED", currentGate: null },
+        });
+        if (changed.count) {
+          await cancelWorkflowChildren(tx, workflowId);
+          await emitWorkflowEvent(tx, workflowId, "workflow.failed", {
+            message: "工作流持久化失败，已停止；请检查服务状态后新建工作流",
+          });
+        }
       });
-      await prisma.workflowRun.update({
-        where: { id: workflowId },
-        data: { status: 'WAITING_HUMAN', currentGate: node.nodeKey },
-      });
-      await emitNodeEvent(prisma, workflowId, 'workflow.waiting_human', { nodeKey: node.nodeKey });
-      return; // 暂停，等人确认。
-    }
-
-    // 非门节点：模拟执行（首版骨架——后续接入已有能力）。
-    try {
-      const output = await executeNode(prisma, workflowId, node.nodeKey, inputs);
-      await prisma.workflowNode.update({
-        where: { id: node.id },
-        data: {
-          status: 'completed',
-          finishedAt: new Date(),
-          outputRef: output as never,
-        },
-      });
-      await emitNodeEvent(prisma, workflowId, 'workflow.node_completed', {
-        nodeKey: node.nodeKey,
-        output,
-      });
-    } catch (err) {
-      await prisma.workflowNode.update({
-        where: { id: node.id },
-        data: { status: 'failed', error: String(err).slice(0, 500), finishedAt: new Date() },
-      });
-      await emitNodeEvent(prisma, workflowId, 'workflow.node_failed', { nodeKey: node.nodeKey, error: String(err).slice(0, 500) });
-      await prisma.workflowRun.update({
-        where: { id: workflowId },
-        data: { status: 'FAILED' },
-      });
-      return;
-    }
-  }
-
-  // 全部完成。
-  await prisma.workflowRun.update({
-    where: { id: workflowId },
-    data: { status: 'COMPLETED', currentGate: null },
-  });
-  await emitNodeEvent(prisma, workflowId, 'workflow.completed', { workflowId });
-}
-
-/**
- * 执行单个节点（首版骨架：返回占位输出）。
- * 后续按 nodeKey 接入已有能力（文档解析/规则提取/观察/执行等）。
- */
-async function executeNode(
-  _prisma: PrismaClient,
-  _workflowId: string,
-  nodeKey: string,
-  _inputs: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
-  switch (nodeKey) {
-    case 'document_parse':
-      return { status: 'completed', note: '文档解析已就绪（待接入 DOCUMENT_PARSE 作业）' };
-    case 'rule_suggest':
-      return { status: 'completed', note: '规则建议已就绪（待接入 RULE_EXTRACTION 作业）' };
-    case 'case_suggest':
-      return { status: 'completed', note: '用例建议已就绪（待接入 CASE_GENERATION 作业）' };
-    case 'page_observation':
-      return { status: 'completed', note: '页面观察已就绪（待接入 WEB_OBSERVATION 作业）' };
-    case 'preparation_check':
-      return { status: 'completed', note: '准备检查已就绪（待接入 preparation-summary）' };
-    case 'execution':
-      return { status: 'completed', note: '执行已就绪（待接入 Run 创建）' };
-    case 'evaluation':
-      return { status: 'completed', note: '评估已就绪（待接入 buildRunReport）' };
-    default:
-      // 人工门节点不在此执行。
-      return { status: 'completed', note: nodeKey };
-  }
+    });
 }

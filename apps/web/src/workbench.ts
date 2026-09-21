@@ -77,9 +77,14 @@ export function registerWorkbenchRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     try {
       const { data: j } = await api<any>(`/api/jobs/${encodeURIComponent(id)}`, { sid });
-      return reply.type("text/html").send(layout("作业进度", `<h1>${esc(j.kind)}</h1><p>状态：${esc(j.status)} · ${esc(mode(j.mode))}</p><p>${esc(j.error?.message)}</p>${j.result ? pretty(j.result) : ""}<a href="/">返回项目</a> · <a href="javascript:history.back()">返回审阅</a>${j.status === "FAILED" ? `<form method="post" action="/jobs/${esc(id)}/retry"><button>显式重试</button></form>` : ""}${["QUEUED", "RUNNING"].includes(j.status) ? "<p>处理中，每 3 秒刷新。</p><script>setTimeout(()=>location.reload(),3000)</script>" : ""}`));
+      const local=['LOGIN_CHECK','DATA_PREPARE','DATA_CLEANUP','DATA_INSPECT'].includes(j.kind);
+      const names:Record<string,string>={LOGIN_CHECK:'登录检查',DATA_PREPARE:'准备测试数据',DATA_CLEANUP:'清理测试数据',DATA_INSPECT:'核对测试数据',DOCUMENT_PARSE:'资料解析',RULE_EXTRACTION:'业务规则提取',CASE_GENERATION:'测试用例设计',WEB_OBSERVATION:'页面观察',PLAN_PROPOSAL:'执行计划建议'};
+      const status:Record<string,string>={QUEUED:'排队中',RUNNING:'处理中',SUCCEEDED:'处理已结束',FAILED:'处理失败',CANCELLED:'已取消'};
+      const back=j.workflowId?`/workflows/${encodeURIComponent(j.workflowId)}`:local?`/preparation/${encodeURIComponent(j.projectId)}`:`/space/${encodeURIComponent(j.projectId)}`;
+      return reply.type("text/html").send(layout("作业进度", `<h1>${esc(names[j.kind]??j.kind)}</h1><p>状态：${esc(status[j.status]??j.status)}${j.mode?' · '+esc(mode(j.mode)):''}</p><p>${esc(j.error?.message)}</p>${j.kind==='LOGIN_CHECK'&&j.result?`<section class="card"><h2>${j.result.result.status==='PASS'?'登录检查通过':'登录尚未准备好'}</h2><p>${esc(j.result.result.detail)}</p><p>${esc(j.result.result.checkedAt)}</p><a href="/artifacts/${esc(j.result.result.evidenceArtifactId)}">查看检查证据</a></section>`:j.result?`<details><summary>处理结果</summary>${pretty(j.result)}</details>`:''}<a href="${back}">返回${j.workflowId?'工作流':local?'准备中心':'项目'}</a>${j.status==='FAILED'&&!local&&!j.workflowId?`<form method="post" action="/jobs/${esc(id)}/retry"><button>显式重试</button></form>`:''}${['QUEUED','RUNNING'].includes(j.status)?`<p>处理中，每 3 秒刷新。</p><script>setTimeout(()=>location.reload(),3000)</script>${local?`<form method="post" action="/jobs/${esc(id)}/cancel"><button class="danger">取消检查或准备</button></form>`:''}`:''}`,{projectId:j.projectId,activeTab:local?'preparation':'workflows'}));
     } catch (error) { return fail(reply, error); }
   });
+  app.post('/jobs/:id/cancel',async(req,reply)=>{const sid=req.cookies.web_sid;if(!sid)return reply.redirect('/login');const {id}=req.params as {id:string};try{await api(`/api/jobs/${encodeURIComponent(id)}/cancel`,{sid,method:'POST',body:{}});return reply.redirect(`/jobs/${encodeURIComponent(id)}`);}catch(e){return fail(reply,e);}});
   app.post("/jobs/:id/retry", async (req, reply) => {
     const sid = req.cookies["web_sid"]; if (!sid) return reply.redirect("/login");
     const { id } = req.params as { id: string };
