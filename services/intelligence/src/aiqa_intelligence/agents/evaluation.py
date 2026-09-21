@@ -35,6 +35,7 @@ async def pipeline_attempt(fn: Callable[..., Awaitable[Any]], context: RequestCo
     旅程工厂用它包装三条管线之一；用量从 context.invocations 提取，
     失败时已发生的调用用量同样保留（语义错误也烧了 token）。
     """
+    invocation_start = len(context.invocations)
     start = time.monotonic()
     ok, code, message = True, None, None
     try:
@@ -52,7 +53,7 @@ async def pipeline_attempt(fn: Callable[..., Awaitable[Any]], context: RequestCo
                 "inputTokens": record.response.usage.inputTokens,
                 "outputTokens": record.response.usage.outputTokens,
             }
-            for record in context.invocations
+            for record in context.invocations[invocation_start:]
         ],
     }
 
@@ -66,6 +67,8 @@ async def evaluate_repeatability(
     journeys：旅程名 → 异步工厂，每次调用返回 pipeline_attempt 形状的 dict，
     可附 "manualIntervention" 字段显式标注人工介入。
     """
+    if type(rounds) is not int or not 1 <= rounds <= 100:
+        raise ValueError("rounds must be an integer between 1 and 100")
     report_journeys = []
     for name, factory in journeys.items():
         attempts = []

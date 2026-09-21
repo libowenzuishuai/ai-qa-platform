@@ -1,0 +1,54 @@
+{
+  "version": "pilot-dify-input-v1",
+  "project": "Dify",
+  "declaredVersion": "1.15.0",
+  "buildVerified": false,
+  "sourceType": "SANITIZED_OBSERVATION_RECORD",
+  "sourceEvidence": "docs/delivery/pilot-platform-progress.md#dify-试点",
+  "approvalStatus": "UNREVIEWED",
+  "officialProductSpecification": false,
+  "storage": {
+    "root": "packages/contracts/fixtures/pilot-dify-v1",
+    "storageKey": "source.md",
+    "fileSizeBytes": 718,
+    "checksum": "d8fe438f9b8703f1303ffeb5a0d29a05a93c78fcdbc52a33298835852d0294f2",
+    "documentVersionId": "pilot-dify-observed-20260920-v1",
+    "format": "MARKDOWN"
+  },
+  "credentialsIncluded": false,
+  "accountStateIncluded": false,
+  "modelInvocationsInThisDelivery": 0,
+  "dimensions": [
+    {
+      "dimension": "HAPPY_PATH",
+      "status": "DESIGN_INPUT_AVAILABLE",
+      "basis": "专用草稿创建，不能据此宣称平台自动执行通过"
+    },
+    {
+      "dimension": "BOUNDARY",
+      "status": "PARTIAL",
+      "basis": "仅空名称边界有观察；最大长度、重名没有依据"
+    },
+    {
+      "dimension": "PERMISSION",
+      "status": "BLOCKED",
+      "basis": "没有独立角色账号或已批准权限矩阵"
+    },
+    {
+      "dimension": "MULTI_ROLE",
+      "status": "BLOCKED",
+      "basis": "没有第二角色账号与交接场景依据"
+    },
+    {
+      "dimension": "STATE",
+      "status": "DESIGN_INPUT_AVAILABLE",
+      "basis": "草稿显示未发布，不得推断发布或回滚行为"
+    },
+    {
+      "dimension": "PERSISTENCE",
+      "status": "DESIGN_INPUT_AVAILABLE",
+      "basis": "改名后刷新保留；不包含跨会话/重启持久性"
+    }
+  ],
+  "executionScope": "仅已有授权的专用试点草稿；不发布、不调用模型、不操作已有业务应用或知识库。资料包不是扩大写入授权。"
+}

@@ -2430,6 +2430,321 @@
       ],
       "additionalProperties": false
     },
+    "SourceChange": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kind": {
+              "type": "string",
+              "const": "added"
+            },
+            "old": {
+              "type": "null"
+            },
+            "new": {
+              "$ref": "#/definitions/ParsedDocumentBundle/properties/spans/items"
+            },
+            "reason": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "path",
+            "kind",
+            "old",
+            "new",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "path": {
+              "$ref": "#/definitions/SourceChange/anyOf/0/properties/path"
+            },
+            "kind": {
+              "type": "string",
+              "const": "removed"
+            },
+            "old": {
+              "$ref": "#/definitions/ParsedDocumentBundle/properties/spans/items"
+            },
+            "new": {
+              "type": "null"
+            },
+            "reason": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "path",
+            "kind",
+            "old",
+            "new",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "path": {
+              "$ref": "#/definitions/SourceChange/anyOf/0/properties/path"
+            },
+            "kind": {
+              "type": "string",
+              "const": "modified"
+            },
+            "old": {
+              "$ref": "#/definitions/ParsedDocumentBundle/properties/spans/items"
+            },
+            "new": {
+              "$ref": "#/definitions/ParsedDocumentBundle/properties/spans/items"
+            },
+            "reason": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "path",
+            "kind",
+            "old",
+            "new",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "path": {
+              "$ref": "#/definitions/SourceChange/anyOf/0/properties/path"
+            },
+            "kind": {
+              "type": "string",
+              "const": "uncertain"
+            },
+            "old": {
+              "$ref": "#/definitions/ParsedDocumentBundle/properties/spans/items"
+            },
+            "new": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ParsedDocumentBundle/properties/spans/items"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "path",
+            "kind",
+            "old",
+            "new",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "SourceComparisonInput": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "oldBundle": {
+          "$ref": "#/definitions/ParsedDocumentBundle"
+        },
+        "newBundle": {
+          "$ref": "#/definitions/ParsedDocumentBundle"
+        }
+      },
+      "required": [
+        "path",
+        "oldBundle",
+        "newBundle"
+      ],
+      "additionalProperties": false
+    },
+    "SourceChangeReport": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "oldDocumentVersionId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "newDocumentVersionId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "format": {
+          "$ref": "#/definitions/ParsedDocumentBundle/properties/format"
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SourceChange"
+          },
+          "maxItems": 40000
+        }
+      },
+      "required": [
+        "path",
+        "oldDocumentVersionId",
+        "newDocumentVersionId",
+        "format",
+        "changes"
+      ],
+      "additionalProperties": false
+    },
+    "ImpactAnalysisInput": {
+      "type": "object",
+      "properties": {
+        "sourceReports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SourceChangeReport"
+          },
+          "maxItems": 100
+        },
+        "approvedRuleVersions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CaseGenerationInput/properties/approvedRuleVersions/items"
+          }
+        },
+        "approvedCaseVersions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PlanProposalInput/properties/testCase"
+          }
+        }
+      },
+      "required": [
+        "sourceReports",
+        "approvedRuleVersions",
+        "approvedCaseVersions"
+      ],
+      "additionalProperties": false
+    },
+    "ImpactAnalysisOutput": {
+      "type": "object",
+      "properties": {
+        "affectedRules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ruleVersionId": {
+                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "evidenceRefs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "documentVersionId": {
+                      "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    },
+                    "spanId": {
+                      "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    }
+                  },
+                  "required": [
+                    "documentVersionId",
+                    "spanId"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1
+              },
+              "suggestion": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "ruleVersionId",
+              "reason",
+              "evidenceRefs",
+              "suggestion"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "affectedCases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "caseVersionId": {
+                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+              },
+              "viaRuleVersionIds": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                },
+                "minItems": 1
+              },
+              "reason": {
+                "type": "string",
+                "const": "RULE_SOURCE_CHANGED"
+              },
+              "suggestion": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "caseVersionId",
+              "viaRuleVersionIds",
+              "reason",
+              "suggestion"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "unresolved": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "requiresHumanReview": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "required": [
+        "affectedRules",
+        "affectedCases",
+        "unresolved",
+        "requiresHumanReview"
+      ],
+      "additionalProperties": false
+    },
     "IntelligenceContracts": {
       "type": "object",
       "properties": {
@@ -2504,6 +2819,21 @@
         },
         "InvocationRecord": {
           "$ref": "#/definitions/InvocationRecord"
+        },
+        "SourceChange": {
+          "$ref": "#/definitions/SourceChange"
+        },
+        "SourceComparisonInput": {
+          "$ref": "#/definitions/SourceComparisonInput"
+        },
+        "SourceChangeReport": {
+          "$ref": "#/definitions/SourceChangeReport"
+        },
+        "ImpactAnalysisInput": {
+          "$ref": "#/definitions/ImpactAnalysisInput"
+        },
+        "ImpactAnalysisOutput": {
+          "$ref": "#/definitions/ImpactAnalysisOutput"
         }
       },
       "required": [
@@ -2530,7 +2860,12 @@
         "RuleExtractionResponse",
         "CaseGenerationRequest",
         "CaseGenerationResponse",
-        "InvocationRecord"
+        "InvocationRecord",
+        "SourceChange",
+        "SourceComparisonInput",
+        "SourceChangeReport",
+        "ImpactAnalysisInput",
+        "ImpactAnalysisOutput"
       ],
       "additionalProperties": false
     }

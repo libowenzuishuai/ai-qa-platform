@@ -10,7 +10,7 @@ from typing import Any
 from jsonschema import Draft7Validator, FormatChecker
 from ..errors import ServiceError
 
-SCHEMA = json.loads(Path(__file__).with_name("schema.v1.json").read_text())
+SCHEMA = json.loads(Path(__file__).with_name("schema.v1.json").read_text(encoding="utf-8"))
 
 
 def validate_shape(name: str, value: Any) -> None:
@@ -177,3 +177,32 @@ def validate_cases(input: dict, output: dict) -> None:
         require(bool(cases) or rule_id in blocked, "零用例规则必须说明阻塞原因")
     # A generated case cannot disappear from the coverage table behind a blocker.
     require({r for d in output["caseDrafts"] for r in d["ruleVersionIds"]} <= {e["ruleVersionId"] for e in entries}, "生成用例必须在覆盖表中对账")
+
+
+def validate_source_report(report: dict) -> None:
+    validate_shape('SourceChangeReport', report)
+    require(report['oldDocumentVersionId'] != report['newDocumentVersionId'], '对比需要不同文档版本')
+    for c in report['changes']:
+        require(c['path'] == report['path'], '片段路径与报告不一致')
+        for side, version in [('old', 'oldDocumentVersionId'), ('new', 'newDocumentVersionId')]:
+            require(c[side] is None or c[side]['documentVersionId'] == report[version], '片段版本不匹配')
+        if c['kind'] == 'modified':
+            require(c['old']['locator'] == c['new']['locator'] and c['old']['quotedText'] != c['new']['quotedText'], 'modified 必须同位置不同原文')
+
+
+def validate_source_comparison(input: dict, report: dict) -> None:
+    validate_shape('SourceComparisonInput', input)
+    validate_source_report(report)
+    require(report['path'] == input['path'], '来源对比路径不匹配')
+    require(report['format'] == input['oldBundle']['format'] == input['newBundle']['format'], '来源对比格式不匹配')
+    for side in ('old', 'new'):
+        bundle=input[side+'Bundle']
+        validate_bundle(bundle)
+        require(bundle['parseStatus'] in {'PARSED','NEEDS_OCR'}, '资料尚未完成解析')
+        require(report[side+'DocumentVersionId'] == bundle['documentVersionId'], '来源对比版本不匹配')
+        spans={s['id']:s for s in bundle['spans']}
+        require(len(spans)==len(bundle['spans']) and len(spans)<=20000, '来源片段重复或超限')
+        for c in report['changes']:
+            if c[side] is not None:
+                span=spans.get(c[side]['id'])
+                require(span is not None and {**span,'extractionQuality':span.get('extractionQuality','GOOD')} == {**c[side],'extractionQuality':c[side].get('extractionQuality','GOOD')}, '变更引用了不存在或被篡改的来源片段')

@@ -1,0 +1,3160 @@
+[
+  {
+    "name": "modified-real-source",
+    "kind": "source",
+    "input": {
+      "path": "requirements.md",
+      "oldBundle": {
+        "documentVersionId": "old",
+        "format": "MARKDOWN",
+        "parseStatus": "PARSED",
+        "parserVersion": "python-doc-ingestion-1.3",
+        "blocks": [
+          {
+            "id": "b-cba06b5736faf67e54b07b56-0",
+            "kind": "paragraph",
+            "text": "额度 500000 分"
+          },
+          {
+            "id": "b-cba06b5736faf67e54b07b56-1",
+            "kind": "paragraph",
+            "text": "禁止自审"
+          }
+        ],
+        "spans": [
+          {
+            "id": "s-cba06b5736faf67e54b07b56-0",
+            "documentVersionId": "old",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 500000 分",
+            "extractionQuality": "GOOD"
+          },
+          {
+            "id": "s-cba06b5736faf67e54b07b56-1",
+            "documentVersionId": "old",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 2,
+              "endLine": 2
+            },
+            "quotedText": "禁止自审",
+            "extractionQuality": "GOOD"
+          }
+        ],
+        "warnings": [],
+        "coverageSummary": {
+          "totalBlocks": 2,
+          "goodSpans": 2,
+          "lowSpans": 0,
+          "unparsedSpans": 0
+        }
+      },
+      "newBundle": {
+        "documentVersionId": "new",
+        "format": "MARKDOWN",
+        "parseStatus": "PARSED",
+        "parserVersion": "python-doc-ingestion-1.3",
+        "blocks": [
+          {
+            "id": "b-11507a0e2f5e69d5dfa40a62-0",
+            "kind": "paragraph",
+            "text": "额度 800000 分"
+          },
+          {
+            "id": "b-11507a0e2f5e69d5dfa40a62-1",
+            "kind": "paragraph",
+            "text": "禁止自审"
+          }
+        ],
+        "spans": [
+          {
+            "id": "s-11507a0e2f5e69d5dfa40a62-0",
+            "documentVersionId": "new",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 800000 分",
+            "extractionQuality": "GOOD"
+          },
+          {
+            "id": "s-11507a0e2f5e69d5dfa40a62-1",
+            "documentVersionId": "new",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 2,
+              "endLine": 2
+            },
+            "quotedText": "禁止自审",
+            "extractionQuality": "GOOD"
+          }
+        ],
+        "warnings": [],
+        "coverageSummary": {
+          "totalBlocks": 2,
+          "goodSpans": 2,
+          "lowSpans": 0,
+          "unparsedSpans": 0
+        }
+      }
+    },
+    "output": {
+      "path": "requirements.md",
+      "oldDocumentVersionId": "old",
+      "newDocumentVersionId": "new",
+      "format": "MARKDOWN",
+      "changes": [
+        {
+          "path": "requirements.md",
+          "kind": "modified",
+          "old": {
+            "id": "s-cba06b5736faf67e54b07b56-0",
+            "documentVersionId": "old",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 500000 分",
+            "extractionQuality": "GOOD"
+          },
+          "new": {
+            "id": "s-11507a0e2f5e69d5dfa40a62-0",
+            "documentVersionId": "new",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 800000 分",
+            "extractionQuality": "GOOD"
+          },
+          "reason": null
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "forged-quote",
+    "kind": "source",
+    "input": {
+      "path": "requirements.md",
+      "oldBundle": {
+        "documentVersionId": "old",
+        "format": "MARKDOWN",
+        "parseStatus": "PARSED",
+        "parserVersion": "python-doc-ingestion-1.3",
+        "blocks": [
+          {
+            "id": "b-cba06b5736faf67e54b07b56-0",
+            "kind": "paragraph",
+            "text": "额度 500000 分"
+          },
+          {
+            "id": "b-cba06b5736faf67e54b07b56-1",
+            "kind": "paragraph",
+            "text": "禁止自审"
+          }
+        ],
+        "spans": [
+          {
+            "id": "s-cba06b5736faf67e54b07b56-0",
+            "documentVersionId": "old",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 500000 分",
+            "extractionQuality": "GOOD"
+          },
+          {
+            "id": "s-cba06b5736faf67e54b07b56-1",
+            "documentVersionId": "old",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 2,
+              "endLine": 2
+            },
+            "quotedText": "禁止自审",
+            "extractionQuality": "GOOD"
+          }
+        ],
+        "warnings": [],
+        "coverageSummary": {
+          "totalBlocks": 2,
+          "goodSpans": 2,
+          "lowSpans": 0,
+          "unparsedSpans": 0
+        }
+      },
+      "newBundle": {
+        "documentVersionId": "new",
+        "format": "MARKDOWN",
+        "parseStatus": "PARSED",
+        "parserVersion": "python-doc-ingestion-1.3",
+        "blocks": [
+          {
+            "id": "b-11507a0e2f5e69d5dfa40a62-0",
+            "kind": "paragraph",
+            "text": "额度 800000 分"
+          },
+          {
+            "id": "b-11507a0e2f5e69d5dfa40a62-1",
+            "kind": "paragraph",
+            "text": "禁止自审"
+          }
+        ],
+        "spans": [
+          {
+            "id": "s-11507a0e2f5e69d5dfa40a62-0",
+            "documentVersionId": "new",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 800000 分",
+            "extractionQuality": "GOOD"
+          },
+          {
+            "id": "s-11507a0e2f5e69d5dfa40a62-1",
+            "documentVersionId": "new",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 2,
+              "endLine": 2
+            },
+            "quotedText": "禁止自审",
+            "extractionQuality": "GOOD"
+          }
+        ],
+        "warnings": [],
+        "coverageSummary": {
+          "totalBlocks": 2,
+          "goodSpans": 2,
+          "lowSpans": 0,
+          "unparsedSpans": 0
+        }
+      }
+    },
+    "output": {
+      "path": "requirements.md",
+      "oldDocumentVersionId": "old",
+      "newDocumentVersionId": "new",
+      "format": "MARKDOWN",
+      "changes": [
+        {
+          "path": "requirements.md",
+          "kind": "modified",
+          "old": {
+            "id": "s-cba06b5736faf67e54b07b56-0",
+            "documentVersionId": "old",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "伪造原文",
+            "extractionQuality": "GOOD"
+          },
+          "new": {
+            "id": "s-11507a0e2f5e69d5dfa40a62-0",
+            "documentVersionId": "new",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 800000 分",
+            "extractionQuality": "GOOD"
+          },
+          "reason": null
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "foreign-source",
+    "kind": "source",
+    "input": {
+      "path": "requirements.md",
+      "oldBundle": {
+        "documentVersionId": "old",
+        "format": "MARKDOWN",
+        "parseStatus": "PARSED",
+        "parserVersion": "python-doc-ingestion-1.3",
+        "blocks": [
+          {
+            "id": "b-cba06b5736faf67e54b07b56-0",
+            "kind": "paragraph",
+            "text": "额度 500000 分"
+          },
+          {
+            "id": "b-cba06b5736faf67e54b07b56-1",
+            "kind": "paragraph",
+            "text": "禁止自审"
+          }
+        ],
+        "spans": [
+          {
+            "id": "s-cba06b5736faf67e54b07b56-0",
+            "documentVersionId": "old",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 500000 分",
+            "extractionQuality": "GOOD"
+          },
+          {
+            "id": "s-cba06b5736faf67e54b07b56-1",
+            "documentVersionId": "old",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 2,
+              "endLine": 2
+            },
+            "quotedText": "禁止自审",
+            "extractionQuality": "GOOD"
+          }
+        ],
+        "warnings": [],
+        "coverageSummary": {
+          "totalBlocks": 2,
+          "goodSpans": 2,
+          "lowSpans": 0,
+          "unparsedSpans": 0
+        }
+      },
+      "newBundle": {
+        "documentVersionId": "new",
+        "format": "MARKDOWN",
+        "parseStatus": "PARSED",
+        "parserVersion": "python-doc-ingestion-1.3",
+        "blocks": [
+          {
+            "id": "b-11507a0e2f5e69d5dfa40a62-0",
+            "kind": "paragraph",
+            "text": "额度 800000 分"
+          },
+          {
+            "id": "b-11507a0e2f5e69d5dfa40a62-1",
+            "kind": "paragraph",
+            "text": "禁止自审"
+          }
+        ],
+        "spans": [
+          {
+            "id": "s-11507a0e2f5e69d5dfa40a62-0",
+            "documentVersionId": "new",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 800000 分",
+            "extractionQuality": "GOOD"
+          },
+          {
+            "id": "s-11507a0e2f5e69d5dfa40a62-1",
+            "documentVersionId": "new",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 2,
+              "endLine": 2
+            },
+            "quotedText": "禁止自审",
+            "extractionQuality": "GOOD"
+          }
+        ],
+        "warnings": [],
+        "coverageSummary": {
+          "totalBlocks": 2,
+          "goodSpans": 2,
+          "lowSpans": 0,
+          "unparsedSpans": 0
+        }
+      }
+    },
+    "output": {
+      "path": "requirements.md",
+      "oldDocumentVersionId": "old",
+      "newDocumentVersionId": "new",
+      "format": "MARKDOWN",
+      "changes": [
+        {
+          "path": "requirements.md",
+          "kind": "modified",
+          "old": {
+            "id": "s-cba06b5736faf67e54b07b56-0",
+            "documentVersionId": "foreign",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 500000 分",
+            "extractionQuality": "GOOD"
+          },
+          "new": {
+            "id": "s-11507a0e2f5e69d5dfa40a62-0",
+            "documentVersionId": "new",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 800000 分",
+            "extractionQuality": "GOOD"
+          },
+          "reason": null
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "fake-span",
+    "kind": "source",
+    "input": {
+      "path": "requirements.md",
+      "oldBundle": {
+        "documentVersionId": "old",
+        "format": "MARKDOWN",
+        "parseStatus": "PARSED",
+        "parserVersion": "python-doc-ingestion-1.3",
+        "blocks": [
+          {
+            "id": "b-cba06b5736faf67e54b07b56-0",
+            "kind": "paragraph",
+            "text": "额度 500000 分"
+          },
+          {
+            "id": "b-cba06b5736faf67e54b07b56-1",
+            "kind": "paragraph",
+            "text": "禁止自审"
+          }
+        ],
+        "spans": [
+          {
+            "id": "s-cba06b5736faf67e54b07b56-0",
+            "documentVersionId": "old",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 500000 分",
+            "extractionQuality": "GOOD"
+          },
+          {
+            "id": "s-cba06b5736faf67e54b07b56-1",
+            "documentVersionId": "old",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 2,
+              "endLine": 2
+            },
+            "quotedText": "禁止自审",
+            "extractionQuality": "GOOD"
+          }
+        ],
+        "warnings": [],
+        "coverageSummary": {
+          "totalBlocks": 2,
+          "goodSpans": 2,
+          "lowSpans": 0,
+          "unparsedSpans": 0
+        }
+      },
+      "newBundle": {
+        "documentVersionId": "new",
+        "format": "MARKDOWN",
+        "parseStatus": "PARSED",
+        "parserVersion": "python-doc-ingestion-1.3",
+        "blocks": [
+          {
+            "id": "b-11507a0e2f5e69d5dfa40a62-0",
+            "kind": "paragraph",
+            "text": "额度 800000 分"
+          },
+          {
+            "id": "b-11507a0e2f5e69d5dfa40a62-1",
+            "kind": "paragraph",
+            "text": "禁止自审"
+          }
+        ],
+        "spans": [
+          {
+            "id": "s-11507a0e2f5e69d5dfa40a62-0",
+            "documentVersionId": "new",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 800000 分",
+            "extractionQuality": "GOOD"
+          },
+          {
+            "id": "s-11507a0e2f5e69d5dfa40a62-1",
+            "documentVersionId": "new",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 2,
+              "endLine": 2
+            },
+            "quotedText": "禁止自审",
+            "extractionQuality": "GOOD"
+          }
+        ],
+        "warnings": [],
+        "coverageSummary": {
+          "totalBlocks": 2,
+          "goodSpans": 2,
+          "lowSpans": 0,
+          "unparsedSpans": 0
+        }
+      }
+    },
+    "output": {
+      "path": "requirements.md",
+      "oldDocumentVersionId": "old",
+      "newDocumentVersionId": "new",
+      "format": "MARKDOWN",
+      "changes": [
+        {
+          "path": "requirements.md",
+          "kind": "modified",
+          "old": {
+            "id": "missing",
+            "documentVersionId": "old",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 500000 分",
+            "extractionQuality": "GOOD"
+          },
+          "new": {
+            "id": "s-11507a0e2f5e69d5dfa40a62-0",
+            "documentVersionId": "new",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 800000 分",
+            "extractionQuality": "GOOD"
+          },
+          "reason": null
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "uncertain-null-new",
+    "kind": "source",
+    "input": {
+      "path": "requirements.md",
+      "oldBundle": {
+        "documentVersionId": "old",
+        "format": "MARKDOWN",
+        "parseStatus": "PARSED",
+        "parserVersion": "python-doc-ingestion-1.3",
+        "blocks": [
+          {
+            "id": "b-cba06b5736faf67e54b07b56-0",
+            "kind": "paragraph",
+            "text": "额度 500000 分"
+          },
+          {
+            "id": "b-cba06b5736faf67e54b07b56-1",
+            "kind": "paragraph",
+            "text": "禁止自审"
+          }
+        ],
+        "spans": [
+          {
+            "id": "s-cba06b5736faf67e54b07b56-0",
+            "documentVersionId": "old",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 500000 分",
+            "extractionQuality": "GOOD"
+          },
+          {
+            "id": "s-cba06b5736faf67e54b07b56-1",
+            "documentVersionId": "old",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 2,
+              "endLine": 2
+            },
+            "quotedText": "禁止自审",
+            "extractionQuality": "GOOD"
+          }
+        ],
+        "warnings": [],
+        "coverageSummary": {
+          "totalBlocks": 2,
+          "goodSpans": 2,
+          "lowSpans": 0,
+          "unparsedSpans": 0
+        }
+      },
+      "newBundle": {
+        "documentVersionId": "new",
+        "format": "MARKDOWN",
+        "parseStatus": "PARSED",
+        "parserVersion": "python-doc-ingestion-1.3",
+        "blocks": [
+          {
+            "id": "b-11507a0e2f5e69d5dfa40a62-0",
+            "kind": "paragraph",
+            "text": "额度 800000 分"
+          },
+          {
+            "id": "b-11507a0e2f5e69d5dfa40a62-1",
+            "kind": "paragraph",
+            "text": "禁止自审"
+          }
+        ],
+        "spans": [
+          {
+            "id": "s-11507a0e2f5e69d5dfa40a62-0",
+            "documentVersionId": "new",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 800000 分",
+            "extractionQuality": "GOOD"
+          },
+          {
+            "id": "s-11507a0e2f5e69d5dfa40a62-1",
+            "documentVersionId": "new",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 2,
+              "endLine": 2
+            },
+            "quotedText": "禁止自审",
+            "extractionQuality": "GOOD"
+          }
+        ],
+        "warnings": [],
+        "coverageSummary": {
+          "totalBlocks": 2,
+          "goodSpans": 2,
+          "lowSpans": 0,
+          "unparsedSpans": 0
+        }
+      }
+    },
+    "output": {
+      "path": "requirements.md",
+      "oldDocumentVersionId": "old",
+      "newDocumentVersionId": "new",
+      "format": "MARKDOWN",
+      "changes": [
+        {
+          "path": "requirements.md",
+          "kind": "uncertain",
+          "old": {
+            "id": "s-cba06b5736faf67e54b07b56-0",
+            "documentVersionId": "old",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 500000 分",
+            "extractionQuality": "GOOD"
+          },
+          "new": null,
+          "reason": "多个候选无法唯一对应"
+        }
+      ]
+    },
+    "valid": true
+  },
+  {
+    "name": "uncertain-missing-reason",
+    "kind": "source",
+    "input": {
+      "path": "requirements.md",
+      "oldBundle": {
+        "documentVersionId": "old",
+        "format": "MARKDOWN",
+        "parseStatus": "PARSED",
+        "parserVersion": "python-doc-ingestion-1.3",
+        "blocks": [
+          {
+            "id": "b-cba06b5736faf67e54b07b56-0",
+            "kind": "paragraph",
+            "text": "额度 500000 分"
+          },
+          {
+            "id": "b-cba06b5736faf67e54b07b56-1",
+            "kind": "paragraph",
+            "text": "禁止自审"
+          }
+        ],
+        "spans": [
+          {
+            "id": "s-cba06b5736faf67e54b07b56-0",
+            "documentVersionId": "old",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 500000 分",
+            "extractionQuality": "GOOD"
+          },
+          {
+            "id": "s-cba06b5736faf67e54b07b56-1",
+            "documentVersionId": "old",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 2,
+              "endLine": 2
+            },
+            "quotedText": "禁止自审",
+            "extractionQuality": "GOOD"
+          }
+        ],
+        "warnings": [],
+        "coverageSummary": {
+          "totalBlocks": 2,
+          "goodSpans": 2,
+          "lowSpans": 0,
+          "unparsedSpans": 0
+        }
+      },
+      "newBundle": {
+        "documentVersionId": "new",
+        "format": "MARKDOWN",
+        "parseStatus": "PARSED",
+        "parserVersion": "python-doc-ingestion-1.3",
+        "blocks": [
+          {
+            "id": "b-11507a0e2f5e69d5dfa40a62-0",
+            "kind": "paragraph",
+            "text": "额度 800000 分"
+          },
+          {
+            "id": "b-11507a0e2f5e69d5dfa40a62-1",
+            "kind": "paragraph",
+            "text": "禁止自审"
+          }
+        ],
+        "spans": [
+          {
+            "id": "s-11507a0e2f5e69d5dfa40a62-0",
+            "documentVersionId": "new",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 800000 分",
+            "extractionQuality": "GOOD"
+          },
+          {
+            "id": "s-11507a0e2f5e69d5dfa40a62-1",
+            "documentVersionId": "new",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 2,
+              "endLine": 2
+            },
+            "quotedText": "禁止自审",
+            "extractionQuality": "GOOD"
+          }
+        ],
+        "warnings": [],
+        "coverageSummary": {
+          "totalBlocks": 2,
+          "goodSpans": 2,
+          "lowSpans": 0,
+          "unparsedSpans": 0
+        }
+      }
+    },
+    "output": {
+      "path": "requirements.md",
+      "oldDocumentVersionId": "old",
+      "newDocumentVersionId": "new",
+      "format": "MARKDOWN",
+      "changes": [
+        {
+          "path": "requirements.md",
+          "kind": "uncertain",
+          "old": {
+            "id": "s-cba06b5736faf67e54b07b56-0",
+            "documentVersionId": "old",
+            "locator": {
+              "kind": "markdown-line",
+              "startLine": 1,
+              "endLine": 1
+            },
+            "quotedText": "额度 500000 分",
+            "extractionQuality": "GOOD"
+          },
+          "new": null,
+          "reason": ""
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "name": "exact-intersection",
+    "kind": "impact",
+    "input": {
+      "sourceReports": [
+        {
+          "path": "requirements.md",
+          "oldDocumentVersionId": "old",
+          "newDocumentVersionId": "new",
+          "format": "MARKDOWN",
+          "changes": [
+            {
+              "path": "requirements.md",
+              "kind": "modified",
+              "old": {
+                "id": "s-cba06b5736faf67e54b07b56-0",
+                "documentVersionId": "old",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 500000 分",
+                "extractionQuality": "GOOD"
+              },
+              "new": {
+                "id": "s-11507a0e2f5e69d5dfa40a62-0",
+                "documentVersionId": "new",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 800000 分",
+                "extractionQuality": "GOOD"
+              },
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "approvedRuleVersions": [
+        {
+          "id": "rule-1",
+          "ruleId": "rule-1-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-0"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "rule-2",
+          "ruleId": "rule-2-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-1"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ],
+      "approvedCaseVersions": [
+        {
+          "id": "case-1",
+          "caseId": "case-1-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-1",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "case-2",
+          "caseId": "case-2-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-2"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-2",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ]
+    },
+    "output": {
+      "affectedRules": [
+        {
+          "ruleVersionId": "rule-1",
+          "reason": "SOURCE_MODIFIED",
+          "evidenceRefs": [
+            {
+              "documentVersionId": "new",
+              "spanId": "s-11507a0e2f5e69d5dfa40a62-0"
+            },
+            {
+              "documentVersionId": "old",
+              "spanId": "s-cba06b5736faf67e54b07b56-0"
+            }
+          ],
+          "suggestion": "复核该规则的出处是否仍然成立；确认后由平台生成新版本"
+        }
+      ],
+      "affectedCases": [
+        {
+          "caseVersionId": "case-1",
+          "viaRuleVersionIds": [
+            "rule-1"
+          ],
+          "reason": "RULE_SOURCE_CHANGED",
+          "suggestion": "来源规则需复核，确认后再决定是否生成新用例版本"
+        }
+      ],
+      "unresolved": [],
+      "requiresHumanReview": true
+    },
+    "valid": true
+  },
+  {
+    "name": "unrelated-rule",
+    "kind": "impact",
+    "input": {
+      "sourceReports": [
+        {
+          "path": "requirements.md",
+          "oldDocumentVersionId": "old",
+          "newDocumentVersionId": "new",
+          "format": "MARKDOWN",
+          "changes": [
+            {
+              "path": "requirements.md",
+              "kind": "modified",
+              "old": {
+                "id": "s-cba06b5736faf67e54b07b56-0",
+                "documentVersionId": "old",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 500000 分",
+                "extractionQuality": "GOOD"
+              },
+              "new": {
+                "id": "s-11507a0e2f5e69d5dfa40a62-0",
+                "documentVersionId": "new",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 800000 分",
+                "extractionQuality": "GOOD"
+              },
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "approvedRuleVersions": [
+        {
+          "id": "rule-1",
+          "ruleId": "rule-1-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-0"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "rule-2",
+          "ruleId": "rule-2-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-1"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ],
+      "approvedCaseVersions": [
+        {
+          "id": "case-1",
+          "caseId": "case-1-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-1",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "case-2",
+          "caseId": "case-2-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-2"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-2",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ]
+    },
+    "output": {
+      "affectedRules": [
+        {
+          "ruleVersionId": "rule-1",
+          "reason": "SOURCE_MODIFIED",
+          "evidenceRefs": [
+            {
+              "documentVersionId": "new",
+              "spanId": "s-11507a0e2f5e69d5dfa40a62-0"
+            },
+            {
+              "documentVersionId": "old",
+              "spanId": "s-cba06b5736faf67e54b07b56-0"
+            }
+          ],
+          "suggestion": "复核该规则的出处是否仍然成立；确认后由平台生成新版本"
+        },
+        {
+          "ruleVersionId": "rule-2",
+          "reason": "SOURCE_MODIFIED",
+          "evidenceRefs": [
+            {
+              "documentVersionId": "new",
+              "spanId": "s-11507a0e2f5e69d5dfa40a62-0"
+            },
+            {
+              "documentVersionId": "old",
+              "spanId": "s-cba06b5736faf67e54b07b56-0"
+            }
+          ],
+          "suggestion": "复核该规则的出处是否仍然成立；确认后由平台生成新版本"
+        }
+      ],
+      "affectedCases": [
+        {
+          "caseVersionId": "case-1",
+          "viaRuleVersionIds": [
+            "rule-1"
+          ],
+          "reason": "RULE_SOURCE_CHANGED",
+          "suggestion": "来源规则需复核，确认后再决定是否生成新用例版本"
+        }
+      ],
+      "unresolved": [],
+      "requiresHumanReview": true
+    },
+    "valid": false
+  },
+  {
+    "name": "missing-rule",
+    "kind": "impact",
+    "input": {
+      "sourceReports": [
+        {
+          "path": "requirements.md",
+          "oldDocumentVersionId": "old",
+          "newDocumentVersionId": "new",
+          "format": "MARKDOWN",
+          "changes": [
+            {
+              "path": "requirements.md",
+              "kind": "modified",
+              "old": {
+                "id": "s-cba06b5736faf67e54b07b56-0",
+                "documentVersionId": "old",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 500000 分",
+                "extractionQuality": "GOOD"
+              },
+              "new": {
+                "id": "s-11507a0e2f5e69d5dfa40a62-0",
+                "documentVersionId": "new",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 800000 分",
+                "extractionQuality": "GOOD"
+              },
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "approvedRuleVersions": [
+        {
+          "id": "rule-1",
+          "ruleId": "rule-1-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-0"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "rule-2",
+          "ruleId": "rule-2-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-1"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ],
+      "approvedCaseVersions": [
+        {
+          "id": "case-1",
+          "caseId": "case-1-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-1",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "case-2",
+          "caseId": "case-2-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-2"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-2",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ]
+    },
+    "output": {
+      "affectedRules": [],
+      "affectedCases": [
+        {
+          "caseVersionId": "case-1",
+          "viaRuleVersionIds": [
+            "rule-1"
+          ],
+          "reason": "RULE_SOURCE_CHANGED",
+          "suggestion": "来源规则需复核，确认后再决定是否生成新用例版本"
+        }
+      ],
+      "unresolved": [],
+      "requiresHumanReview": true
+    },
+    "valid": false
+  },
+  {
+    "name": "wrong-transitive-reference",
+    "kind": "impact",
+    "input": {
+      "sourceReports": [
+        {
+          "path": "requirements.md",
+          "oldDocumentVersionId": "old",
+          "newDocumentVersionId": "new",
+          "format": "MARKDOWN",
+          "changes": [
+            {
+              "path": "requirements.md",
+              "kind": "modified",
+              "old": {
+                "id": "s-cba06b5736faf67e54b07b56-0",
+                "documentVersionId": "old",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 500000 分",
+                "extractionQuality": "GOOD"
+              },
+              "new": {
+                "id": "s-11507a0e2f5e69d5dfa40a62-0",
+                "documentVersionId": "new",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 800000 分",
+                "extractionQuality": "GOOD"
+              },
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "approvedRuleVersions": [
+        {
+          "id": "rule-1",
+          "ruleId": "rule-1-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-0"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "rule-2",
+          "ruleId": "rule-2-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-1"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ],
+      "approvedCaseVersions": [
+        {
+          "id": "case-1",
+          "caseId": "case-1-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-1",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "case-2",
+          "caseId": "case-2-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-2"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-2",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ]
+    },
+    "output": {
+      "affectedRules": [
+        {
+          "ruleVersionId": "rule-1",
+          "reason": "SOURCE_MODIFIED",
+          "evidenceRefs": [
+            {
+              "documentVersionId": "new",
+              "spanId": "s-11507a0e2f5e69d5dfa40a62-0"
+            },
+            {
+              "documentVersionId": "old",
+              "spanId": "s-cba06b5736faf67e54b07b56-0"
+            }
+          ],
+          "suggestion": "复核该规则的出处是否仍然成立；确认后由平台生成新版本"
+        }
+      ],
+      "affectedCases": [
+        {
+          "caseVersionId": "case-1",
+          "viaRuleVersionIds": [
+            "rule-2"
+          ],
+          "reason": "RULE_SOURCE_CHANGED",
+          "suggestion": "来源规则需复核，确认后再决定是否生成新用例版本"
+        }
+      ],
+      "unresolved": [],
+      "requiresHumanReview": true
+    },
+    "valid": false
+  },
+  {
+    "name": "forged-impact-reference",
+    "kind": "impact",
+    "input": {
+      "sourceReports": [
+        {
+          "path": "requirements.md",
+          "oldDocumentVersionId": "old",
+          "newDocumentVersionId": "new",
+          "format": "MARKDOWN",
+          "changes": [
+            {
+              "path": "requirements.md",
+              "kind": "modified",
+              "old": {
+                "id": "s-cba06b5736faf67e54b07b56-0",
+                "documentVersionId": "old",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 500000 分",
+                "extractionQuality": "GOOD"
+              },
+              "new": {
+                "id": "s-11507a0e2f5e69d5dfa40a62-0",
+                "documentVersionId": "new",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 800000 分",
+                "extractionQuality": "GOOD"
+              },
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "approvedRuleVersions": [
+        {
+          "id": "rule-1",
+          "ruleId": "rule-1-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-0"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "rule-2",
+          "ruleId": "rule-2-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-1"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ],
+      "approvedCaseVersions": [
+        {
+          "id": "case-1",
+          "caseId": "case-1-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-1",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "case-2",
+          "caseId": "case-2-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-2"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-2",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ]
+    },
+    "output": {
+      "affectedRules": [
+        {
+          "ruleVersionId": "rule-1",
+          "reason": "SOURCE_MODIFIED",
+          "evidenceRefs": [
+            {
+              "documentVersionId": "new",
+              "spanId": "fake"
+            },
+            {
+              "documentVersionId": "old",
+              "spanId": "s-cba06b5736faf67e54b07b56-0"
+            }
+          ],
+          "suggestion": "复核该规则的出处是否仍然成立；确认后由平台生成新版本"
+        }
+      ],
+      "affectedCases": [
+        {
+          "caseVersionId": "case-1",
+          "viaRuleVersionIds": [
+            "rule-1"
+          ],
+          "reason": "RULE_SOURCE_CHANGED",
+          "suggestion": "来源规则需复核，确认后再决定是否生成新用例版本"
+        }
+      ],
+      "unresolved": [],
+      "requiresHumanReview": true
+    },
+    "valid": false
+  },
+  {
+    "name": "draft-rule",
+    "kind": "impact",
+    "input": {
+      "sourceReports": [
+        {
+          "path": "requirements.md",
+          "oldDocumentVersionId": "old",
+          "newDocumentVersionId": "new",
+          "format": "MARKDOWN",
+          "changes": [
+            {
+              "path": "requirements.md",
+              "kind": "modified",
+              "old": {
+                "id": "s-cba06b5736faf67e54b07b56-0",
+                "documentVersionId": "old",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 500000 分",
+                "extractionQuality": "GOOD"
+              },
+              "new": {
+                "id": "s-11507a0e2f5e69d5dfa40a62-0",
+                "documentVersionId": "new",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 800000 分",
+                "extractionQuality": "GOOD"
+              },
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "approvedRuleVersions": [
+        {
+          "id": "rule-1",
+          "ruleId": "rule-1-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-0"
+              ]
+            }
+          ],
+          "reviewStatus": "DRAFT",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "rule-2",
+          "ruleId": "rule-2-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-1"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ],
+      "approvedCaseVersions": [
+        {
+          "id": "case-1",
+          "caseId": "case-1-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-1",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "case-2",
+          "caseId": "case-2-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-2"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-2",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ]
+    },
+    "output": {
+      "affectedRules": [
+        {
+          "ruleVersionId": "rule-1",
+          "reason": "SOURCE_MODIFIED",
+          "evidenceRefs": [
+            {
+              "documentVersionId": "new",
+              "spanId": "s-11507a0e2f5e69d5dfa40a62-0"
+            },
+            {
+              "documentVersionId": "old",
+              "spanId": "s-cba06b5736faf67e54b07b56-0"
+            }
+          ],
+          "suggestion": "复核该规则的出处是否仍然成立；确认后由平台生成新版本"
+        }
+      ],
+      "affectedCases": [
+        {
+          "caseVersionId": "case-1",
+          "viaRuleVersionIds": [
+            "rule-1"
+          ],
+          "reason": "RULE_SOURCE_CHANGED",
+          "suggestion": "来源规则需复核，确认后再决定是否生成新用例版本"
+        }
+      ],
+      "unresolved": [],
+      "requiresHumanReview": true
+    },
+    "valid": false
+  },
+  {
+    "name": "draft-case",
+    "kind": "impact",
+    "input": {
+      "sourceReports": [
+        {
+          "path": "requirements.md",
+          "oldDocumentVersionId": "old",
+          "newDocumentVersionId": "new",
+          "format": "MARKDOWN",
+          "changes": [
+            {
+              "path": "requirements.md",
+              "kind": "modified",
+              "old": {
+                "id": "s-cba06b5736faf67e54b07b56-0",
+                "documentVersionId": "old",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 500000 分",
+                "extractionQuality": "GOOD"
+              },
+              "new": {
+                "id": "s-11507a0e2f5e69d5dfa40a62-0",
+                "documentVersionId": "new",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 800000 分",
+                "extractionQuality": "GOOD"
+              },
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "approvedRuleVersions": [
+        {
+          "id": "rule-1",
+          "ruleId": "rule-1-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-0"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "rule-2",
+          "ruleId": "rule-2-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-1"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ],
+      "approvedCaseVersions": [
+        {
+          "id": "case-1",
+          "caseId": "case-1-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-1",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "DRAFT",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "case-2",
+          "caseId": "case-2-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-2"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-2",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ]
+    },
+    "output": {
+      "affectedRules": [
+        {
+          "ruleVersionId": "rule-1",
+          "reason": "SOURCE_MODIFIED",
+          "evidenceRefs": [
+            {
+              "documentVersionId": "new",
+              "spanId": "s-11507a0e2f5e69d5dfa40a62-0"
+            },
+            {
+              "documentVersionId": "old",
+              "spanId": "s-cba06b5736faf67e54b07b56-0"
+            }
+          ],
+          "suggestion": "复核该规则的出处是否仍然成立；确认后由平台生成新版本"
+        }
+      ],
+      "affectedCases": [
+        {
+          "caseVersionId": "case-1",
+          "viaRuleVersionIds": [
+            "rule-1"
+          ],
+          "reason": "RULE_SOURCE_CHANGED",
+          "suggestion": "来源规则需复核，确认后再决定是否生成新用例版本"
+        }
+      ],
+      "unresolved": [],
+      "requiresHumanReview": true
+    },
+    "valid": false
+  },
+  {
+    "name": "auto-approve",
+    "kind": "impact",
+    "input": {
+      "sourceReports": [
+        {
+          "path": "requirements.md",
+          "oldDocumentVersionId": "old",
+          "newDocumentVersionId": "new",
+          "format": "MARKDOWN",
+          "changes": [
+            {
+              "path": "requirements.md",
+              "kind": "modified",
+              "old": {
+                "id": "s-cba06b5736faf67e54b07b56-0",
+                "documentVersionId": "old",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 500000 分",
+                "extractionQuality": "GOOD"
+              },
+              "new": {
+                "id": "s-11507a0e2f5e69d5dfa40a62-0",
+                "documentVersionId": "new",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 800000 分",
+                "extractionQuality": "GOOD"
+              },
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "approvedRuleVersions": [
+        {
+          "id": "rule-1",
+          "ruleId": "rule-1-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-0"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "rule-2",
+          "ruleId": "rule-2-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-1"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ],
+      "approvedCaseVersions": [
+        {
+          "id": "case-1",
+          "caseId": "case-1-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-1",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "case-2",
+          "caseId": "case-2-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-2"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-2",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ]
+    },
+    "output": {
+      "affectedRules": [
+        {
+          "ruleVersionId": "rule-1",
+          "reason": "SOURCE_MODIFIED",
+          "evidenceRefs": [
+            {
+              "documentVersionId": "new",
+              "spanId": "s-11507a0e2f5e69d5dfa40a62-0"
+            },
+            {
+              "documentVersionId": "old",
+              "spanId": "s-cba06b5736faf67e54b07b56-0"
+            }
+          ],
+          "suggestion": "复核该规则的出处是否仍然成立；确认后由平台生成新版本"
+        }
+      ],
+      "affectedCases": [
+        {
+          "caseVersionId": "case-1",
+          "viaRuleVersionIds": [
+            "rule-1"
+          ],
+          "reason": "RULE_SOURCE_CHANGED",
+          "suggestion": "来源规则需复核，确认后再决定是否生成新用例版本"
+        }
+      ],
+      "unresolved": [],
+      "requiresHumanReview": false
+    },
+    "valid": false
+  },
+  {
+    "name": "low-quality-linked-review",
+    "kind": "impact",
+    "input": {
+      "sourceReports": [
+        {
+          "path": "requirements.md",
+          "oldDocumentVersionId": "old",
+          "newDocumentVersionId": "new",
+          "format": "MARKDOWN",
+          "changes": [
+            {
+              "path": "requirements.md",
+              "kind": "modified",
+              "old": {
+                "id": "s-cba06b5736faf67e54b07b56-0",
+                "documentVersionId": "old",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 500000 分",
+                "extractionQuality": "GOOD"
+              },
+              "new": {
+                "id": "s-11507a0e2f5e69d5dfa40a62-0",
+                "documentVersionId": "new",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 800000 分",
+                "extractionQuality": "LOW"
+              },
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "approvedRuleVersions": [
+        {
+          "id": "rule-1",
+          "ruleId": "rule-1-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-0"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "rule-2",
+          "ruleId": "rule-2-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-1"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ],
+      "approvedCaseVersions": [
+        {
+          "id": "case-1",
+          "caseId": "case-1-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-1",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "case-2",
+          "caseId": "case-2-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-2"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-2",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ]
+    },
+    "output": {
+      "affectedRules": [
+        {
+          "ruleVersionId": "rule-1",
+          "reason": "SOURCE_QUALITY_UNCERTAIN",
+          "evidenceRefs": [
+            {
+              "documentVersionId": "new",
+              "spanId": "s-11507a0e2f5e69d5dfa40a62-0"
+            },
+            {
+              "documentVersionId": "old",
+              "spanId": "s-cba06b5736faf67e54b07b56-0"
+            }
+          ],
+          "suggestion": "复核该规则的出处是否仍然成立；确认后由平台生成新版本"
+        }
+      ],
+      "affectedCases": [
+        {
+          "caseVersionId": "case-1",
+          "viaRuleVersionIds": [
+            "rule-1"
+          ],
+          "reason": "RULE_SOURCE_CHANGED",
+          "suggestion": "来源规则需复核，确认后再决定是否生成新用例版本"
+        }
+      ],
+      "unresolved": [
+        "来源质量 LOW/UNPARSED，需核对原资料后再确认影响",
+        "规则 rule-1 的来源质量为 LOW/UNPARSED，仅作待复核标记，不能确定业务规则已改变"
+      ],
+      "requiresHumanReview": true
+    },
+    "valid": true
+  },
+  {
+    "name": "low-quality-false-certainty",
+    "kind": "impact",
+    "input": {
+      "sourceReports": [
+        {
+          "path": "requirements.md",
+          "oldDocumentVersionId": "old",
+          "newDocumentVersionId": "new",
+          "format": "MARKDOWN",
+          "changes": [
+            {
+              "path": "requirements.md",
+              "kind": "modified",
+              "old": {
+                "id": "s-cba06b5736faf67e54b07b56-0",
+                "documentVersionId": "old",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 500000 分",
+                "extractionQuality": "GOOD"
+              },
+              "new": {
+                "id": "s-11507a0e2f5e69d5dfa40a62-0",
+                "documentVersionId": "new",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 800000 分",
+                "extractionQuality": "LOW"
+              },
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "approvedRuleVersions": [
+        {
+          "id": "rule-1",
+          "ruleId": "rule-1-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-0"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "rule-2",
+          "ruleId": "rule-2-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-1"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ],
+      "approvedCaseVersions": [
+        {
+          "id": "case-1",
+          "caseId": "case-1-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-1",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "case-2",
+          "caseId": "case-2-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-2"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-2",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ]
+    },
+    "output": {
+      "affectedRules": [
+        {
+          "ruleVersionId": "rule-1",
+          "reason": "SOURCE_MODIFIED",
+          "evidenceRefs": [
+            {
+              "documentVersionId": "new",
+              "spanId": "s-11507a0e2f5e69d5dfa40a62-0"
+            },
+            {
+              "documentVersionId": "old",
+              "spanId": "s-cba06b5736faf67e54b07b56-0"
+            }
+          ],
+          "suggestion": "复核该规则的出处是否仍然成立；确认后由平台生成新版本"
+        }
+      ],
+      "affectedCases": [
+        {
+          "caseVersionId": "case-1",
+          "viaRuleVersionIds": [
+            "rule-1"
+          ],
+          "reason": "RULE_SOURCE_CHANGED",
+          "suggestion": "来源规则需复核，确认后再决定是否生成新用例版本"
+        }
+      ],
+      "unresolved": [
+        "来源质量 LOW/UNPARSED，需核对原资料后再确认影响",
+        "规则 rule-1 的来源质量为 LOW/UNPARSED，仅作待复核标记，不能确定业务规则已改变"
+      ],
+      "requiresHumanReview": true
+    },
+    "valid": false
+  },
+  {
+    "name": "low-quality-hidden-review",
+    "kind": "impact",
+    "input": {
+      "sourceReports": [
+        {
+          "path": "requirements.md",
+          "oldDocumentVersionId": "old",
+          "newDocumentVersionId": "new",
+          "format": "MARKDOWN",
+          "changes": [
+            {
+              "path": "requirements.md",
+              "kind": "modified",
+              "old": {
+                "id": "s-cba06b5736faf67e54b07b56-0",
+                "documentVersionId": "old",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 500000 分",
+                "extractionQuality": "GOOD"
+              },
+              "new": {
+                "id": "s-11507a0e2f5e69d5dfa40a62-0",
+                "documentVersionId": "new",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 1,
+                  "endLine": 1
+                },
+                "quotedText": "额度 800000 分",
+                "extractionQuality": "LOW"
+              },
+              "reason": null
+            }
+          ]
+        }
+      ],
+      "approvedRuleVersions": [
+        {
+          "id": "rule-1",
+          "ruleId": "rule-1-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-0"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "rule-2",
+          "ruleId": "rule-2-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-1"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ],
+      "approvedCaseVersions": [
+        {
+          "id": "case-1",
+          "caseId": "case-1-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-1",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "case-2",
+          "caseId": "case-2-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-2"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-2",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ]
+    },
+    "output": {
+      "affectedRules": [
+        {
+          "ruleVersionId": "rule-1",
+          "reason": "SOURCE_QUALITY_UNCERTAIN",
+          "evidenceRefs": [
+            {
+              "documentVersionId": "new",
+              "spanId": "s-11507a0e2f5e69d5dfa40a62-0"
+            },
+            {
+              "documentVersionId": "old",
+              "spanId": "s-cba06b5736faf67e54b07b56-0"
+            }
+          ],
+          "suggestion": "复核该规则的出处是否仍然成立；确认后由平台生成新版本"
+        }
+      ],
+      "affectedCases": [
+        {
+          "caseVersionId": "case-1",
+          "viaRuleVersionIds": [
+            "rule-1"
+          ],
+          "reason": "RULE_SOURCE_CHANGED",
+          "suggestion": "来源规则需复核，确认后再决定是否生成新用例版本"
+        }
+      ],
+      "unresolved": [],
+      "requiresHumanReview": true
+    },
+    "valid": false
+  },
+  {
+    "name": "unchanged-no-impact",
+    "kind": "impact",
+    "input": {
+      "sourceReports": [],
+      "approvedRuleVersions": [
+        {
+          "id": "rule-1",
+          "ruleId": "rule-1-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-0"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "rule-2",
+          "ruleId": "rule-2-root",
+          "version": 1,
+          "statement": "陈述",
+          "classification": "EXPLICIT",
+          "action": "操作",
+          "expectation": "预期",
+          "sources": [
+            {
+              "documentVersionId": "old",
+              "sourceSpanIds": [
+                "s-cba06b5736faf67e54b07b56-1"
+              ]
+            }
+          ],
+          "reviewStatus": "APPROVED",
+          "origin": "manual",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ],
+      "approvedCaseVersions": [
+        {
+          "id": "case-1",
+          "caseId": "case-1-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-1"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-1",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        },
+        {
+          "id": "case-2",
+          "caseId": "case-2-root",
+          "version": 1,
+          "title": "用例",
+          "ruleVersionIds": [
+            "rule-2"
+          ],
+          "roles": [
+            "applicant"
+          ],
+          "dataSpec": {
+            "strategy": "create",
+            "note": "页面操作"
+          },
+          "steps": [
+            {
+              "id": "s1",
+              "role": "applicant",
+              "action": "提交"
+            }
+          ],
+          "assertions": [
+            {
+              "id": "a1",
+              "description": "状态",
+              "kind": "ui.text",
+              "ruleVersionId": "rule-2",
+              "operator": "equals",
+              "expected": "已提交"
+            }
+          ],
+          "cleanup": {
+            "strategy": "manual"
+          },
+          "approvalStatus": "APPROVED",
+          "origin": "manual",
+          "approvalHash": "test-frozen",
+          "createdAt": "2026-09-20T00:00:00Z"
+        }
+      ]
+    },
+    "output": {
+      "affectedRules": [],
+      "affectedCases": [],
+      "unresolved": [],
+      "requiresHumanReview": true
+    },
+    "valid": true
+  }
+]

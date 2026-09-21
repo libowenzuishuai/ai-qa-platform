@@ -52,7 +52,7 @@ NEEDS_OCR 是合法解析结果，HTTP 200 返回对应 bundle；下游规则提
 ## 文档解析首版范围
 
 - Markdown/TXT：UTF-8 原文与真实行号，标题/列表均有来源；Markdown 表格、代码块、图片/HTML 源文本标为 LOW，绝不加载外部资源。TXT 行号沿用契约的 markdown-line 定位。
-- DOCX：正文段落索引保留空段落；表格按零起始 tableIndex/row/col 定位，合并单元格记录主单元格。段落编号只计正文直接段落、表格编号只计正文直接表格。嵌套表格、图片、修订、页眉页脚等遗漏有警告/可定位的 UNPARSED 记录，不宣称完整解析。
+- DOCX：正文段落索引保留空段落；表格按零起始 tableIndex/row/col 定位，合并单元格记录主单元格。嵌套表递归分配全局递增 tableIndex，保留外层单元格正文。普通/首页/奇偶页页眉页脚去重提取，文字使用正文后辅助 paragraphIndex，表格使用同一全局 tableIndex，均标 LOW 待复核。图片与修订保留 UNPARSED；脚注、尾注、正文内容控件仍有警告，不宣称完整解析。解析器版本 python-doc-ingestion-1.3。
 - PDF：先读取真实页数/文字层，再将每一页完整渲染为 PNG，交给 Kimi 2.6 视觉模型；包含扫描页、同页多图、文字与图片混排以及矢量图形。不使用独立 OCR 引擎。模型全文保留为 `pdf-page` + LOW，扫描源保留 PDF_SCANNED 格式。模型表示识别不完整、无有效输出、渲染失败或超过页数预算时，均留下 UNPARSED 片段及具体页码警告；已有文字层只作为明确标记的局部回退。PARSED 表示有可用正文，不等于无遗漏，应同时查看 coverageSummary。
 - PNG/JPEG：验证真实文件/格式/像素后走共享视觉网关。全文保留，整图归一化 bbox=[0,0,1,1]、LOW；无有效转录返回 NEEDS_OCR。凭据缺失/超时继续返回明确错误，不包装成解析成功。
 - 视觉预算：每文档最多 20 页模型请求，每页最多 4096 输出 token，每次调用 60 秒、整份文档 120 秒（外层 HTTP/worker 更短预算优先）。模型返回 length/content_filter 等未完成响应即拒绝；不把截断 JSON 当有效正文。页面渲染最多 2048 像素长边、约 419 万像素、16 MB PNG、单页渲染 15 秒。正文总上限在模型回填后仍强制执行。Kimi 2.6 视觉请求关闭思考，使用 JSON mode。
@@ -126,3 +126,7 @@ pnpm --filter @ai-qa/contracts exec node --import tsx scripts/verify-real-vector
 UNPARSED 不得成为任何规则来源，且必须出现在遗漏说明中；LOW 不能升级为 EXPLICIT。覆盖表必须与实际用例数和维度一致；没有用例时明确列阻塞。长文档先执行 150000 字符上限，不静默截断；自动分块尚未实现。
 
 本地服务不会自动读取 `.env` / `.env.local`。启动前分别把配置注入 API/worker/Python 进程；模型凭据只需给 Python，内部令牌在 worker/Python 一致。Docker 启用 `intelligence` profile；完整应用容器化仍需单独验收。
+
+## 来源差异与影响分析 v1
+
+共享契约、字段及接线边界见 [B/C 合入裁决](../../docs/delivery/bc-integration-decision.md)。`source_changes.compare_bundles` 产出已验证的 SourceChangeReport；`agents.impact.analyze_report` 消费共享 ImpactAnalysisInput。均为纯模块，不是已开放的 HTTP/Job 或页面。正式接线由 A 从项目内可信版本加载资料和资产，调用 TS 联合校验后持久化待复核报告；不得直接信任调用方提供的片段或批准状态。

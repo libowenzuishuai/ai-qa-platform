@@ -478,12 +478,8 @@ def parse_pdf_with_ocr(tmp_path, pdf_data, pages: dict[int, str], *, format="PDF
 
 
 def test_scanned_pdf_table_image_vision_mock_preserves_cell_text(tmp_path):
-    try:
-        pdf_bytes = table_image_pdf(
-            [["角色", "上限"], ["申请人", "<=500000分"], ["主管", ">500000分"]]
-        )
-    except OSError as exc:
-        pytest.skip(str(exc))
+    pdf_bytes = (Path(__file__).resolve().parent / "fixtures" / "b3-records" /
+                 "b3-05-table-source.pdf").read_bytes()
     table_text = "角色 | 上限\n申请人 | <=500000分\n主管 | >500000分"
     body = parse_pdf_with_ocr(
         tmp_path,

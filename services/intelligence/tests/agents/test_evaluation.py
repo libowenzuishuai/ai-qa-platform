@@ -112,3 +112,26 @@ def test_pipeline_attempt_records_service_error(tmp_path):
     assert record["ok"] is False
     assert record["errorCode"] == "MODEL_OUTPUT_INVALID"
     assert record["usage"] and record["usage"][0]["provider"] == "mock"
+
+
+def test_reused_context_does_not_double_count_previous_invocations(tmp_path):
+    v=vector('01-explicit-prd')
+    context,gateway=make_agent_context(tmp_path)
+    input=RuleExtractionInput.model_validate(v['input'])
+    gateway.register_mock(build_rule_extraction_request(input),v['output'])
+    async def call():
+        await context.models.complete_text(build_rule_extraction_request(input))
+    async def run():
+        a=await pipeline_attempt(call,context)
+        b=await pipeline_attempt(call,context)
+        assert len(a['usage'])==len(b['usage'])==1
+    asyncio.run(run())
+
+
+def test_invalid_rounds_rejected_before_calls():
+    import pytest
+    async def no_call():
+        raise AssertionError('must not call')
+    for rounds in (0,-1,True,1.5,101):
+        with pytest.raises(ValueError):
+            asyncio.run(evaluate_repeatability({'x':no_call},rounds))

@@ -1,0 +1,42 @@
+{
+  "date": "2026-09-21",
+  "base": "fe2cc8b",
+  "branches": {
+    "B": "aeb1b81",
+    "C": "7ee3519"
+  },
+  "tests": {
+    "typescript": {
+      "passed": 377,
+      "skipped": 6
+    },
+    "python": {
+      "passed": 274,
+      "skipped": 0
+    },
+    "sharedVectors": 18,
+    "typecheck": "PASS",
+    "schemaCheck": "PASS",
+    "generatedPythonCheck": "PASS"
+  },
+  "redBeforeFix": {
+    "failed": 4,
+    "passed": 9
+  },
+  "realComponents": [
+    "isolated PostgreSQL",
+    "Redis",
+    "Chromium",
+    "P0 process kill/restart",
+    "actual DOCX/Markdown parsing",
+    "local model protocol simulator"
+  ],
+  "paidModelCallsThisTurn": 0,
+  "limitations": [
+    "impact HTTP/Job/UI not yet connected",
+    "Dify observation pack is not official PRD",
+    "permission and multi-role pilot blocked",
+    "no new real Kimi evaluation",
+    "full clean container deployment not verified"
+  ]
+}

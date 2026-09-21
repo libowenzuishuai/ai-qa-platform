@@ -19,3 +19,5 @@ export * from './product.js';
 export * from "./preparation.js";
 export * from "./data-plugins.js";
 export * from "./workflow.js";
+
+export * from "./source-changes.js";

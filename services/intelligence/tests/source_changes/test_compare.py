@@ -108,3 +108,36 @@ def test_format_mismatch_raises():
         assert False, "expected ValueError"
     except ValueError as exc:
         assert "format mismatch" in str(exc)
+
+
+def test_quality_only_change_requires_review():
+    old = parse_md('金额 500000', 'old')
+    new = parse_md('金额 500000', 'new')
+    new['spans'][0]['extractionQuality'] = 'LOW'
+    new['coverageSummary'].update(goodSpans=0, lowSpans=1)
+    report = compare_bundles('doc.md', old, new)
+    assert report['changes'] and report['changes'][0]['kind'] == 'uncertain'
+
+
+def test_inserted_line_does_not_claim_existing_rule_was_rewritten():
+    report = compare_bundles('doc.md', parse_md('A\nB', 'old'), parse_md('X\nA\nB', 'new'))
+    assert not any(c['kind'] == 'modified' for c in report['changes'])
+
+
+def test_failed_bundle_is_not_a_mass_removal():
+    import pytest
+    old = parse_md('rule', 'old')
+    new = parse_md('', 'new')
+    with pytest.raises(ValueError,match='incomplete or failed'):
+        compare_bundles('doc.md',old,new)
+
+
+def test_same_version_and_foreign_span_rejected():
+    import pytest
+    from aiqa_intelligence.errors import ServiceError
+    old=parse_md('rule','old')
+    with pytest.raises(ValueError,match='different document versions'):
+        compare_bundles('doc.md',old,old)
+    new=parse_md('rule','new')
+    new['spans'][0]['documentVersionId']='foreign'
+    with pytest.raises(ServiceError): compare_bundles('doc.md',old,new)

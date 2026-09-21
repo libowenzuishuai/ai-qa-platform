@@ -20,7 +20,12 @@ def _cell_has_embedded_unsupported(cell: _Cell) -> bool:
 
 
 def _parse_docx_table(
-    table: Table, table_index_counter: list[int], bundle: Bundle, seen_cells: set
+    table: Table,
+    table_index_counter: list[int],
+    bundle: Bundle,
+    seen_cells: set,
+    *,
+    auxiliary: bool = False,
 ) -> None:
     table_index = table_index_counter[0]
     table_index_counter[0] += 1
@@ -36,21 +41,23 @@ def _parse_docx_table(
                 "row": row_index,
                 "col": col_index,
             }
-            nested = cell.tables
+            # Read direct cell paragraphs too: a nested table does not replace its
+            # surrounding requirements. Do not recursively include child table text.
             embedded = _cell_has_embedded_unsupported(cell)
-            if nested:
-                for nested_table in nested:
-                    _parse_docx_table(nested_table, table_index_counter, bundle, seen_cells)
-                if embedded:
-                    bundle.add("", locator, kind="table", quality="UNPARSED")
-                    bundle.warn("DOCX 单元格内图片或修订内容与嵌套表格并存，未完整解析")
-                continue
             if cell.text.strip():
                 bundle.add(
                     cell.text,
                     locator,
                     kind="table",
-                    quality="LOW" if embedded else "GOOD",
+                    quality="LOW" if embedded or auxiliary else "GOOD",
+                )
+            for nested_table in cell.tables:
+                _parse_docx_table(
+                    nested_table,
+                    table_index_counter,
+                    bundle,
+                    seen_cells,
+                    auxiliary=auxiliary,
                 )
             if embedded:
                 bundle.add("", locator, kind="table", quality="UNPARSED")
@@ -120,19 +127,40 @@ def parse_docx(data: bytes, bundle: Bundle):
                 bundle.warn("DOCX 段落图片、文本框或修订内容未完整解析")
     body_paragraph_count = paragraph_index
     auxiliary_index = 0
+    seen_parts = set()
     for section in document.sections:
-        for part in (section.header, section.footer):
-            for para in part.paragraphs:
-                text = para.text.strip()
-                unsupported = bool(para._p.xpath(_CELL_UNSUPPORTED_XPATH))
-                if not text and not unsupported:
+        for part in (
+            section.header,
+            section.footer,
+            section.first_page_header,
+            section.first_page_footer,
+            section.even_page_header,
+            section.even_page_footer,
+        ):
+            # Linked sections can reference the same XML part; record it only once.
+            element = part._element
+            if element in seen_parts:
+                continue
+            seen_parts.add(element)
+            for item in part.iter_inner_content():
+                if isinstance(item, Table):
+                    _parse_docx_table(
+                        item, table_index_counter, bundle, seen_cells, auxiliary=True
+                    )
+                    bundle.warn(
+                        "DOCX 页眉/页脚表格使用全局递增 tableIndex；来源需人工复核"
+                    )
+                    continue
+                text = item.text
+                unsupported = bool(item._p.xpath(_CELL_UNSUPPORTED_XPATH))
+                if not text.strip() and not unsupported:
                     continue
                 locator = {
                     "kind": "docx-paragraph",
                     "paragraphIndex": body_paragraph_count + auxiliary_index,
                 }
                 auxiliary_index += 1
-                if text:
+                if text.strip():
                     bundle.add(text, locator, quality="LOW")
                 if unsupported:
                     bundle.add("", locator, quality="UNPARSED")

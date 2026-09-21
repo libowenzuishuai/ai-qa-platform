@@ -1,0 +1,177 @@
+{
+  "documentVersionId": "pilot-dify-observed-20260920-v1",
+  "format": "MARKDOWN",
+  "parseStatus": "PARSED",
+  "parserVersion": "python-doc-ingestion-1.3",
+  "blocks": [
+    {
+      "id": "b-05b0dcaaad69f2abf331a819-0",
+      "kind": "heading",
+      "text": "Dify 工作流草稿：脱敏观察记录"
+    },
+    {
+      "id": "b-05b0dcaaad69f2abf331a819-1",
+      "kind": "paragraph",
+      "text": "本资料摘自 2026-09-20 本机 Dify 1.15.0 的有限授权人工浏览器试点记录，不是 Dify 官方 PRD，不代表完整业务需求。"
+    },
+    {
+      "id": "b-05b0dcaaad69f2abf331a819-2",
+      "kind": "heading",
+      "text": "已观察事实"
+    },
+    {
+      "id": "b-05b0dcaaad69f2abf331a819-3",
+      "kind": "listItem",
+      "text": "在创建工作流界面，名称为空时创建按钮不可用。"
+    },
+    {
+      "id": "b-05b0dcaaad69f2abf331a819-4",
+      "kind": "listItem",
+      "text": "输入专用试点草稿名称后，可以创建工作流草稿。"
+    },
+    {
+      "id": "b-05b0dcaaad69f2abf331a819-5",
+      "kind": "listItem",
+      "text": "对该专用草稿修改名称后，界面显示修改后的名称。"
+    },
+    {
+      "id": "b-05b0dcaaad69f2abf331a819-6",
+      "kind": "listItem",
+      "text": "刷新页面后，该专用草稿仍显示修改后的名称。"
+    },
+    {
+      "id": "b-05b0dcaaad69f2abf331a819-7",
+      "kind": "listItem",
+      "text": "该专用草稿在创建和改名后仍显示未发布。"
+    },
+    {
+      "id": "b-05b0dcaaad69f2abf331a819-8",
+      "kind": "heading",
+      "text": "尚无依据"
+    },
+    {
+      "id": "b-05b0dcaaad69f2abf331a819-9",
+      "kind": "paragraph",
+      "text": "没有名称最大长度、重名规则、不同角色权限差异、审批要求或跨工作区可见性的验证记录。不得补写这些结论。"
+    }
+  ],
+  "spans": [
+    {
+      "id": "s-05b0dcaaad69f2abf331a819-0",
+      "documentVersionId": "pilot-dify-observed-20260920-v1",
+      "locator": {
+        "kind": "markdown-line",
+        "startLine": 1,
+        "endLine": 1
+      },
+      "quotedText": "Dify 工作流草稿：脱敏观察记录",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "s-05b0dcaaad69f2abf331a819-1",
+      "documentVersionId": "pilot-dify-observed-20260920-v1",
+      "locator": {
+        "kind": "markdown-line",
+        "startLine": 3,
+        "endLine": 3
+      },
+      "quotedText": "本资料摘自 2026-09-20 本机 Dify 1.15.0 的有限授权人工浏览器试点记录，不是 Dify 官方 PRD，不代表完整业务需求。",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "s-05b0dcaaad69f2abf331a819-2",
+      "documentVersionId": "pilot-dify-observed-20260920-v1",
+      "locator": {
+        "kind": "markdown-line",
+        "startLine": 5,
+        "endLine": 5
+      },
+      "quotedText": "已观察事实",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "s-05b0dcaaad69f2abf331a819-3",
+      "documentVersionId": "pilot-dify-observed-20260920-v1",
+      "locator": {
+        "kind": "markdown-line",
+        "startLine": 7,
+        "endLine": 7
+      },
+      "quotedText": "在创建工作流界面，名称为空时创建按钮不可用。",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "s-05b0dcaaad69f2abf331a819-4",
+      "documentVersionId": "pilot-dify-observed-20260920-v1",
+      "locator": {
+        "kind": "markdown-line",
+        "startLine": 8,
+        "endLine": 8
+      },
+      "quotedText": "输入专用试点草稿名称后，可以创建工作流草稿。",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "s-05b0dcaaad69f2abf331a819-5",
+      "documentVersionId": "pilot-dify-observed-20260920-v1",
+      "locator": {
+        "kind": "markdown-line",
+        "startLine": 9,
+        "endLine": 9
+      },
+      "quotedText": "对该专用草稿修改名称后，界面显示修改后的名称。",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "s-05b0dcaaad69f2abf331a819-6",
+      "documentVersionId": "pilot-dify-observed-20260920-v1",
+      "locator": {
+        "kind": "markdown-line",
+        "startLine": 10,
+        "endLine": 10
+      },
+      "quotedText": "刷新页面后，该专用草稿仍显示修改后的名称。",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "s-05b0dcaaad69f2abf331a819-7",
+      "documentVersionId": "pilot-dify-observed-20260920-v1",
+      "locator": {
+        "kind": "markdown-line",
+        "startLine": 11,
+        "endLine": 11
+      },
+      "quotedText": "该专用草稿在创建和改名后仍显示未发布。",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "s-05b0dcaaad69f2abf331a819-8",
+      "documentVersionId": "pilot-dify-observed-20260920-v1",
+      "locator": {
+        "kind": "markdown-line",
+        "startLine": 13,
+        "endLine": 13
+      },
+      "quotedText": "尚无依据",
+      "extractionQuality": "GOOD"
+    },
+    {
+      "id": "s-05b0dcaaad69f2abf331a819-9",
+      "documentVersionId": "pilot-dify-observed-20260920-v1",
+      "locator": {
+        "kind": "markdown-line",
+        "startLine": 15,
+        "endLine": 15
+      },
+      "quotedText": "没有名称最大长度、重名规则、不同角色权限差异、审批要求或跨工作区可见性的验证记录。不得补写这些结论。",
+      "extractionQuality": "GOOD"
+    }
+  ],
+  "warnings": [],
+  "coverageSummary": {
+    "totalBlocks": 10,
+    "goodSpans": 10,
+    "lowSpans": 0,
+    "unparsedSpans": 0
+  }
+}

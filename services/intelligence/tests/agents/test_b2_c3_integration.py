@@ -7,7 +7,7 @@
 
 import pytest
 
-pytest.importorskip("aiqa_intelligence.source_changes")
+
 
 from aiqa_intelligence.agents.impact import adapt_source_changes, analyze_impact  # noqa: E402
 from aiqa_intelligence.contracts.generated import ApprovedRuleVersion, TestCase  # noqa: E402
@@ -27,7 +27,7 @@ def bundle(doc_id: str, spans: list[dict]) -> dict:
             }
             for s in spans
         ],
-        "coverageSummary": {"totalBlocks": 1, "goodSpans": len(spans), "lowSpans": 0, "unparsedSpans": 0},
+        "coverageSummary": {"totalBlocks": 1, "goodSpans": sum(s.get("quality", "GOOD")=="GOOD" for s in spans), "lowSpans": sum(s.get("quality")=="LOW" for s in spans), "unparsedSpans": sum(s.get("quality")=="UNPARSED" for s in spans)},
         "warnings": [],
     }
 
@@ -37,7 +37,7 @@ def rule(rid: str, span: str) -> ApprovedRuleVersion:
         {
             "id": rid, "ruleId": f"{rid}-root", "version": 1,
             "statement": "陈述", "classification": "EXPLICIT",
-            "action": "操作", "expectation": "预期", "origin": "manual",
+            "action": "操作", "expectation": "预期", "origin": "manual", "reviewStatus": "APPROVED",
             "createdAt": "2026-09-20T00:00:00Z",
             "sources": [{"documentVersionId": "dv-old", "sourceSpanIds": [span]}],
         }
@@ -55,7 +55,7 @@ def case(cid: str, rule_ids: list[str]) -> TestCase:
                 {"id": "a1", "description": "状态", "kind": "ui.text",
                  "ruleVersionId": rule_ids[0], "operator": "equals", "expected": "已提交"}
             ],
-            "cleanup": {"strategy": "manual"}, "origin": "manual",
+            "cleanup": {"strategy": "manual"}, "origin": "manual", "approvalStatus": "APPROVED", "approvalHash": "test-frozen",
             "createdAt": "2026-09-20T00:00:00Z",
         }
     )
@@ -87,15 +87,15 @@ def test_modified_removed_added_flow_through_impact():
     assert any("重新执行规则提取" in u for u in report.unresolved)
 
 
-def test_uncertain_move_maps_to_ambiguous():
-    """B 的 uncertain（原文移动/重复）→ C 的 ambiguous：不视为未变化。"""
+def test_uncertain_move_maps_to_uncertain():
+    """B 的 uncertain（原文移动/重复）→ C 的 uncertain：不视为未变化。"""
     old = bundle("dv-old", [{"id": "s1", "line": 1, "text": "唯一条款文本"}])
     new = bundle("dv-new", [{"id": "s9", "line": 5, "text": "唯一条款文本"}])
     changes = adapt_source_changes(compare_bundles("d.md", old, new)["changes"])
 
-    assert [c.kind for c in changes] == ["ambiguous"]
+    assert [c.kind for c in changes] == ["uncertain"]
     report = analyze_impact(changes, [rule("rule-v1", "s1")], [case("case-v1", ["rule-v1"])])
-    assert report.affected_rules[0]["reason"] == "SOURCE_AMBIGUOUS"
+    assert report.affected_rules[0]["reason"] == "SOURCE_UNCERTAIN"
     assert any("不得视为未变化" in u for u in report.unresolved)
 
 
@@ -108,12 +108,12 @@ def test_quality_in_span_view_downgrades_to_unresolved():
     assert changes[0].kind == "modified"
     assert changes[0].quality == "LOW", "质量必须从 span 视图取到，否则降级逻辑失效"
     report = analyze_impact(changes, [rule("rule-v1", "s1")], [])
-    assert report.affected_rules == []
+    assert report.affected_rules[0]["reason"] == "SOURCE_QUALITY_UNCERTAIN"
     assert any("LOW/UNPARSED" in u for u in report.unresolved)
 
 
 def test_duplicate_uncertain_without_new_side_is_accepted():
-    """B 的「多处重复」uncertain 只有旧侧：ambiguous 允许缺 new。"""
+    """B 的「多处重复」uncertain 只有旧侧：uncertain 允许缺 new。"""
     old = bundle("dv-old", [{"id": "s1", "line": 5, "text": "重复文本"}])
     new = bundle("dv-new", [
         {"id": "n1", "line": 2, "text": "重复文本"},
@@ -121,7 +121,7 @@ def test_duplicate_uncertain_without_new_side_is_accepted():
     ])
     changes = adapt_source_changes(compare_bundles("d.md", old, new)["changes"])
 
-    ambiguous = [c for c in changes if c.kind == "ambiguous"]
-    assert ambiguous and all(c.new is None for c in ambiguous)
+    uncertain = [c for c in changes if c.kind == "uncertain"]
+    assert uncertain and all(c.new is None for c in uncertain)
     report = analyze_impact(changes, [rule("rule-v1", "s1")], [])
-    assert report.affected_rules[0]["reason"] == "SOURCE_AMBIGUOUS"
+    assert report.affected_rules[0]["reason"] == "SOURCE_UNCERTAIN"

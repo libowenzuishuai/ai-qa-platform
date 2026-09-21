@@ -4,7 +4,7 @@ import hashlib
 
 MAX_TEXT_CHARS = 2_000_000
 MAX_BLOCKS = 20_000
-PARSER_VERSION = "python-doc-ingestion-1.2"
+PARSER_VERSION = "python-doc-ingestion-1.3"
 
 
 class ParseLimit(ValueError):

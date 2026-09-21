@@ -22,7 +22,7 @@ def rule(rid: str, span_ids: list[str], doc: str = "doc-v1") -> ApprovedRuleVers
         {
             "id": rid, "ruleId": f"{rid}-root", "version": 1,
             "statement": "陈述", "classification": "EXPLICIT",
-            "action": "操作", "expectation": "预期", "origin": "manual",
+            "action": "操作", "expectation": "预期", "origin": "manual", "reviewStatus": "APPROVED",
             "createdAt": "2026-09-20T00:00:00Z",
             "sources": [{"documentVersionId": doc, "sourceSpanIds": span_ids}],
         }
@@ -40,7 +40,7 @@ def case(cid: str, rule_ids: list[str]) -> TestCase:
                 {"id": "a1", "description": "状态", "kind": "ui.text",
                  "ruleVersionId": rule_ids[0], "operator": "equals", "expected": "已提交"}
             ],
-            "cleanup": {"strategy": "manual"}, "origin": "manual",
+            "cleanup": {"strategy": "manual"}, "origin": "manual", "approvalStatus": "APPROVED", "approvalHash": "test-frozen",
             "createdAt": "2026-09-20T00:00:00Z",
         }
     )
@@ -64,7 +64,7 @@ def test_removed_span_affects_rule_and_case_by_closure():
     assert report.affected_cases[0]["viaRuleVersionIds"] == ["rule-v1"]
 
 
-def test_modified_and_ambiguous_reasons():
+def test_modified_and_uncertain_reasons():
     report = analyze_impact(
         [
             SourceChange(kind="modified", old=("doc-v1", "span-1"), new=("doc-v2", "span-1")),
@@ -77,12 +77,12 @@ def test_modified_and_ambiguous_reasons():
 
     report = analyze_impact(
         [
-            SourceChange(kind="ambiguous", old=("doc-v1", "span-1"), new=("doc-v2", "span-1"), note="段落疑似移动"),
+            SourceChange(kind="uncertain", old=("doc-v1", "span-1"), new=("doc-v2", "span-1"), note="段落疑似移动"),
         ],
         RULES,
         CASES,
     )
-    assert report.affected_rules[0]["reason"] == "SOURCE_AMBIGUOUS"
+    assert report.affected_rules[0]["reason"] == "SOURCE_UNCERTAIN"
     assert any("不得视为未变化" in u for u in report.unresolved)
 
 
@@ -102,7 +102,7 @@ def test_low_quality_change_goes_unresolved_not_deterministic():
         RULES,
         CASES,
     )
-    assert report.affected_rules == [], "LOW 质量变化不给确定性 reason"
+    assert report.affected_rules[0]["reason"] == "SOURCE_QUALITY_UNCERTAIN"
     assert any("LOW/UNPARSED" in u for u in report.unresolved)
     # 规则确有交集：虽无确定性结论，用例仍按待复核传导
     assert [c["caseVersionId"] for c in report.affected_cases] == ["case-v1"]
@@ -129,9 +129,9 @@ def test_wire_shape_and_human_review_guarantee():
 def test_adapt_layer_and_shape_guards():
     raw = [
         {"kind": "modified",
-         "old": {"documentVersionId": "doc-v1", "spanId": "s1"},
-         "new": {"documentVersionId": "doc-v2", "spanId": "s1"},
-         "quality": "GOOD", "note": None},
+         "path": "doc.md", "old": {"documentVersionId": "doc-v1", "id": "s1", "locator": {"kind":"docx-paragraph","paragraphIndex":0}, "quotedText":"old", "extractionQuality":"GOOD"},
+         "new": {"documentVersionId": "doc-v2", "id": "s1", "locator": {"kind":"docx-paragraph","paragraphIndex":0}, "quotedText":"new", "extractionQuality":"GOOD"},
+         "reason": None},
     ]
     (change,) = adapt_source_changes(raw)
     assert change.old == ("doc-v1", "s1") and change.kind == "modified"
@@ -142,3 +142,20 @@ def test_adapt_layer_and_shape_guards():
         SourceChange(kind="modified", old=("doc-v1", "s1"))  # 缺新侧
     with pytest.raises(ValueError):
         SourceChange(kind="renamed")  # 未知类型
+
+
+def test_multiple_hits_same_old_source_keep_all_evidence_and_stable_order():
+    changes = [
+        SourceChange(kind='modified',old=('doc-v1','span-1'),new=('doc-v2','s-a')),
+        SourceChange(kind='uncertain',old=('doc-v1','span-1'),new=('doc-v2','s-b'),note='multiple candidates'),
+    ]
+    first=analyze_impact(changes,RULES,CASES).to_wire()
+    second=analyze_impact(list(reversed(changes)),list(reversed(RULES)),list(reversed(CASES))).to_wire()
+    assert first==second
+    assert first['affectedRules'][0]['reason']=='SOURCE_MODIFIED+SOURCE_UNCERTAIN'
+    assert len(first['affectedRules'][0]['evidenceRefs'])==3
+
+
+def test_added_new_reference_does_not_invalidate_an_existing_rule():
+    report=analyze_impact([SourceChange(kind='added',new=('doc-v1','span-1'))],RULES,CASES)
+    assert not report.affected_rules and not report.affected_cases
