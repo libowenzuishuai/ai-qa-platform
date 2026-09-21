@@ -540,6 +540,19 @@ def test_blank_pdf_without_embedded_image_stays_needs_ocr(tmp_path):
     assert body["coverageSummary"]["unparsedSpans"] == 1
 
 
+def test_mixed_prd_sample_fixture_text_layer_without_vision():
+    source = Path(__file__).resolve().parent / "fixtures" / "b3-records" / "b3-mixed-prd-sample.pdf"
+    if not source.exists():
+        pytest.skip("run fixtures/build_b3_mixed_fixture.py to generate sample")
+    body = parsed(source.read_bytes(), "PDF_TEXT")
+    assert body["parseStatus"] == "PARSED"
+    assert body["format"] == "PDF_TEXT"
+    pages = {s["locator"]["page"]: s for s in body["spans"] if s.get("quotedText")}
+    assert "500000" in pages[1]["quotedText"]
+    assert ",}" in pages[1]["quotedText"]
+    assert body["coverageSummary"]["unparsedSpans"] >= 2
+
+
 def test_original_b1_compressed_pdf_fixture():
     source = Path(__file__).with_name("fixtures") / "b1-two-page.pdf"
     body = parsed(source.read_bytes(), "PDF_TEXT")

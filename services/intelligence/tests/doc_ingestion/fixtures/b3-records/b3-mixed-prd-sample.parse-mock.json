@@ -1,0 +1,18 @@
+{
+  "caseId": "b3-09-mixed-prd-sample",
+  "mode": "mock",
+  "note": "无视觉模型；第 2–3 页应为 UNPARSED/无 quotedText",
+  "parseStatus": "PARSED",
+  "format": "PDF_TEXT",
+  "coverageSummary": {
+    "totalBlocks": 3,
+    "goodSpans": 1,
+    "lowSpans": 0,
+    "unparsedSpans": 2
+  },
+  "warnings": [
+    "PDF 仅提取文字层；页内图示、复杂表格和多栏阅读顺序需人工核对",
+    "PDF 第 2 页未提取到文字：可能为空白或扫描页，需要模型识别/人工复核",
+    "PDF 第 3 页未提取到文字：可能为空白或扫描页，需要模型识别/人工复核"
+  ]
+}
