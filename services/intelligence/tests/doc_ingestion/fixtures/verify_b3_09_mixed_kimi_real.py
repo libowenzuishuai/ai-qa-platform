@@ -38,10 +38,9 @@ def _load_expected_checks() -> list[str]:
     return checks
 
 
-def _combined_text(body: dict) -> str:
-    parts = [b.get("text") or "" for b in body.get("blocks") or []]
-    parts.extend(s.get("quotedText") or "" for s in body.get("spans") or [])
-    return "\n".join(parts)
+def _sample_text(body: dict) -> str:
+    """Page blocks only; spans mirror block text and would duplicate in archives."""
+    return "\n".join(b.get("text") or "" for b in body.get("blocks") or [])
 
 
 async def run(output: Path):
@@ -69,7 +68,7 @@ async def run(output: Path):
             RequestContext("b3-09-real-kimi", "real", reader, gateway, records),
         )
         body = result.model_dump(mode="json", exclude_unset=True)
-        text = _combined_text(body)
+        text = _sample_text(body)
 
         assert body["parseStatus"] == "PARSED", body
         assert body["format"] in {"PDF_TEXT", "PDF_SCANNED"}, body

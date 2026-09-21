@@ -1,0 +1,107 @@
+{
+  "caseId": "b3-09-mixed-prd-sample",
+  "mode": "real",
+  "fixtureRef": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-mixed-prd-sample.pdf",
+  "expectedForHuman": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-mixed-prd-sample.expected.json",
+  "humanCheckAllFound": true,
+  "humanCheckMissing": [],
+  "ranAt": "2026-09-21T14:08:12.759574+08:00",
+  "command": "services/intelligence/tests/doc_ingestion/fixtures/verify_b3_09_mixed_kimi_real.py",
+  "parseStatus": "PARSED",
+  "format": "PDF_TEXT",
+  "coverageSummary": {
+    "totalBlocks": 3,
+    "goodSpans": 0,
+    "lowSpans": 3,
+    "unparsedSpans": 0
+  },
+  "warnings": [
+    "PDF 全页由视觉大模型识别，来源为页码，质量为 LOW；细小文字、表格关系及图示需人工复核"
+  ],
+  "humanCheckResults": [
+    {
+      "humanCheck": "THRESHOLD > 500000 fen",
+      "found": true
+    },
+    {
+      "humanCheck": "Keep punctuation: ,} ,]",
+      "found": true
+    },
+    {
+      "humanCheck": "TEXT_LAYER page-1",
+      "found": true
+    },
+    {
+      "humanCheck": "【扫描页-2】",
+      "found": true
+    },
+    {
+      "humanCheck": "审批规则",
+      "found": true
+    },
+    {
+      "humanCheck": "<=500000",
+      "found": true
+    },
+    {
+      "humanCheck": ">500000",
+      "found": true
+    },
+    {
+      "humanCheck": ",} ,]",
+      "found": true
+    },
+    {
+      "humanCheck": "角色",
+      "found": true
+    },
+    {
+      "humanCheck": "上限",
+      "found": true
+    },
+    {
+      "humanCheck": "申请人",
+      "found": true
+    },
+    {
+      "humanCheck": "主管",
+      "found": true
+    }
+  ],
+  "sampleText": "THRESHOLD > 500000 fen\nKeep punctuation: ,} ,]\nTEXT_LAYER page-1 (selectable)\n【扫描页-2】审批规则\n申请人单笔 <=500000 分\n主管审批 >500000 分\n保留标点：,} ,]\n角色\t上限\n申请人\t<=500000分\n主管\t>500000分",
+  "invocations": [
+    {
+      "provider": "moonshot",
+      "model": "kimi-k2.6",
+      "requestId": "chatcmpl-6ab0c9c2bb0901bf557477b0",
+      "usage": {
+        "inputTokens": 1531,
+        "outputTokens": 36,
+        "estimatedCost": null
+      },
+      "latencyMs": 1783
+    },
+    {
+      "provider": "moonshot",
+      "model": "kimi-k2.6",
+      "requestId": "chatcmpl-6ab0c9c4f8e08d81df28a2ef",
+      "usage": {
+        "inputTokens": 1531,
+        "outputTokens": 42,
+        "estimatedCost": null
+      },
+      "latencyMs": 2126
+    },
+    {
+      "provider": "moonshot",
+      "model": "kimi-k2.6",
+      "requestId": "chatcmpl-6ab0c9c7ac2c3f9c0d4a974d",
+      "usage": {
+        "inputTokens": 541,
+        "outputTokens": 28,
+        "estimatedCost": null
+      },
+      "latencyMs": 1656
+    }
+  ]
+}
