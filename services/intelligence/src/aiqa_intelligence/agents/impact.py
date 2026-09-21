@@ -57,10 +57,11 @@ class SourceChange:
 def adapt_source_changes(raw: list[dict]) -> list[SourceChange]:
     """B2 compare_bundles 的 changes → 最小形状。
 
-    对齐 v1/document-fidelity 的 b-source-changes-contract-proposal：
+    对齐 v1/document-fidelity 的 b2-c3-source-changes-adaptation.md（定稿）：
     - kind 用 B 的 `uncertain` 表示无法唯一对应，映射为内部的 `ambiguous`；
     - 质量不在顶层，而在 old/new span 视图的 extractionQuality 里，取两侧最差；
-    - `reason` 映射为 note（uncertain 必带）。
+    - uncertain 必带说明：优先将来的 `reasonCode`，现读 `reason` 字符串
+      （定稿文档要求两层都支持），映射为 note。
     B2 形状再变，只改这里，判定算法不动。
     """
 
@@ -89,7 +90,8 @@ def adapt_source_changes(raw: list[dict]) -> list[SourceChange]:
                 old=(old["documentVersionId"], old["spanId"]) if old else None,
                 new=(new["documentVersionId"], new["spanId"]) if new else None,
                 quality=quality_of(item),
-                note=item.get("reason") or item.get("note"),
+                # 定稿：现读 reason 字符串；将来 A 契约化若加 reasonCode 则优先
+                note=item.get("reasonCode") or item.get("reason") or item.get("note"),
             )
         )
     return changes
