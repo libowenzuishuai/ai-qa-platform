@@ -152,6 +152,8 @@ bundle 内 span 的 `id` 在输出中命名为 **`spanId`**：
 2. **新版多处重复**（通常 `new=null`）：  
    `旧版原文在新版中多处重复，无法唯一对应`
 
+**契约化（供 A）**：`kind === "uncertain"` 时，`changes[].new` **允许为 `null`**（例如上条「多处重复」仅保留 `old` span 视图）；消费方不得假定 `uncertain` 时两侧都有 span。
+
 后续若 A 要求 reason 改为机器码 + 可选 `reasonCode`，B 会在契约合并时追加字段并保持上述语义；C3 适配层应同时支持「读 `reason` 字符串」与将来的 `reasonCode`（若有）。
 
 ---
