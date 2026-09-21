@@ -40,31 +40,35 @@ model Session {
 }
 
 model Project {
-  id               String              @id @default(cuid())
-  name             String
-  settings         Json                @default("{}")
-  activeBaselineId String?
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  memberships      ProjectMembership[]
-  environments     Environment[]
-  documents        Document[]
-  rules            Rule[]
-  testCases        TestCase[]
-  clarifications   Clarification[]
-  baselines        Baseline[]
-  runs             Run[]
-  defects          Defect[]
-  modelInvocations ModelInvocation[]
-  artifacts        Artifact[]
-  deploymentEvents DeploymentEvent[]
-  jobs             Job[]
-  planProposals    PlanProposal[]
-  contextSnapshots ContextSnapshot[]
-  missions         Mission[]
-  apiTemplates     ApiTemplate[]
-  executionRunners ExecutionRunner[]
-  codeChecks       CodeCheck[]
+  id                String              @id @default(cuid())
+  name              String
+  settings          Json                @default("{}")
+  activeBaselineId  String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  memberships       ProjectMembership[]
+  environments      Environment[]
+  documents         Document[]
+  rules             Rule[]
+  testCases         TestCase[]
+  clarifications    Clarification[]
+  baselines         Baseline[]
+  runs              Run[]
+  defects           Defect[]
+  modelInvocations  ModelInvocation[]
+  artifacts         Artifact[]
+  deploymentEvents  DeploymentEvent[]
+  jobs              Job[]
+  planProposals     PlanProposal[]
+  contextSnapshots  ContextSnapshot[]
+  missions          Mission[]
+  apiTemplates      ApiTemplate[]
+  executionRunners  ExecutionRunner[]
+  codeChecks        CodeCheck[]
+  loginPreparations LoginPreparation[]
+  dataPlugins       DataPlugin[]
+  dataResources     DataResource[]
+  workflowRuns      WorkflowRun[]
 }
 
 model ProjectMembership {
@@ -83,25 +87,26 @@ model ProjectMembership {
 // ---------- 环境接入 ----------
 
 model Environment {
-  id                String         @id @default(cuid())
+  id                String             @id @default(cuid())
   projectId         String
   name              String
   baseUrl           String
   allowedOrigins    String[]
-  dependencyOrigins String[]       @default([])
-  isProduction      Boolean        @default(false)
+  dependencyOrigins String[]           @default([])
+  isProduction      Boolean            @default(false)
   // secretRef -> 加密存储键；不存明文凭据
-  secretRefs        Json           @default("{}")
-  buildMetadata     Json           @default("{}")
-  runtime           Json           @default("{}")
-  revision          Int            @default(1)
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  project           Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  secretRefs        Json               @default("{}")
+  buildMetadata     Json               @default("{}")
+  runtime           Json               @default("{}")
+  revision          Int                @default(1)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
   runs              Run[]
   planProposals     PlanProposal[]
   missions          Mission[]
   apiTemplates      ApiTemplate[]
+  loginPreparations LoginPreparation[]
 
   @@unique([id, projectId])
   @@index([projectId])
@@ -616,6 +621,7 @@ model Mission {
   environment       Environment      @relation(fields: [environmentId], references: [id], onDelete: Restrict)
   contextSnapshot   ContextSnapshot? @relation(fields: [contextSnapshotId], references: [id], onDelete: Restrict)
   runs              MissionRun[]
+  workflows         WorkflowRun[]
   id                String           @id @default(cuid())
   projectId         String
   title             String
@@ -689,4 +695,206 @@ model CodeCheck {
   updatedAt      DateTime         @updatedAt
 
   @@index([projectId, status])
+}
+
+// ============ P0-1: 账号与准备中心 ============
+
+model LoginPreparation {
+  project          Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environment      Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  id               String      @id @default(cuid())
+  projectId        String
+  environmentId    String
+  role             String
+  /**
+   * secretRefs 中的角色 key，如 "applicant"。
+   */
+  credentialRef    String
+  /**
+   * 登录步骤：[{type:"fill",locator,value:{source:"credential",ref:"applicant.username"}}]
+   */
+  steps            Json
+  /**
+   * 登录成功标识：{locator, expectedText?}
+   */
+  successIndicator Json
+  /**
+   * 配置 sha256，变更后上次检查即失效。
+   */
+  configHash       String
+  /**
+   * 最近一次检查结果。
+   */
+  lastCheckStatus  String      @default("NEVER_CHECKED")
+  lastCheckDetail  String?
+  lastCheckAt      DateTime?
+  lastCheckEnvRev  Int?
+  /**
+   * 检查有效期（小时），过期不能作为准备证明。
+   */
+  validityHours    Int         @default(24)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@unique([projectId, environmentId, role])
+  @@index([projectId])
+}
+
+// ============ P0-2: 数据准备与清理插件 ============
+
+model DataPlugin {
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id          String   @id @default(cuid())
+  projectId   String
+  /**
+   * 插件类型标识，首版只有 "http-request"。
+   */
+  kind        String
+  version     Int      @default(1)
+  /**
+   * 参数 JSON Schema（前端据此生成表单）。
+   */
+  paramSchema Json
+  /**
+   * 支持的效果类型。
+   */
+  effectTypes String[]
+  name        String
+  enabled     Boolean  @default(true)
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  @@unique([projectId, kind, version])
+  @@index([projectId])
+}
+
+model DataResource {
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                String   @id @default(cuid())
+  projectId         String
+  runId             String?
+  attemptId         String?
+  namespace         String
+  /**
+   * 插件引用。
+   */
+  pluginId          String
+  /**
+   * 外部资源标识（如 HTTP URL+method 或返回的业务 ID）。
+   */
+  externalRef       String
+  /**
+   * prepare|cleanup。
+   */
+  action            String
+  /**
+   * 动作参数指纹（幂等判定）。
+   */
+  actionFingerprint String
+  /**
+   * pending|success|failed|unknown|cleaned|cleanup_failed。
+   */
+  status            String   @default("pending")
+  evidenceId        String?
+  detail            String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([namespace, externalRef, action, actionFingerprint])
+  @@index([projectId, runId])
+  @@index([namespace])
+}
+
+// ============ P0-3: 持久化任务编排 ============
+
+model WorkflowRun {
+  project           Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  mission           Mission?       @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  id                String         @id @default(cuid())
+  projectId         String
+  missionId         String?
+  /**
+   * 模板版本。
+   */
+  templateVersion   String
+  /**
+   * 固定输入引用（documentVersionIds / baselineId / environmentId / buildId）。
+   */
+  inputs            Json
+  status            String         @default("QUEUED")
+  /**
+   * {maxWallClockMs, maxModelCalls, maxToolCalls, maxTokens, estimatedCost}
+   */
+  budget            Json
+  /**
+   * 真实用量。
+   */
+  usage             Json           @default("{}")
+  currentGate       String?
+  cancelRequestedAt DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  workflowNodes     WorkflowNode[]
+
+  @@index([projectId])
+}
+
+model WorkflowNode {
+  workflow       WorkflowRun @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  id             String      @id @default(cuid())
+  workflowId     String
+  /**
+   * 模板中的节点 key。
+   */
+  nodeKey        String
+  /**
+   * 检查点/依赖顺序。
+   */
+  seq            Int
+  /**
+   * queued|running|waiting_human|completed|failed|skipped。
+   */
+  status         String      @default("queued")
+  /**
+   * 节点幂等键。
+   */
+  idempotencyKey String
+  /**
+   * 输入内容 hash。
+   */
+  inputHash      String
+  /**
+   * 输出引用（JobId / RunId / 资产 ID 列表）。
+   */
+  outputRef      Json?
+  /**
+   * 人工待办描述。
+   */
+  humanTodo      Json?
+  error          String?
+  /**
+   * 动作账本。
+   */
+  toolCalls      Json        @default("[]")
+  leaseToken     String?
+  leaseExpiresAt DateTime?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([workflowId, nodeKey, idempotencyKey])
+  @@index([workflowId, status])
+}
+
+model WorkflowEvent {
+  id         String   @id @default(cuid())
+  workflowId String
+  seq        Int
+  type       String
+  payload    Json
+  createdAt  DateTime @default(now())
+
+  @@unique([workflowId, seq])
+  @@index([workflowId, seq])
 }

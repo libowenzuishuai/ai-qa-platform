@@ -1,4 +1,5 @@
 import { reconcileCodeChecks } from '@ai-qa/run-events';
+import { ArtifactStore } from "@ai-qa/artifact-store";
 import Fastify from "fastify";
 import { reconcileAgentJobs } from "./agent-job-recovery.js";
 import { PrismaClient } from "@prisma/client";
@@ -9,6 +10,7 @@ import { processRun } from "./run-processor.js";
 import { finalizeCancelledFromRequest } from "@ai-qa/run-events";
 import { seedFixedAssets } from "./seed-processor.js";
 import { processAgentJob } from "./agent-job-processor.js";
+import { runLoginCheck } from "./login-check-job.js";
 
 /**
  * 执行 worker（阶段 1）。
@@ -55,7 +57,20 @@ const agentJobWorker = new BullWorker(
   "agent-jobs",
   async (job) => {
     if (job.name === "run") {
-      await processAgentJob(prisma, config, String(job.data.jobId));
+      const jobId = String(job.data.jobId);
+      const row = await prisma.job.findUnique({ where: { id: jobId } });
+      if (row?.kind === "LOGIN_CHECK") {
+        // 登录检查有独立 BrowserContext；沿用 CAS 认领 + 心跳模式。
+        const claimed = await prisma.job.updateMany({ where: { id: jobId, status: "QUEUED" }, data: { status: "RUNNING", startedAt: new Date() } });
+        if (!claimed.count) return;
+        try {
+          await runLoginCheck(prisma, new ArtifactStore(config.artifactDir), { ...row, startedAt: new Date() }, config);
+        } catch (err) {
+          await prisma.job.update({ where: { id: jobId }, data: { status: "FAILED", error: { code: "INTERNAL", message: String(err).slice(0, 500), requestId: jobId } as never, finishedAt: new Date() } });
+        }
+      } else {
+        await processAgentJob(prisma, config, jobId);
+      }
     }
   },
   { connection, concurrency: 1 },

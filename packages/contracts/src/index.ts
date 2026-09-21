@@ -16,3 +16,6 @@ export * from "./agent-case.js";
 export * from "./jobs.js";
 export * from "./intelligence.js";
 export * from './product.js';
+export * from "./preparation.js";
+export * from "./data-plugins.js";
+export * from "./workflow.js";
