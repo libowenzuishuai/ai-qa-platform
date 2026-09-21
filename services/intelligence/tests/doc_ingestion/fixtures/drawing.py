@@ -136,7 +136,7 @@ MIXED_PRD_SAMPLE_EXPECTED = {
             "page": 2,
             "kind": "PDF_SCAN_RASTER",
             "humanCheck": [
-                "扫描页-2",
+                "【扫描页-2】",
                 "审批规则",
                 "<=500000",
                 ">500000",

@@ -63,10 +63,10 @@
       "id": "b3-09-mixed-prd-sample",
       "format": "PDF_TEXT",
       "fixture": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-mixed-prd-sample.pdf",
-      "status": "human-review",
+      "status": "mock-covered",
       "evalRecord": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-mixed-prd-sample.parse-mock.json",
       "expectedForHuman": "services/intelligence/tests/doc_ingestion/fixtures/b3-records/b3-mixed-prd-sample.expected.json",
-      "focus": "混排：P1 文字层 + P2–3 扫描栅格；先人工核对 PDF，再 mock/real 视觉"
+      "focus": "混排：P1 文字层 + P2–3 扫描栅格；夹具人工已验收；真实 Kimi 混排见后续 verify 脚本（opt-in）"
     },
     {
       "id": "b3-08-real-pilot-sample",
