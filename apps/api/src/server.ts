@@ -20,6 +20,7 @@ import { registerJobRoutes } from "./routes-jobs.js";
 import { registerPreparationRoutes } from "./routes-preparation.js";
 import { registerDataPluginRoutes } from "./routes-data-plugins.js";
 import { registerWorkflowRoutes } from "./routes-workflow.js";
+import { registerReleaseRoutes } from "./routes-release.js";
 import { sendApiError } from "./errors.js";
 
 const config = loadConfig();
@@ -82,6 +83,7 @@ export async function buildServer() {
   registerPreparationRoutes(app, prisma, agentJobsQueue);
   registerDataPluginRoutes(app, prisma, agentJobsQueue);
   registerWorkflowRoutes(app, prisma);
+  registerReleaseRoutes(app, prisma, artifactStore);
   registerDocumentRoutes(app, prisma, agentJobsQueue, artifactStore);
   registerReviewRoutes(app, prisma);
   registerProductRoutes(app, prisma, artifactStore, agentJobsQueue, runsQueue);
