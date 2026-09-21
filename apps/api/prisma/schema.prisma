@@ -40,7 +40,7 @@ model Session {
 }
 
 model Project {
-  changeReviews ChangeReview[]
+  changeReviews     ChangeReview[]
   id                String              @id @default(cuid())
   name              String
   settings          Json                @default("{}")
@@ -67,6 +67,12 @@ model Project {
   executionRunners  ExecutionRunner[]
   codeChecks        CodeCheck[]
   loginPreparations LoginPreparation[]
+  capabilities      CapabilityCatalog[]
+  workflowTemplates WorkflowTemplate[]
+  releaseDecisions  ReleaseDecision[]
+  goalProposals     GoalProposal[]
+  projectMemories   ProjectMemory[]
+  diagnoses         DiagnosisEntry[]
   dataPlugins       DataPlugin[]
   dataResources     DataResource[]
   workflowRuns      WorkflowRun[]
@@ -88,26 +94,32 @@ model ProjectMembership {
 // ---------- 环境接入 ----------
 
 model Environment {
-  id                String             @id @default(cuid())
+  id                String              @id @default(cuid())
   projectId         String
   name              String
   baseUrl           String
   allowedOrigins    String[]
-  dependencyOrigins String[]           @default([])
-  isProduction      Boolean            @default(false)
+  dependencyOrigins String[]            @default([])
+  isProduction      Boolean             @default(false)
   // secretRef -> 加密存储键；不存明文凭据
-  secretRefs        Json               @default("{}")
-  buildMetadata     Json               @default("{}")
-  runtime           Json               @default("{}")
-  revision          Int                @default(1)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  secretRefs        Json                @default("{}")
+  buildMetadata     Json                @default("{}")
+  runtime           Json                @default("{}")
+  revision          Int                 @default(1)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  project           Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   runs              Run[]
   planProposals     PlanProposal[]
   missions          Mission[]
   apiTemplates      ApiTemplate[]
   loginPreparations LoginPreparation[]
+  capabilities      CapabilityCatalog[]
+  workflowTemplates WorkflowTemplate[]
+  releaseDecisions  ReleaseDecision[]
+  goalProposals     GoalProposal[]
+  projectMemories   ProjectMemory[]
+  diagnoses         DiagnosisEntry[]
 
   @@unique([id, projectId])
   @@index([projectId])
@@ -552,19 +564,19 @@ model DeploymentEvent {
  */
 model Job {
   changeReview ChangeReview?
-  id          String    @id @default(cuid())
-  projectId   String
-  kind        String
-  status      String    @default("QUEUED")
-  request     Json
-  result      Json?
-  error       Json?
-  fingerprint String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  startedAt   DateTime?
-  finishedAt  DateTime?
-  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id           String        @id @default(cuid())
+  projectId    String
+  kind         String
+  status       String        @default("QUEUED")
+  request      Json
+  result       Json?
+  error        Json?
+  fingerprint  String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, kind, fingerprint])
   @@index([projectId, createdAt])
@@ -713,7 +725,7 @@ model LoginPreparation {
    */
   credentialRef    String
   configuration    Json?
-  lastCheckJobId    String?
+  lastCheckJobId   String?
   /**
    * 登录步骤：[{type:"fill",locator,value:{source:"credential",ref:"applicant.username"}}]
    */
@@ -747,30 +759,30 @@ model LoginPreparation {
 // ============ P0-2: 数据准备与清理插件 ============
 
 model DataPlugin {
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  id          String   @id @default(cuid())
-  projectId   String
+  project             Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                  String   @id @default(cuid())
+  projectId           String
   /**
    * 插件类型标识，首版只有 "http-request"。
    */
-  kind        String
-  environmentId String?
+  kind                String
+  environmentId       String?
   environmentRevision Int?
-  definition Json?
+  definition          Json?
   environmentSnapshot Json?
-  version     Int      @default(1)
+  version             Int      @default(1)
   /**
    * 参数 JSON Schema（前端据此生成表单）。
    */
-  paramSchema Json
+  paramSchema         Json
   /**
    * 支持的效果类型。
    */
-  effectTypes String[]
-  name        String
-  enabled     Boolean  @default(true)
-  createdBy   String
-  createdAt   DateTime @default(now())
+  effectTypes         String[]
+  name                String
+  enabled             Boolean  @default(true)
+  createdBy           String
+  createdAt           DateTime @default(now())
 
   @@unique([projectId, kind, version])
   @@index([projectId])
@@ -799,7 +811,7 @@ model DataResource {
    * 动作参数指纹（幂等判定）。
    */
   actionFingerprint String
-  parameters Json @default("{}")
+  parameters        Json     @default("{}")
   /**
    * pending|success|failed|unknown|cleaned|cleanup_failed。
    */
@@ -810,9 +822,9 @@ model DataResource {
   updatedAt         DateTime @updatedAt
 
   @@unique([namespace, externalRef, action, actionFingerprint])
+  @@unique([projectId, pluginId, namespace, action])
   @@index([projectId, runId])
   @@index([namespace])
-  @@unique([projectId, pluginId, namespace, action])
 }
 
 // ============ P0-3: 持久化任务编排 ============
@@ -842,15 +854,15 @@ model WorkflowRun {
    */
   usage             Json           @default("{}")
   currentGate       String?
-  eventSeq Int @default(0)
-  idempotencyKey String?
-  inputFingerprint String?
+  eventSeq          Int            @default(0)
+  idempotencyKey    String?
+  inputFingerprint  String?
   cancelRequestedAt DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
-  @@index([projectId])
   @@unique([projectId, idempotencyKey])
+  @@index([projectId])
 }
 
 model WorkflowNode {
@@ -898,8 +910,8 @@ model WorkflowNode {
   updatedAt      DateTime    @updatedAt
 
   @@unique([workflowId, nodeKey, idempotencyKey])
-  @@index([workflowId, status])
   @@unique([workflowId, nodeKey])
+  @@index([workflowId, status])
 }
 
 model WorkflowEvent {
@@ -914,23 +926,148 @@ model WorkflowEvent {
   @@index([workflowId, seq])
 }
 
-
 // Immutable inputs/results; resolutions are separately audited human decisions.
 model ChangeReview {
-  id String @id @default(cuid())
-  projectId String
-  jobId String @unique
-  baselineId String
+  id                   String   @id @default(cuid())
+  projectId            String
+  jobId                String   @unique
+  baselineId           String
   oldDocumentVersionId String
   newDocumentVersionId String
-  input Json
-  inputHash String
-  output Json?
-  outputHash String?
-  resolutions Json @default("{}")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  project Project @relation(fields:[projectId],references:[id],onDelete:Restrict)
-  job Job @relation(fields:[jobId],references:[id],onDelete:Restrict)
-  @@index([projectId,createdAt])
+  input                Json
+  inputHash            String
+  output               Json?
+  outputHash           String?
+  resolutions          Json     @default("{}")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  project              Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  job                  Job      @relation(fields: [jobId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, createdAt])
+}
+
+// ============ R00: 能力目录 / 发布决策 / 目标规划 / 记忆 / 诊断 ============
+
+model CapabilityCatalog {
+  project               Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                    String       @id @default(cuid())
+  projectId             String
+  key                   String
+  version               Int
+  name                  String
+  description           String?
+  inputSchema           Json
+  outputSchema          Json
+  effects               String[]
+  requiredRoles         String[]
+  requiresEnvironment   Boolean      @default(false)
+  budgetCategory        String       @default("none")
+  idempotencyStrategy   String       @default("read_only")
+  recoveryStrategy      String       @default("read_only")
+  cleanupResponsibility String?
+  enabled               Boolean      @default(true)
+  createdBy             String
+  createdAt             DateTime     @default(now())
+  environment           Environment? @relation(fields: [environmentId], references: [id])
+  environmentId         String?
+
+  @@unique([projectId, key, version])
+  @@index([projectId])
+}
+
+model WorkflowTemplate {
+  project            Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                 String       @id @default(cuid())
+  projectId          String
+  key                String
+  version            Int
+  name               String
+  description        String?
+  nodes              Json
+  defaultBudget      Json
+  defaultParallelism Int          @default(1)
+  status             String       @default("DRAFT")
+  createdBy          String
+  createdAt          DateTime     @default(now())
+  publishedAt        DateTime?
+  environment        Environment? @relation(fields: [environmentId], references: [id])
+  environmentId      String?
+
+  @@unique([projectId, key, version])
+  @@index([projectId])
+}
+
+model ReleaseDecision {
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id               String       @id @default(cuid())
+  projectId        String
+  runIds           String[]
+  decision         String
+  decidedBy        String
+  reason           String
+  scope            String?
+  evidenceSnapshot Json         @default("{}")
+  decidedAt        DateTime     @default(now())
+  environment      Environment? @relation(fields: [environmentId], references: [id])
+  environmentId    String?
+
+  @@index([projectId])
+}
+
+model GoalProposal {
+  project         Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id              String       @id @default(cuid())
+  projectId       String
+  goal            String
+  suggestedTools  Json         @default("[]")
+  suggestedScope  Json         @default("{}")
+  suggestedBudget Json         @default("{}")
+  blockers        Json         @default("[]")
+  status          String       @default("DRAFT")
+  createdBy       String
+  createdAt       DateTime     @default(now())
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  environment     Environment? @relation(fields: [environmentId], references: [id])
+  environmentId   String?
+
+  @@index([projectId])
+}
+
+model ProjectMemory {
+  project              Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                   String       @id @default(cuid())
+  projectId            String
+  content              String
+  source               Json
+  context              Json         @default("{}")
+  validUntil           DateTime?
+  invalidationTriggers Json         @default("[]")
+  invalidated          Boolean      @default(false)
+  invalidatedReason    String?
+  createdAt            DateTime     @default(now())
+  environment          Environment? @relation(fields: [environmentId], references: [id])
+  environmentId        String?
+
+  @@index([projectId])
+}
+
+model DiagnosisEntry {
+  project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id            String       @id @default(cuid())
+  projectId     String
+  runId         String?
+  attemptId     String?
+  category      String
+  facts         Json
+  hypotheses    Json         @default("[]")
+  suggestions   Json         @default("[]")
+  confidence    String
+  createdBy     String
+  createdAt     DateTime     @default(now())
+  environment   Environment? @relation(fields: [environmentId], references: [id])
+  environmentId String?
+
+  @@index([projectId])
 }

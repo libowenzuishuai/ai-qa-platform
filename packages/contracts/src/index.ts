@@ -21,3 +21,6 @@ export * from "./data-plugins.js";
 export * from "./workflow.js";
 
 export * from "./source-changes.js";
+export * from "./chunking.js";
+export * from "./capability.js";
+export * from "./release.js";
