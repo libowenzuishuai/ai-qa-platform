@@ -1,0 +1,17 @@
+{
+  "caseId": "b3-08-real-pilot-sample",
+  "mode": "mock",
+  "fixtureRef": "packages/contracts/fixtures/pilot-dify-v1/source.md",
+  "command": "pnpm test:doc-ingestion -k test_dify_sanitized_pack",
+  "parseStatus": "PARSED",
+  "format": "MARKDOWN",
+  "coverageSummary": {
+    "totalBlocks": 10,
+    "goodSpans": 10,
+    "lowSpans": 0,
+    "unparsedSpans": 0
+  },
+  "warningCount": 0,
+  "spanCount": 10,
+  "blockCount": 10
+}
