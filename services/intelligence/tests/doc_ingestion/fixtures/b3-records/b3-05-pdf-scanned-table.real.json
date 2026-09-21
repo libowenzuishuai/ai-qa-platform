@@ -2,32 +2,31 @@
   "caseId": "b3-05-pdf-scanned-table",
   "mode": "real",
   "fixtureRef": "pytest-generated-table-image-pdf",
-  "ranAt": "2026-09-21T09:36:02.759745+08:00",
+  "ranAt": "2026-09-21T09:49:45.267186+08:00",
   "command": "services/intelligence/tests/doc_ingestion/fixtures/verify_b3_05_kimi_real.py",
   "parseStatus": "PARSED",
   "format": "PDF_SCANNED",
   "coverageSummary": {
-    "totalBlocks": 2,
+    "totalBlocks": 1,
     "goodSpans": 0,
     "lowSpans": 1,
-    "unparsedSpans": 1
+    "unparsedSpans": 0
   },
   "warnings": [
-    "PDF 全页由视觉大模型识别，来源为页码，质量为 LOW；细小文字、表格关系及图示需人工复核",
-    "PDF 第 1 页存在未识别内容或无可读正文；需复核"
+    "PDF 全页由视觉大模型识别，来源为页码，质量为 LOW；细小文字、表格关系及图示需人工复核"
   ],
-  "sampleText": "类型 说明\n标准类 <=500000元\n大额类 >500000元",
+  "sampleText": "角色\t上限\n申请人\t<=500000分\n主管\t>500000分",
   "invocations": [
     {
       "provider": "moonshot",
       "model": "kimi-k2.6",
-      "requestId": "chatcmpl-6ab089fd7f3323accb6fa859",
+      "requestId": "chatcmpl-6ab08d33308c7d1a080e34b7",
       "usage": {
-        "inputTokens": 529,
+        "inputTokens": 541,
         "outputTokens": 28,
         "estimatedCost": null
       },
-      "latencyMs": 1972
+      "latencyMs": 1847
     }
   ]
 }

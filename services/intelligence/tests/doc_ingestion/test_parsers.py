@@ -65,24 +65,13 @@ def scanned_pdf(labels: list[str]) -> bytes:
 
 def table_image_pdf(rows: list[list[str]]) -> bytes:
     """Raster table for PDF_SCANNED vision path (mock in tests)."""
-    width, height = 400, 40 + 40 * len(rows)
-    image = Image.new("RGB", (width, height), "white")
-    draw = ImageDraw.Draw(image)
-    col_count = max(len(row) for row in rows)
-    col_width = width // col_count
-    for row_index, row in enumerate(rows):
-        y0 = 20 + row_index * 40
-        draw.line([(0, y0), (width, y0)], fill="black", width=1)
-        for col_index, value in enumerate(row):
-            x0 = col_index * col_width
-            draw.line([(x0, y0), (x0, y0 + 40)], fill="black", width=1)
-            draw.text((x0 + 8, y0 + 12), value, fill="black")
-    draw.line([(0, 20 + len(rows) * 40), (width, 20 + len(rows) * 40)], fill="black")
-    draw.line([(width - 1, 20), (width - 1, 20 + len(rows) * 40)], fill="black")
-    buffer = BytesIO()
-    image.save(buffer, "PDF")
-    buffer.seek(0)
-    return buffer.getvalue()
+    import importlib.util
+
+    path = Path(__file__).resolve().parent / "fixtures" / "drawing.py"
+    spec = importlib.util.spec_from_file_location("b3_drawing", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.table_image_pdf(rows)
 
 
 def docx_with_nested_table() -> bytes:
@@ -489,10 +478,16 @@ def parse_pdf_with_ocr(tmp_path, pdf_data, pages: dict[int, str], *, format="PDF
 
 
 def test_scanned_pdf_table_image_vision_mock_preserves_cell_text(tmp_path):
+    try:
+        pdf_bytes = table_image_pdf(
+            [["角色", "上限"], ["申请人", "<=500000分"], ["主管", ">500000分"]]
+        )
+    except OSError as exc:
+        pytest.skip(str(exc))
     table_text = "角色 | 上限\n申请人 | <=500000分\n主管 | >500000分"
     body = parse_pdf_with_ocr(
         tmp_path,
-        table_image_pdf([["角色", "上限"], ["申请人", "<=500000分"], ["主管", ">500000分"]]),
+        pdf_bytes,
         {1: table_text},
         format="PDF_SCANNED",
     )

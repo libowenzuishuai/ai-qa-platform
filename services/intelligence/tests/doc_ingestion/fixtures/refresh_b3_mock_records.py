@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from io import BytesIO
 from pathlib import Path
 
@@ -17,6 +18,9 @@ from aiqa_intelligence.doc_ingestion.runner import parse_bytes
 
 ROOT = Path(__file__).resolve().parents[5]
 OUT = Path(__file__).resolve().parent / "b3-records"
+_FIX = Path(__file__).resolve().parent
+sys.path.insert(0, str(_FIX))
+from drawing import table_image_pdf as raster_table_pdf  # noqa: E402
 
 
 def write_record(case_id: str, body: dict, *, command: str, fixture: str):
@@ -60,22 +64,7 @@ def docx_nested() -> bytes:
 
 
 def table_image_pdf() -> bytes:
-    rows = [["角色", "上限"], ["申请人", "<=500000分"]]
-    width, height = 400, 20 + 40 * len(rows)
-    image = Image.new("RGB", (width, height), "white")
-    from PIL import ImageDraw
-
-    draw = ImageDraw.Draw(image)
-    col_width = width // 2
-    for row_index, row in enumerate(rows):
-        y0 = 20 + row_index * 40
-        draw.line([(0, y0), (width, y0)], fill="black")
-        for col_index, value in enumerate(row):
-            x0 = col_index * col_width
-            draw.text((x0 + 8, y0 + 12), value, fill="black")
-    buf = BytesIO()
-    image.save(buf, "PDF")
-    return buf.getvalue()
+    return raster_table_pdf([["角色", "上限"], ["申请人", "<=500000分"], ["主管", ">500000分"]])
 
 
 def png_bytes() -> bytes:

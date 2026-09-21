@@ -11,36 +11,18 @@ import hashlib
 import json
 import os
 from datetime import datetime, timezone
-from io import BytesIO
 from pathlib import Path
+import sys
 
-from PIL import Image, ImageDraw
+_FIX = Path(__file__).resolve().parent
+sys.path.insert(0, str(_FIX))
+from drawing import table_image_pdf  # noqa: E402
 
 from aiqa_intelligence.context import RequestContext
 from aiqa_intelligence.contracts.generated import DocumentParseInput
 from aiqa_intelligence.doc_ingestion.service import DocumentParser
 from aiqa_intelligence.models import Gateway
 from aiqa_intelligence.storage import ArtifactReader
-
-
-def table_image_pdf(rows: list[list[str]]) -> bytes:
-    width, height = 400, 40 + 40 * len(rows)
-    image = Image.new("RGB", (width, height), "white")
-    draw = ImageDraw.Draw(image)
-    col_count = max(len(row) for row in rows)
-    col_width = width // col_count
-    for row_index, row in enumerate(rows):
-        y0 = 20 + row_index * 40
-        draw.line([(0, y0), (width, y0)], fill="black", width=1)
-        for col_index, value in enumerate(row):
-            x0 = col_index * col_width
-            draw.line([(x0, y0), (x0, y0 + 40)], fill="black", width=1)
-            draw.text((x0 + 8, y0 + 12), value, fill="black")
-    draw.line([(0, 20 + len(rows) * 40), (width, 20 + len(rows) * 40)], fill="black")
-    draw.line([(width - 1, 20), (width - 1, 20 + len(rows) * 40)], fill="black")
-    buffer = BytesIO()
-    image.save(buffer, "PDF")
-    return buffer.getvalue()
 
 
 ROWS = [["角色", "上限"], ["申请人", "<=500000分"], ["主管", ">500000分"]]
@@ -71,8 +53,9 @@ async def run(output: Path):
         assert body["parseStatus"] == "PARSED", body
         assert body["format"] == "PDF_SCANNED"
         assert "500000" in text
-        assert "<=" in text or "≤" in text or "500000" in text
-        assert ">" in text or "500000" in text
+        assert "<=" in text or "≤" in text
+        assert ">" in text or "＞" in text
+        assert any(k in text for k in ("角色", "申请人", "主管", "上限"))
         assert body["spans"] and body["spans"][0]["extractionQuality"] == "LOW"
         record = {
             "caseId": "b3-05-pdf-scanned-table",
