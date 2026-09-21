@@ -34,7 +34,7 @@ class SourceChange:
     kind: str  # added / removed / modified / ambiguous
     old: tuple[str, str] | None = None  # (documentVersionId, spanId)
     new: tuple[str, str] | None = None
-    quality: str | None = None  # 命中片段的 extractionQuality（可选）
+    quality: str | None = None  # 命中片段的 extractionQuality（新旧取最差）
     note: str | None = None  # ambiguous 时 B2 的「待确认」说明
 
     def __post_init__(self):
@@ -44,26 +44,52 @@ class SourceChange:
             raise ValueError("added 变化不应携带旧侧引用")
         if self.kind == "removed" and self.new is not None:
             raise ValueError("removed 变化不应携带新侧引用")
-        if self.kind in {"modified", "ambiguous"} and (self.old is None or self.new is None):
-            raise ValueError(f"{self.kind} 变化必须携带新旧两侧引用")
+        if self.kind == "modified" and (self.old is None or self.new is None):
+            raise ValueError("modified 变化必须携带新旧两侧引用")
+        # ambiguous 允许只有旧侧：B2 的「原文在新版多处重复」场景给不出唯一 new 侧
+        if self.kind == "ambiguous" and self.old is None:
+            raise ValueError("ambiguous 变化至少要携带旧侧引用")
 
     def refs(self) -> list[tuple[str, str]]:
         return [ref for ref in (self.old, self.new) if ref is not None]
 
 
 def adapt_source_changes(raw: list[dict]) -> list[SourceChange]:
-    """B2 原始 JSON → 最小形状。B2 形状定稿后，全模块只需改这里。"""
+    """B2 compare_bundles 的 changes → 最小形状。
+
+    对齐 v1/document-fidelity 的 b-source-changes-contract-proposal：
+    - kind 用 B 的 `uncertain` 表示无法唯一对应，映射为内部的 `ambiguous`；
+    - 质量不在顶层，而在 old/new span 视图的 extractionQuality 里，取两侧最差；
+    - `reason` 映射为 note（uncertain 必带）。
+    B2 形状再变，只改这里，判定算法不动。
+    """
+
+    def quality_of(item: dict) -> str | None:
+        worst = {"GOOD": 0, "LOW": 1, "UNPARSED": 2}
+        values = [
+            side.get("extractionQuality")
+            for side in (item.get("old"), item.get("new"))
+            if side
+        ]
+        values = [v for v in values if v in worst]
+        if not values:
+            return None
+        return max(values, key=lambda v: worst[v])
+
     changes = []
     for item in raw:
         old = item.get("old")
         new = item.get("new")
+        kind = item["kind"]
+        if kind == "uncertain":
+            kind = "ambiguous"
         changes.append(
             SourceChange(
-                kind=item["kind"],
+                kind=kind,
                 old=(old["documentVersionId"], old["spanId"]) if old else None,
                 new=(new["documentVersionId"], new["spanId"]) if new else None,
-                quality=item.get("quality"),
-                note=item.get("note"),
+                quality=quality_of(item),
+                note=item.get("reason") or item.get("note"),
             )
         )
     return changes
