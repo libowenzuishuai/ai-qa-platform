@@ -1,6 +1,7 @@
 # B2 `source_changes` 契约提案（供 A 合入前评审）
 
-日期：2026-09-20 · 实现：`aiqa_intelligence.source_changes.compare_bundles`（纯 Python，未改 `generated.py`）
+日期：2026-09-20 · 实现：`aiqa_intelligence.source_changes.compare_bundles`（纯 Python，未改 `generated.py`）  
+C3 适配定稿（三个待确认）：见 [b2-c3-source-changes-adaptation.md](./b2-c3-source-changes-adaptation.md)。
 
 ## 用途
 
