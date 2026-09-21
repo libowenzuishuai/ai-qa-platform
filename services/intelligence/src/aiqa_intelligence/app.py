@@ -11,6 +11,7 @@ from .agents.change_review import analyze as analyze_change_review
 from .agents.service import AgentPipelines
 from .agents.planner import propose_plan, classify_sources
 from .doc_ingestion.service import DocumentParser
+from .doc_ingestion.chunking import ChunkLimit, chunk_bundle, coverage_report
 from .contracts import generated as models
 from .contracts.validation import (
     validate_shape,
@@ -26,6 +27,19 @@ from .models import Gateway
 from .storage import ArtifactReader
 
 MAX_REQUEST_BYTES = 32 * 1024 * 1024
+
+
+async def chunk_document(typed_input, context):
+    """确定性分块（chunk-v1）：不调用模型，同一输入必然同一 manifest。"""
+    data = typed_input.model_dump(mode="json", exclude_unset=True)
+    bundle = data["bundle"]
+    if bundle.get("parseStatus") != "PARSED":
+        raise ServiceError("VALIDATION_ERROR", "分块要求已解析文档")
+    manifest = chunk_bundle(bundle, data["documentChecksum"], data["strategyParams"])
+    coverage = coverage_report(manifest, bundle.get("spans") or [])
+    # 匿名 Output 模型经 ChunkingResponse 注解取用（生成器会为嵌套类型去重命名）。
+    output_model = models.ChunkingResponse.model_fields["output"].annotation
+    return output_model.model_validate({"manifest": manifest, "coverage": coverage})
 
 
 def create_app(
@@ -108,6 +122,7 @@ def create_app(
             "plan": "PlanProposal",
             "sources": "SourceClassification",
             "change_review": "ChangeReviewAnalysis",
+            "chunk": "Chunking",
         }
         name = names[operation]
         validate_shape(name + "Request", wire)
@@ -162,6 +177,7 @@ def create_app(
             "plan": propose_plan,
             "sources": classify_sources,
             "change_review": analyze_change_review,
+            "chunk": chunk_document,
         }
         try:
             output = await asyncio.wait_for(
@@ -169,6 +185,8 @@ def create_app(
             )
         except TimeoutError as exc:
             raise ServiceError("MODEL_TIMEOUT", "智能服务处理超时", 504) from exc
+        except ChunkLimit as exc:
+            raise ServiceError("VALIDATION_ERROR", str(exc)) from exc
         try:
             body = output.model_dump(mode="json", exclude_unset=True)
             if operation == "document":
@@ -200,6 +218,10 @@ def create_app(
     @app.post("/v1/documents/parse")
     async def documents(request: Request):
         return await invoke(request, "document")
+
+    @app.post("/v1/documents/chunk")
+    async def chunk(request: Request):
+        return await invoke(request, "chunk")
 
     @app.post("/v1/rules/extract")
     async def rules(request: Request):

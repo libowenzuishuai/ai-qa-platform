@@ -37,6 +37,13 @@ const schemas = {
   ImpactAnalysisOutput: c.ImpactAnalysisOutput,
   ChangeReviewAnalysisInput:c.ChangeReviewAnalysisInput,ChangeReviewAnalysisOutput:c.ChangeReviewAnalysisOutput,
   ChangeReviewAnalysisRequest:c.ChangeReviewAnalysisRequest,ChangeReviewAnalysisResponse:c.ChangeReviewAnalysisResponse,
+  // R00/R03：长文档分块（TS/Python 统一码点偏移与对账规则）
+  SpanSlice: c.SpanSlice,
+  DocumentChunk: c.DocumentChunk,
+  ChunkManifest: c.ChunkManifest,
+  ChunkCoverageReport: c.ChunkCoverageReport,
+  ChunkingRequest: c.ChunkingRequest,
+  ChunkingResponse: c.ChunkingResponse,
 };
 const schema = zodToJsonSchema(z.object(schemas), {
   name: "IntelligenceContracts",

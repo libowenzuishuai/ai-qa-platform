@@ -2845,6 +2845,370 @@
       ],
       "additionalProperties": false
     },
+    "SpanSlice": {
+      "type": "object",
+      "properties": {
+        "sourceSpanId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "startOffset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "endOffset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sliceId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "sourceSpanId",
+        "startOffset",
+        "endOffset",
+        "sliceId"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentChunk": {
+      "type": "object",
+      "properties": {
+        "chunkId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "boundary": {
+          "type": "string",
+          "enum": [
+            "heading",
+            "paragraph",
+            "table",
+            "fixed-size",
+            "page"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "contextOverlap": {
+          "type": "string",
+          "default": ""
+        },
+        "spanRefs": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "span"
+                  },
+                  "spanId": {
+                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  }
+                },
+                "required": [
+                  "type",
+                  "spanId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "slice"
+                  },
+                  "slice": {
+                    "$ref": "#/definitions/SpanSlice"
+                  }
+                },
+                "required": [
+                  "type",
+                  "slice"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "isTableContinuation": {
+          "type": "boolean",
+          "default": false
+        },
+        "estimatedChars": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "chunkId",
+        "seq",
+        "boundary",
+        "text",
+        "spanRefs",
+        "estimatedChars"
+      ],
+      "additionalProperties": false
+    },
+    "ChunkManifest": {
+      "type": "object",
+      "properties": {
+        "documentVersionId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "strategyVersion": {
+          "type": "string",
+          "const": "chunk-v1"
+        },
+        "documentChecksum": {
+          "type": "string"
+        },
+        "strategyParams": {
+          "type": "object",
+          "properties": {
+            "maxCharsPerChunk": {
+              "type": "integer",
+              "minimum": 500,
+              "maximum": 50000
+            },
+            "contextOverlapChars": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5000
+            },
+            "modelBudgetChars": {
+              "type": "integer",
+              "minimum": 1000,
+              "maximum": 200000
+            }
+          },
+          "required": [
+            "maxCharsPerChunk",
+            "contextOverlapChars",
+            "modelBudgetChars"
+          ],
+          "additionalProperties": false
+        },
+        "chunks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DocumentChunk"
+          },
+          "minItems": 1
+        },
+        "totalCodePoints": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "createdAt": {
+          "$ref": "#/definitions/PlanProposalInput/properties/testCase/properties/createdAt"
+        }
+      },
+      "required": [
+        "documentVersionId",
+        "strategyVersion",
+        "documentChecksum",
+        "strategyParams",
+        "chunks",
+        "totalCodePoints",
+        "createdAt"
+      ],
+      "additionalProperties": false
+    },
+    "ChunkCoverageReport": {
+      "type": "object",
+      "properties": {
+        "documentVersionId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "chunkManifestChecksum": {
+          "type": "string"
+        },
+        "totalFragments": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "processedFragments": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "contextFragments": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blockedFragments": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "assignments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "fragmentId": {
+                "type": "string"
+              },
+              "assignment": {
+                "type": "string",
+                "enum": [
+                  "processed",
+                  "context",
+                  "blocked"
+                ]
+              },
+              "chunkId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "fragmentId",
+              "assignment",
+              "chunkId"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "documentVersionId",
+        "chunkManifestChecksum",
+        "totalFragments",
+        "processedFragments",
+        "contextFragments",
+        "blockedFragments",
+        "assignments"
+      ],
+      "additionalProperties": false
+    },
+    "ChunkingRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "mode": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+        },
+        "timeoutMs": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+        },
+        "input": {
+          "type": "object",
+          "properties": {
+            "bundle": {
+              "$ref": "#/definitions/ParsedDocumentBundle"
+            },
+            "documentChecksum": {
+              "type": "string",
+              "minLength": 8
+            },
+            "strategyParams": {
+              "type": "object",
+              "properties": {
+                "maxCharsPerChunk": {
+                  "type": "integer",
+                  "minimum": 500,
+                  "maximum": 50000
+                },
+                "contextOverlapChars": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 5000
+                },
+                "modelBudgetChars": {
+                  "type": "integer",
+                  "minimum": 1000,
+                  "maximum": 200000
+                }
+              },
+              "required": [
+                "maxCharsPerChunk",
+                "contextOverlapChars",
+                "modelBudgetChars"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "bundle",
+            "documentChecksum",
+            "strategyParams"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "timeoutMs",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "ChunkingResponse": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "mode": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+        },
+        "invocations": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+        },
+        "output": {
+          "type": "object",
+          "properties": {
+            "manifest": {
+              "$ref": "#/definitions/ChunkManifest"
+            },
+            "coverage": {
+              "$ref": "#/definitions/ChunkCoverageReport"
+            }
+          },
+          "required": [
+            "manifest",
+            "coverage"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "invocations",
+        "output"
+      ],
+      "additionalProperties": false
+    },
     "IntelligenceContracts": {
       "type": "object",
       "properties": {
@@ -2946,6 +3310,24 @@
         },
         "ChangeReviewAnalysisResponse": {
           "$ref": "#/definitions/ChangeReviewAnalysisResponse"
+        },
+        "SpanSlice": {
+          "$ref": "#/definitions/SpanSlice"
+        },
+        "DocumentChunk": {
+          "$ref": "#/definitions/DocumentChunk"
+        },
+        "ChunkManifest": {
+          "$ref": "#/definitions/ChunkManifest"
+        },
+        "ChunkCoverageReport": {
+          "$ref": "#/definitions/ChunkCoverageReport"
+        },
+        "ChunkingRequest": {
+          "$ref": "#/definitions/ChunkingRequest"
+        },
+        "ChunkingResponse": {
+          "$ref": "#/definitions/ChunkingResponse"
         }
       },
       "required": [
@@ -2981,7 +3363,13 @@
         "ChangeReviewAnalysisInput",
         "ChangeReviewAnalysisOutput",
         "ChangeReviewAnalysisRequest",
-        "ChangeReviewAnalysisResponse"
+        "ChangeReviewAnalysisResponse",
+        "SpanSlice",
+        "DocumentChunk",
+        "ChunkManifest",
+        "ChunkCoverageReport",
+        "ChunkingRequest",
+        "ChunkingResponse"
       ],
       "additionalProperties": false
     }

@@ -320,6 +320,15 @@ class UnresolvedItem(RootModel[str]):
     root: str = Field(..., min_length=1)
 
 
+class StrategyParams(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    maxCharsPerChunk: int = Field(..., ge=500, le=50000)
+    contextOverlapChars: int = Field(..., ge=0, le=5000)
+    modelBudgetChars: int = Field(..., ge=1000, le=200000)
+
+
 class Locator10(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -996,6 +1005,122 @@ class ImpactAnalysisOutput(BaseModel):
     requiresHumanReview: Literal[True]
 
 
+class SpanSlice(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    sourceSpanId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    startOffset: int = Field(..., ge=0)
+    endOffset: int = Field(..., ge=0)
+    sliceId: str = Field(..., min_length=1)
+
+
+class SpanRefs(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['span']
+    spanId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+
+
+class SpanRefs1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['slice']
+    slice: SpanSlice
+
+
+class DocumentChunk(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    chunkId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    seq: int = Field(..., ge=0)
+    boundary: Literal['heading', 'paragraph', 'table', 'fixed-size', 'page']
+    text: str
+    contextOverlap: str | None = ''
+    spanRefs: list[SpanRefs | SpanRefs1]
+    isTableContinuation: bool | None = False
+    estimatedChars: int = Field(..., ge=0)
+
+
+class ChunkManifest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    documentVersionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    strategyVersion: Literal['chunk-v1']
+    documentChecksum: str
+    strategyParams: StrategyParams
+    chunks: list[DocumentChunk] = Field(..., min_length=1)
+    totalCodePoints: int = Field(..., ge=0)
+    createdAt: AwareDatetime
+
+
+class Assignment(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    fragmentId: str
+    assignment: Literal['processed', 'context', 'blocked']
+    chunkId: RequestId | None
+    reason: str | None = None
+
+
+class ChunkCoverageReport(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    documentVersionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    chunkManifestChecksum: str
+    totalFragments: int = Field(..., ge=0)
+    processedFragments: int = Field(..., ge=0)
+    contextFragments: int = Field(..., ge=0)
+    blockedFragments: int = Field(..., ge=0)
+    assignments: list[Assignment]
+
+
+class Input(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    bundle: ParsedDocumentBundle
+    documentChecksum: str = Field(..., min_length=8)
+    strategyParams: StrategyParams
+
+
+class ChunkingRequest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    timeoutMs: int = Field(..., ge=1000, le=600000)
+    input: Input
+
+
+class Output(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    manifest: ChunkManifest
+    coverage: ChunkCoverageReport
+
+
 class ItemsModel(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -1379,6 +1504,19 @@ class ChangeReviewAnalysisResponse(BaseModel):
     output: ChangeReviewAnalysisOutput
 
 
+class ChunkingResponse(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    invocations: list[InvocationRecord]
+    output: Output
+
+
 class IntelligenceContracts(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -1456,6 +1594,12 @@ class IntelligenceContracts(BaseModel):
     ChangeReviewAnalysisResponse_1: ChangeReviewAnalysisResponse = Field(
         ..., alias='ChangeReviewAnalysisResponse'
     )
+    SpanSlice_1: SpanSlice = Field(..., alias='SpanSlice')
+    DocumentChunk_1: DocumentChunk = Field(..., alias='DocumentChunk')
+    ChunkManifest_1: ChunkManifest = Field(..., alias='ChunkManifest')
+    ChunkCoverageReport_1: ChunkCoverageReport = Field(..., alias='ChunkCoverageReport')
+    ChunkingRequest_1: ChunkingRequest = Field(..., alias='ChunkingRequest')
+    ChunkingResponse_1: ChunkingResponse = Field(..., alias='ChunkingResponse')
 
 
 class Model(RootModel[IntelligenceContracts]):

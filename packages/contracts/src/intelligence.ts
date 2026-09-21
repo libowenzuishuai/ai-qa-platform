@@ -3,6 +3,7 @@ import { PlanProposalInput, PlanProposalOutput, SourceClassificationInput, Sourc
 import { z } from "zod";
 import { EntityId } from "./common.js";
 import { DocumentFormat, ParsedDocumentBundle } from "./document.js";
+import { ChunkingInput, ChunkingOutput } from "./chunking.js";
 import { RuleExtractionInput, RuleExtractionOutput } from "./agent-rule.js";
 import { CaseGenerationInput, CaseGenerationOutput } from "./agent-case.js";
 import { ModelPurpose, ModelResponse } from "./model-adapter.js";
@@ -49,3 +50,6 @@ export const SourceClassificationResponse = responseBase.extend({ output: Source
 
 export const ChangeReviewAnalysisRequest=requestBase.extend({input:ChangeReviewAnalysisInput});
 export const ChangeReviewAnalysisResponse=responseBase.extend({output:ChangeReviewAnalysisOutput});
+
+export const ChunkingRequest = requestBase.extend({ input: ChunkingInput });
+export const ChunkingResponse = responseBase.extend({ output: ChunkingOutput });

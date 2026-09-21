@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { EntityId, IsoDateTime } from './common.js';
+import { ParsedDocumentBundle } from './document.js';
 
 /**
  * R00：长文档处理契约（PRD FR-CTX-04）。
@@ -115,3 +116,24 @@ export const ChunkCoverageReport = z.object({
     });
   }
 });
+
+// ---------- 分块 wire 协议（R03：服务端固定文档+策略，确定性分块） ----------
+
+export const ChunkingInput = z.object({
+  /** 已解析的文档 bundle（blocks/spans 与解析产物一致）。 */
+  bundle: ParsedDocumentBundle,
+  /** 文档字节校验和（与 DocumentVersion.checksum 一致，随 manifest 固定）。 */
+  documentChecksum: z.string().min(8),
+  strategyParams: z.object({
+    maxCharsPerChunk: z.number().int().min(500).max(50_000),
+    contextOverlapChars: z.number().int().min(0).max(5_000),
+    modelBudgetChars: z.number().int().min(1_000).max(200_000),
+  }),
+});
+export type ChunkingInput = z.infer<typeof ChunkingInput>;
+
+export const ChunkingOutput = z.object({
+  manifest: ChunkManifest,
+  coverage: ChunkCoverageReport,
+});
+export type ChunkingOutput = z.infer<typeof ChunkingOutput>;

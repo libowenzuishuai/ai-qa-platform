@@ -17,7 +17,7 @@ const id = (n: number) => `id-${n.toString().padStart(4, '0')}`;
 const iso = '2026-09-21T00:00:00Z';
 
 describe('R00 分块契约', () => {
-  const chunk = (seq: number, over = ''): DocumentChunk => ({
+  const chunk = (seq: number, over = '') => ({
     chunkId: id(100 + seq),
     seq,
     boundary: 'paragraph',
@@ -90,7 +90,7 @@ describe('R00 能力与模板契约', () => {
     nodes, defaultBudget: {}, defaultParallelism: 1,
     status: 'DRAFT', createdBy: 'u1', createdAt: iso, publishedAt: null,
   });
-  const node = (key: string, dependsOn: string[] = []): TemplateNodeDefinition => ({
+  const node = (key: string, dependsOn: string[] = []) => ({
     key, capabilityKey: 'doc-parse', capabilityVersion: 1, dependsOn,
     isApprovalGate: false, inputMapping: {},
   });

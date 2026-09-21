@@ -1,0 +1,375 @@
+{
+  "description": "跨语言分块测试向量：Python chunker 生成，TS Zod 契约校验（chunk-v1）",
+  "documentChecksum": "sha256:shared-vector-1",
+  "strategyParams": {
+    "maxCharsPerChunk": 600,
+    "contextOverlapChars": 60,
+    "modelBudgetChars": 40000
+  },
+  "bundle": {
+    "documentVersionId": "docv-shared-1",
+    "format": "MARKDOWN",
+    "parseStatus": "PARSED",
+    "parserVersion": "test",
+    "blocks": [
+      {
+        "id": "b-abc123def456abc123def456-0",
+        "kind": "heading",
+        "text": "第一章 登录要求"
+      },
+      {
+        "id": "b-abc123def456abc123def456-1",
+        "kind": "paragraph",
+        "text": "用户必须使用企业账号登录，连续失败 5 次锁定 30 分钟。"
+      },
+      {
+        "id": "b-abc123def456abc123def456-2",
+        "kind": "paragraph",
+        "text": "验证码有效期 5 分钟。"
+      },
+      {
+        "id": "b-abc123def456abc123def456-3",
+        "kind": "heading",
+        "text": "第二章 下单与支付"
+      },
+      {
+        "id": "b-abc123def456abc123def456-4",
+        "kind": "paragraph",
+        "text": "下单后 30 分钟内必须完成支付，超时订单自动关闭。"
+      },
+      {
+        "id": "b-abc123def456abc123def456-5",
+        "kind": "table",
+        "text": "商品 | 单价 | 库存"
+      },
+      {
+        "id": "b-abc123def456abc123def456-6",
+        "kind": "table",
+        "text": "键盘 | 199 | 500"
+      },
+      {
+        "id": "b-abc123def456abc123def456-7",
+        "kind": "table",
+        "text": ""
+      },
+      {
+        "id": "b-abc123def456abc123def456-8",
+        "kind": "heading",
+        "text": "第三章 退款"
+      },
+      {
+        "id": "b-abc123def456abc123def456-9",
+        "kind": "paragraph",
+        "text": "退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退"
+      }
+    ],
+    "spans": [
+      {
+        "id": "s-abc123def456abc123def456-0",
+        "documentVersionId": "docv-shared-1",
+        "locator": {
+          "kind": "markdown-line",
+          "startLine": 1,
+          "endLine": 1
+        },
+        "quotedText": "第一章 登录要求",
+        "extractionQuality": "GOOD"
+      },
+      {
+        "id": "s-abc123def456abc123def456-1",
+        "documentVersionId": "docv-shared-1",
+        "locator": {
+          "kind": "markdown-line",
+          "startLine": 2,
+          "endLine": 2
+        },
+        "quotedText": "用户必须使用企业账号登录，连续失败 5 次锁定 30 分钟。",
+        "extractionQuality": "GOOD"
+      },
+      {
+        "id": "s-abc123def456abc123def456-2",
+        "documentVersionId": "docv-shared-1",
+        "locator": {
+          "kind": "markdown-line",
+          "startLine": 3,
+          "endLine": 3
+        },
+        "quotedText": "验证码有效期 5 分钟。",
+        "extractionQuality": "GOOD"
+      },
+      {
+        "id": "s-abc123def456abc123def456-3",
+        "documentVersionId": "docv-shared-1",
+        "locator": {
+          "kind": "markdown-line",
+          "startLine": 4,
+          "endLine": 4
+        },
+        "quotedText": "第二章 下单与支付",
+        "extractionQuality": "GOOD"
+      },
+      {
+        "id": "s-abc123def456abc123def456-4",
+        "documentVersionId": "docv-shared-1",
+        "locator": {
+          "kind": "markdown-line",
+          "startLine": 5,
+          "endLine": 5
+        },
+        "quotedText": "下单后 30 分钟内必须完成支付，超时订单自动关闭。",
+        "extractionQuality": "GOOD"
+      },
+      {
+        "id": "s-abc123def456abc123def456-5",
+        "documentVersionId": "docv-shared-1",
+        "locator": {
+          "kind": "markdown-line",
+          "startLine": 6,
+          "endLine": 6
+        },
+        "quotedText": "商品 | 单价 | 库存",
+        "extractionQuality": "GOOD"
+      },
+      {
+        "id": "s-abc123def456abc123def456-6",
+        "documentVersionId": "docv-shared-1",
+        "locator": {
+          "kind": "markdown-line",
+          "startLine": 7,
+          "endLine": 7
+        },
+        "quotedText": "键盘 | 199 | 500",
+        "extractionQuality": "GOOD"
+      },
+      {
+        "id": "s-abc123def456abc123def456-7",
+        "documentVersionId": "docv-shared-1",
+        "locator": {
+          "kind": "markdown-line",
+          "startLine": 8,
+          "endLine": 8
+        },
+        "quotedText": null,
+        "extractionQuality": "UNPARSED"
+      },
+      {
+        "id": "s-abc123def456abc123def456-8",
+        "documentVersionId": "docv-shared-1",
+        "locator": {
+          "kind": "markdown-line",
+          "startLine": 9,
+          "endLine": 9
+        },
+        "quotedText": "第三章 退款",
+        "extractionQuality": "GOOD"
+      },
+      {
+        "id": "s-abc123def456abc123def456-9",
+        "documentVersionId": "docv-shared-1",
+        "locator": {
+          "kind": "markdown-line",
+          "startLine": 10,
+          "endLine": 10
+        },
+        "quotedText": "退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退",
+        "extractionQuality": "GOOD"
+      }
+    ],
+    "warnings": [],
+    "coverageSummary": {
+      "totalBlocks": 10,
+      "goodSpans": 9,
+      "lowSpans": 0,
+      "unparsedSpans": 1
+    }
+  },
+  "expectedManifest": {
+    "documentVersionId": "docv-shared-1",
+    "strategyVersion": "chunk-v1",
+    "documentChecksum": "sha256:shared-vector-1",
+    "strategyParams": {
+      "maxCharsPerChunk": 600,
+      "contextOverlapChars": 60,
+      "modelBudgetChars": 40000
+    },
+    "chunks": [
+      {
+        "chunkId": "c-98588288c314c9908e67ece7-0",
+        "seq": 0,
+        "boundary": "heading",
+        "text": "第一章 登录要求\n用户必须使用企业账号登录，连续失败 5 次锁定 30 分钟。\n验证码有效期 5 分钟。",
+        "contextOverlap": "",
+        "spanRefs": [
+          {
+            "type": "span",
+            "spanId": "s-abc123def456abc123def456-0"
+          },
+          {
+            "type": "span",
+            "spanId": "s-abc123def456abc123def456-1"
+          },
+          {
+            "type": "span",
+            "spanId": "s-abc123def456abc123def456-2"
+          }
+        ],
+        "isTableContinuation": false,
+        "estimatedChars": 52
+      },
+      {
+        "chunkId": "c-98588288c314c9908e67ece7-1",
+        "seq": 1,
+        "boundary": "heading",
+        "text": "第二章 下单与支付\n下单后 30 分钟内必须完成支付，超时订单自动关闭。\n商品 | 单价 | 库存\n键盘 | 199 | 500",
+        "contextOverlap": "第一章 登录要求\n用户必须使用企业账号登录，连续失败 5 次锁定 30 分钟。\n验证码有效期 5 分钟。",
+        "spanRefs": [
+          {
+            "type": "span",
+            "spanId": "s-abc123def456abc123def456-3"
+          },
+          {
+            "type": "span",
+            "spanId": "s-abc123def456abc123def456-4"
+          },
+          {
+            "type": "span",
+            "spanId": "s-abc123def456abc123def456-5"
+          },
+          {
+            "type": "span",
+            "spanId": "s-abc123def456abc123def456-6"
+          },
+          {
+            "type": "span",
+            "spanId": "s-abc123def456abc123def456-7"
+          }
+        ],
+        "isTableContinuation": false,
+        "estimatedChars": 64
+      },
+      {
+        "chunkId": "c-98588288c314c9908e67ece7-2",
+        "seq": 2,
+        "boundary": "heading",
+        "text": "第三章 退款",
+        "contextOverlap": "下单与支付\n下单后 30 分钟内必须完成支付，超时订单自动关闭。\n商品 | 单价 | 库存\n键盘 | 199 | 500",
+        "spanRefs": [
+          {
+            "type": "span",
+            "spanId": "s-abc123def456abc123def456-8"
+          }
+        ],
+        "isTableContinuation": false,
+        "estimatedChars": 6
+      },
+      {
+        "chunkId": "c-98588288c314c9908e67ece7-3",
+        "seq": 3,
+        "boundary": "fixed-size",
+        "text": "退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退",
+        "contextOverlap": "第三章 退款",
+        "spanRefs": [
+          {
+            "type": "slice",
+            "slice": {
+              "sourceSpanId": "s-abc123def456abc123def456-9",
+              "startOffset": 0,
+              "endOffset": 600,
+              "sliceId": "s-abc123def456abc123def456-9:slice:0"
+            }
+          }
+        ],
+        "isTableContinuation": false,
+        "estimatedChars": 600
+      },
+      {
+        "chunkId": "c-98588288c314c9908e67ece7-4",
+        "seq": 4,
+        "boundary": "fixed-size",
+        "text": "退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退",
+        "contextOverlap": "退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退退",
+        "spanRefs": [
+          {
+            "type": "slice",
+            "slice": {
+              "sourceSpanId": "s-abc123def456abc123def456-9",
+              "startOffset": 600,
+              "endOffset": 800,
+              "sliceId": "s-abc123def456abc123def456-9:slice:1"
+            }
+          }
+        ],
+        "isTableContinuation": false,
+        "estimatedChars": 200
+      }
+    ],
+    "totalCodePoints": 922,
+    "createdAt": "2026-09-21T00:00:00Z"
+  },
+  "expectedCoverage": {
+    "documentVersionId": "docv-shared-1",
+    "chunkManifestChecksum": "f3950940d54857fc26ef63ef8f9ed04e1dd493a9a09f3bf34d86b4a2f2213460",
+    "totalFragments": 11,
+    "processedFragments": 10,
+    "contextFragments": 0,
+    "blockedFragments": 1,
+    "assignments": [
+      {
+        "fragmentId": "s-abc123def456abc123def456-0",
+        "assignment": "processed",
+        "chunkId": "c-98588288c314c9908e67ece7-0"
+      },
+      {
+        "fragmentId": "s-abc123def456abc123def456-1",
+        "assignment": "processed",
+        "chunkId": "c-98588288c314c9908e67ece7-0"
+      },
+      {
+        "fragmentId": "s-abc123def456abc123def456-2",
+        "assignment": "processed",
+        "chunkId": "c-98588288c314c9908e67ece7-0"
+      },
+      {
+        "fragmentId": "s-abc123def456abc123def456-3",
+        "assignment": "processed",
+        "chunkId": "c-98588288c314c9908e67ece7-1"
+      },
+      {
+        "fragmentId": "s-abc123def456abc123def456-4",
+        "assignment": "processed",
+        "chunkId": "c-98588288c314c9908e67ece7-1"
+      },
+      {
+        "fragmentId": "s-abc123def456abc123def456-5",
+        "assignment": "processed",
+        "chunkId": "c-98588288c314c9908e67ece7-1"
+      },
+      {
+        "fragmentId": "s-abc123def456abc123def456-6",
+        "assignment": "processed",
+        "chunkId": "c-98588288c314c9908e67ece7-1"
+      },
+      {
+        "fragmentId": "s-abc123def456abc123def456-7",
+        "assignment": "blocked",
+        "chunkId": "c-98588288c314c9908e67ece7-1",
+        "reason": "UNPARSED 片段，列语义不可靠"
+      },
+      {
+        "fragmentId": "s-abc123def456abc123def456-8",
+        "assignment": "processed",
+        "chunkId": "c-98588288c314c9908e67ece7-2"
+      },
+      {
+        "fragmentId": "s-abc123def456abc123def456-9:slice:0",
+        "assignment": "processed",
+        "chunkId": "c-98588288c314c9908e67ece7-3"
+      },
+      {
+        "fragmentId": "s-abc123def456abc123def456-9:slice:1",
+        "assignment": "processed",
+        "chunkId": "c-98588288c314c9908e67ece7-4"
+      }
+    ]
+  }
+}
