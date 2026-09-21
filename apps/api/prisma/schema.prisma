@@ -810,6 +810,7 @@ model DataResource {
 model WorkflowRun {
   project           Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   mission           Mission?       @relation(fields: [missionId], references: [id], onDelete: SetNull)
+  nodes             WorkflowNode[]
   id                String         @id @default(cuid())
   projectId         String
   missionId         String?
@@ -834,7 +835,6 @@ model WorkflowRun {
   cancelRequestedAt DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
-  workflowNodes     WorkflowNode[]
 
   @@index([projectId])
 }

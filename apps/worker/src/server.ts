@@ -11,6 +11,8 @@ import { finalizeCancelledFromRequest } from "@ai-qa/run-events";
 import { seedFixedAssets } from "./seed-processor.js";
 import { processAgentJob } from "./agent-job-processor.js";
 import { runLoginCheck } from "./login-check-job.js";
+import { runDataPrepare, runDataCleanup } from "./data-plugin-job.js";
+import { advanceWorkflow } from "./workflow-orchestrator.js";
 
 /**
  * 执行 worker（阶段 1）。
@@ -67,6 +69,33 @@ const agentJobWorker = new BullWorker(
           await runLoginCheck(prisma, new ArtifactStore(config.artifactDir), { ...row, startedAt: new Date() }, config);
         } catch (err) {
           await prisma.job.update({ where: { id: jobId }, data: { status: "FAILED", error: { code: "INTERNAL", message: String(err).slice(0, 500), requestId: jobId } as never, finishedAt: new Date() } });
+        }
+      } else if (row?.kind === "DATA_PREPARE") {
+        const claimed = await prisma.job.updateMany({ where: { id: jobId, status: "QUEUED" }, data: { status: "RUNNING", startedAt: new Date() } });
+        if (claimed.count) {
+          try { await runDataPrepare(prisma, { ...row, startedAt: new Date() }); }
+          catch (err) {
+            await prisma.job.update({ where: { id: jobId }, data: { status: "FAILED", error: { code: "INTERNAL", message: String(err).slice(0, 500), requestId: jobId } as never, finishedAt: new Date() } });
+          }
+        }
+      } else if (row?.kind === "DATA_CLEANUP") {
+        const claimed = await prisma.job.updateMany({ where: { id: jobId, status: "QUEUED" }, data: { status: "RUNNING", startedAt: new Date() } });
+        if (claimed.count) {
+          try { await runDataCleanup(prisma, { ...row, startedAt: new Date() }); }
+          catch (err) {
+            await prisma.job.update({ where: { id: jobId }, data: { status: "FAILED", error: { code: "INTERNAL", message: String(err).slice(0, 500), requestId: jobId } as never, finishedAt: new Date() } });
+          }
+        }
+      } else if (row?.kind === "WORKFLOW_ADVANCE") {
+        const wfId = (row.request as Record<string, unknown>).workflowId as string;
+        const claimed = await prisma.job.updateMany({ where: { id: jobId, status: "QUEUED" }, data: { status: "RUNNING", startedAt: new Date() } });
+        if (claimed.count) {
+          try {
+            await advanceWorkflow(prisma, wfId);
+            await prisma.job.update({ where: { id: jobId }, data: { status: "SUCCEEDED", finishedAt: new Date() } });
+          } catch (err) {
+            await prisma.job.update({ where: { id: jobId }, data: { status: "FAILED", error: { code: "INTERNAL", message: String(err).slice(0, 500), requestId: jobId } as never, finishedAt: new Date() } });
+          }
         }
       } else {
         await processAgentJob(prisma, config, jobId);
