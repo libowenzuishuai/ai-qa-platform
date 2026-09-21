@@ -1,0 +1,33 @@
+{
+  "caseId": "b3-05-pdf-scanned-table",
+  "mode": "real",
+  "fixtureRef": "pytest-generated-table-image-pdf",
+  "ranAt": "2026-09-21T09:36:02.759745+08:00",
+  "command": "services/intelligence/tests/doc_ingestion/fixtures/verify_b3_05_kimi_real.py",
+  "parseStatus": "PARSED",
+  "format": "PDF_SCANNED",
+  "coverageSummary": {
+    "totalBlocks": 2,
+    "goodSpans": 0,
+    "lowSpans": 1,
+    "unparsedSpans": 1
+  },
+  "warnings": [
+    "PDF 全页由视觉大模型识别，来源为页码，质量为 LOW；细小文字、表格关系及图示需人工复核",
+    "PDF 第 1 页存在未识别内容或无可读正文；需复核"
+  ],
+  "sampleText": "类型 说明\n标准类 <=500000元\n大额类 >500000元",
+  "invocations": [
+    {
+      "provider": "moonshot",
+      "model": "kimi-k2.6",
+      "requestId": "chatcmpl-6ab089fd7f3323accb6fa859",
+      "usage": {
+        "inputTokens": 529,
+        "outputTokens": 28,
+        "estimatedCost": null
+      },
+      "latencyMs": 1972
+    }
+  ]
+}
