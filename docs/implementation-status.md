@@ -1,5 +1,7 @@
 # 实施状态
 
+2026-09-21 文档更新：新增 [完整 PRD r3](product/v1.0/PRD.md)、[GLM 全部剩余开发任务书](product/v1.0/GLM-COMPLETE-IMPLEMENTATION.md)、[发布矩阵](product/v1.0/release/ACCEPTANCE.md)。本次仅更新规格与交接，未实现 R00–R12 的剩余代码，当前运行能力仍以以下交付记录为准。
+
 当前 main 增量：账号准备、数据插件、持久化工作流、B/C 模块及 B3 评测、P0-4 变更复核闭环。完整验证与仍缺功能见 [最新交付和 PRD 差距](delivery/p04-completion-and-prd-review.md)。尚未达到通用商业版 1.0 的全部发布条件。
 
 更新日期：2026-09-21。当前新增交付：**前四步受支持路径已接通**。完整能力、验证记录、启动方式与明确限制统一见 [前四步实施与验收](delivery/v1-implementation.md)。

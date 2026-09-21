@@ -1,5 +1,7 @@
 # 给 GLM：AI QA 1.0 代码收尾与智能体开发任务书
 
+> 2026-09-21：本文件已被 [R00–R12 完整开发任务书](../v1.0/GLM-COMPLETE-IMPLEMENTATION.md) 取代。下文仅供历史实现背景参考，不再按旧骨架/分工重复开发。
+
 ## 可直接发送的总指令
 
 你是本仓库的实现工程师。基于现有代码完成以下任务，不重写现有平台。先阅读本文件、`CODE-ROADMAP.md`、`../v1.0/PRD.md`、`../../delivery/pilot-platform-progress.md`、`../../delivery/next-sprint-three-person-plan.md`。
