@@ -1,0 +1,89 @@
+{
+  "date": "2026-09-22",
+  "codeCommit": "214b89c5bc31b26d87d7daeb52b3128e671fb5b7",
+  "releaseStatus": "EXTERNAL_PENDING",
+  "modelMode": "explicit protocol fixtures; no paid model call in this round",
+  "tests": {
+    "typescriptPassed": 561,
+    "defaultOptInSkipped": 7,
+    "pythonPassed": 374,
+    "existingPythonWarnings": 5,
+    "runnerPassed": 34,
+    "publicGithubRunnerPassed": 6
+  },
+  "logHashes": {
+    "aiqa-v1-final-regression3.log": "3cee9ca388f5d1f98a6392122b058a3c04766937587fd8dce58b8ccb6817bc6e",
+    "aiqa-v1-final-types5.log": "330deb3fb9dacdfd8f0be41095d2797dc0075afabb7554c6cf90baed92a34ea1",
+    "aiqa-v1-final-python3.log": "2f463c6bcadd8dc06f21c9ba7cca697cfcf9f12e560c9fe5ea03286b77992f59",
+    "aiqa-v1-final-build2.log": "fabfde98f03ceaeadb4b3bcf1ac7883419bd95826fc82364cc4f89ccccec2a1d",
+    "aiqa-v1-final-schema2.log": "40e71729c8c4d00c8ac86e97f90085a661fe9d3cf7439af21592a97c8a7974be",
+    "aiqa-v1-final-generated.log": "54f61d4e772228f15c9c016624093de65018fee8d4ff0dbea8986a911b21da01",
+    "aiqa-v1-runner-final3.log": "5b526555768dcbd1c717c37e4f19384ee76c75b7aa5a5c9e74095a9cbda301a1",
+    "aiqa-v1-public-runner-final.log": "bbf0673b37b5410c0014cd690371663272ce3450c54a78d278d44d671c33c4ab",
+    "aiqa-v1-production-final.log": "0d0bd2512729879786d41e89bab45020ad4ff9b34cd6c2619d4b9621422d0613"
+  },
+  "production": {
+    "project": "aiqa-release-c7987df4",
+    "synthetic": true,
+    "date": "2026-09-22",
+    "steps": [
+      {
+        "step": "Old image clean install and initial administrator"
+      },
+      {
+        "step": "Old production worker: actual Chromium PASS with stored evidence",
+        "runId": "cmucrvzkp000imq01xirg9v85"
+      },
+      {
+        "step": "Database and evidence backup",
+        "databaseBytes": 134193,
+        "artifactBytes": 40960,
+        "databaseSha256": "eafa55a4bb8f78697c3837e2f283c989cad041e737f9406c3592002fb1e083f2",
+        "artifactSha256": "e2d6dd20f5bf583bf2b541a3b3f5acf2c967a884d048f4f6fd0d39e38a7af91e"
+      },
+      {
+        "step": "Upgrade: six production services healthy"
+      },
+      {
+        "step": "Upgraded API: old run and evidence still PASS"
+      },
+      {
+        "step": "Final API image: independent empty database migration and administrator initialization"
+      },
+      {
+        "step": "Restored isolated database and evidence: complete report identical"
+      },
+      {
+        "step": "Final production worker: new actual Chromium run PASS",
+        "run": {
+          "runId": "cmucrwrg5000iqu01a46e332z",
+          "projectId": "cmucrwrdo0000qu01qgv1fyek",
+          "acceptanceStatus": "PASS"
+        }
+      }
+    ],
+    "images": {
+      "aiqa-prod-r04-api:latest": "sha256:73e6b66f72dd0dd8be822596321a335ccc166f36ae0019b1ec366503123fec23",
+      "aiqa-prod-r04-seed:latest": "sha256:7fc5116614dc382f756d9161b8c2948a8b194814d3a00f07b0dc97eaf3f3d6ac",
+      "aiqa-prod-r04-worker:latest": "sha256:2828f1316c37d3312d2e935977b98c34ee8064cd0599f4c77fe9c5c0f0801c92",
+      "aiqa-api:v1-review": "sha256:10a5ec2bdcee0f05a37bc94fa798be9d93788c23430c392eea0e619940badc7f",
+      "aiqa-worker:v1-review": "sha256:82d4de576bd4279ad4b0453922008e2a5bf5d4be5d7e7fb61fc1c87807623f6e",
+      "aiqa-web:v1-review": "sha256:798413ef8e181d55b762996a75433fb814fba13116f8f2822cf532211cb1e2b7",
+      "aiqa-intelligence:v1-review": "sha256:8c37c872a07669dd6720f2b31abc8e2fd8e63681ab689f382775c4e50c3ed1a2"
+    },
+    "sourceCommit": "214b89c5bc31b26d87d7daeb52b3128e671fb5b7",
+    "sourceDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "run": {
+      "runId": "cmucrvzkp000imq01xirg9v85",
+      "projectId": "cmucrvzj10000mq01yyeuv3kx",
+      "acceptanceStatus": "PASS"
+    },
+    "passed": true
+  },
+  "externalGates": [
+    "real GitHub App authorization and Checks",
+    "approved full PRD, second real project, roles and three frozen builds",
+    "real model evaluation for new chunk/goal capabilities"
+  ],
+  "review": "implementation author second-pass review; not external audit"
+}
