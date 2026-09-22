@@ -37,11 +37,12 @@ export function registerRunnerRoutes(app:FastifyInstance,prisma:PrismaClient,sto
     const projectId=id(req);await requireProjectAccess(prisma,req,projectId);await reconcileCodeChecks(prisma);
     const q=z.object({page:z.coerce.number().int().min(1).max(100000).default(1),kind:CodeCheckRequest.shape.kind.optional()}).strict().parse(req.query);
     const checks=await prisma.codeCheck.findMany({where:{projectId,request:q.kind?{path:['kind'],equals:q.kind}:undefined},orderBy:[{createdAt:'desc'},{id:'asc'}],skip:(q.page-1)*30,take:30});
-    return {page:q.page,pageSize:30,total:await prisma.codeCheck.count({where:{projectId,request:q.kind?{path:['kind'],equals:q.kind}:undefined}}),checks:checks.map(({leaseToken,result,...row})=>({...row,summary: result ? {caseCount: (result as any).cases?.length ?? 0, platformError: Boolean((result as any).platformError),deployment:(result as any).deployment??null,resources:(result as any).resources??[]} : null})),runners:await prisma.executionRunner.findMany({where:{projectId},select:{id:true,name:true,capabilities:true,revokedAt:true}})};
+    return {page:q.page,pageSize:30,total:await prisma.codeCheck.count({where:{projectId,request:q.kind?{path:['kind'],equals:q.kind}:undefined}}),checks:checks.map(({leaseToken,result,...row})=>({...row,summary: result ? {caseCount: (result as any).cases?.length ?? 0, platformError: Boolean((result as any).platformError),coverage:(result as any).coverage?{linesFound:(result as any).coverage.linesFound,linesHit:(result as any).coverage.linesHit}:null,deployment:(result as any).deployment??null,resources:(result as any).resources??[]} : null})),runners:await prisma.executionRunner.findMany({where:{projectId},select:{id:true,name:true,capabilities:true,revokedAt:true}})};
   });
   app.post('/api/projects/:id/code-checks',async req=>{
     const projectId=id(req);await requireProjectAccess(prisma,req,projectId,'LEAD');
     const body=CodeCheckRequest.parse(req.body);
+    if(body.coverage&&body.kind==='NODE_HTTP')throw new ApiError('VALIDATION_ERROR','部署健康检查不生成代码覆盖报告');
     if(body.deployment&&body.kind!=='NODE_HTTP')throw new ApiError('VALIDATION_ERROR','部署配置仅适用于 Node HTTP 部署检查');
     const connection=await installationForRepository(prisma,projectId,body.repositoryUrl);
     if(connection?.status==='REVOKED')throw new ApiError('FORBIDDEN','仓库授权已撤销，请重新连接');
@@ -94,6 +95,8 @@ export function registerRunnerRoutes(app:FastifyInstance,prisma:PrismaClient,sto
       const task=await tx.codeCheck.findUniqueOrThrow({where:{id:id(req)}});const request=CodeCheckRequest.parse(task.request);
       if(body.result.commitSha!==request.commitSha)throw new ApiError('VALIDATION_ERROR','结果提交版本不匹配');
       const result=body.result;
+      if(request.coverage&&!result.coverage&&!result.platformError)throw new ApiError('VALIDATION_ERROR','已要求代码覆盖报告，但结果缺少覆盖证据');
+      if(result.coverage&&!request.coverage)throw new ApiError('VALIDATION_ERROR','任务未声明代码覆盖报告');
       if(result.resources?.some(r=>r.status==='RESIDUAL'))result.platformError='Cleanup incomplete; operator inspection required';
       if(result.deployment&&(request.kind!=='NODE_HTTP'||result.deployment.commitSha!==request.commitSha))throw new ApiError('VALIDATION_ERROR','部署产物版本与任务不匹配');
       if(request.kind==='NODE_HTTP'&&!result.platformError&&result.exitCode===0&&(!result.deployment||result.deployment.healthStatus!==200||!result.resources?.length||result.resources.some(r=>r.status!=='CLEANED')||!result.resources.some(r=>r.kind==='container'&&r.name===result.deployment?.instanceId)||(request.deployment?.postgres===true&&!result.deployment.postgresReady)))throw new ApiError('VALIDATION_ERROR','部署通过缺少实例、产物、健康或清理证据');

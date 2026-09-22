@@ -1,16 +1,17 @@
 # AI 测试人员平台
 
-> 阶段二采用 **TypeScript 平台 + Python 智能服务**。三人下一轮开工请先读 [真实项目试点分工](docs/delivery/next-sprint-three-person-plan.md)；阶段二接口背景见 [旧开工清单](docs/stage2-python-handoff.md)，Python 启动见 [服务说明](services/intelligence/README.md)。Python 文档解析、规则/用例生成和通用现场绑定已接通。最新范围与使用方式见 [前四步实施与验收](docs/delivery/v1-implementation.md)。
+> **1.0 代码候选版**：TypeScript 平台 + Python 智能服务。当前功能、实际验证和外部发布条件见 [完成评审](docs/delivery/v1-code-completion-20260922.md) 与 [发布验收矩阵](docs/product/v1.0/release/ACCEPTANCE.md)。生产安装见 [部署说明](deploy/README.md)。
+
 根据版本化产品资料（PRD、业务说明、原型）形成有依据的规则与用例，在多人
 开发合并后的 Web 测试环境中独立执行验收测试，输出可追溯报告、缺陷与复测。
 
-- **产品 1.0 设计稿（第二版）**：[产品战略与商业验证](docs/product/v1.0/PRODUCT-STRATEGY.md) · [PRD 与验收范围](docs/product/v1.0/PRD.md) · [可点击原型说明](docs/product/v1.0/prototype/README.md)
+- **产品 1.0 设计（PRD r3）**：[产品战略与商业验证](docs/product/v1.0/PRODUCT-STRATEGY.md) · [PRD 与验收范围](docs/product/v1.0/PRD.md) · [可点击原型说明](docs/product/v1.0/prototype/README.md)
 - 历史产品规格（0.1）：[docs/ai-qa/02-产品需求文档-PRD.md](docs/ai-qa/02-产品需求文档-PRD.md)
 - 项目评审：[docs/ai-qa/01-项目评审.md](docs/ai-qa/01-项目评审.md)
 - 开发提示词：[docs/ai-qa/03-GLM开发提示词.md](docs/ai-qa/03-GLM开发提示词.md)
 - 实施状态：[docs/implementation-status.md](docs/implementation-status.md)
 
-> 当前版本新增 GitHub 资料发现、通用观察与计划批准、七个产品页面、任务/缺陷/新构建复测、HTTP API 检查及 Node/Python 自有运行器。两个合成业务通过真实 Kimi + 浏览器验证。范围限制和证据见 [实施验收](docs/delivery/v1-implementation.md)，不代表完整商业 1.0 已验收。
+> 已接通需求资料→批准规则/用例→真实浏览器/API 验收→缺陷复测与发布评审，并提供多文件变更、长文档批处理、可组合任务、GitHub App 和隔离工程运行器。真实 GitHub App、完整业务 PRD/第二项目及新增模型能力的真实评测仍为发布门，不能用合成测试代替。
 
 ## 目录结构
 
@@ -18,7 +19,7 @@
 apps/api                 平台 API：登录/项目权限/环境登记/运行/SSE/报告/证据下载/种子
 apps/worker              执行 worker：BullMQ 消费、七动作浏览器执行器、证据、对账租约
 apps/demo-app            独立待测审批系统（采购单申请/审批/付款待办，SQLite）
-apps/web                 最小运行页面：登录、启动、实时进度、取消、报告与证据（SSR + SSE 代理）
+apps/web                 产品工作台：接入、需求审阅、准备、组合任务、部署、缺陷、发布评审（SSR + SSE）
 packages/contracts       领域契约：状态机、TestPlan v1、断言语义、acceptanceHash（Zod）
 packages/artifact-store  证据存储：受控目录、checksum、防目录穿越
 packages/test-runtime    Playwright 执行器：七动作、导航策略、程序化断言、证据采集

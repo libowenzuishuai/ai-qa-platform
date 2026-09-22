@@ -184,3 +184,20 @@ def test_node_http_timeout_and_cancellation_keep_no_resources(tmp_path):
     result=runner.execute(request,continue_work=lambda:False,source_directory=tmp_path)
     assert 'cancelled' in result['platformError'].lower(),result
     assert all(r['status']=='CLEANED' for r in result['resources']),result
+
+@pytest.mark.parametrize('vector',json.loads((Path(__file__).parents[3]/'packages/contracts/fixtures/lcov-v1.json').read_text()),ids=lambda v:v['name'])
+def test_shared_lcov_vectors(vector):
+    if vector['valid']:
+        result=runner.parse_lcov(vector['raw']);assert result['linesHit']<=result['linesFound']
+    else:
+        with pytest.raises(ValueError):runner.parse_lcov(vector['raw'])
+
+@pytest.mark.skipif(os.getenv('AIQA_TEST_DOCKER')!='1',reason='Opt-in actual Docker')
+def test_actual_node_coverage_freshness_and_cleanup(tmp_path):
+    (tmp_path/'a.test.mjs').write_text("import {test} from 'node:test';test('coverage smoke',()=>{if(Date.now()>0)return 1;return 0});")
+    (tmp_path/'coverage').mkdir();(tmp_path/'coverage/lcov.info').write_text('stale-invalid-report')
+    result=runner.execute({'repositoryUrl':'https://github.com/example/project','commitSha':'a'*40,'kind':'NODE_TEST','timeoutSeconds':40,'coverage':{'format':'LCOV','path':'coverage/lcov.info'}},source_directory=tmp_path)
+    assert 'platformError' not in result,result
+    assert result['coverage']['linesFound']>0
+    assert 'stale-invalid-report' not in result['coverage']['raw']
+    assert all(x['status']=='CLEANED' for x in result['resources'])

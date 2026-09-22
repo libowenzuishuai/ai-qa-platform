@@ -9,14 +9,14 @@ import {createRun} from './dist/api/src/runs-service.js';
 import {processRun} from './dist/worker/src/run-processor.js';
 import {buildRunReport} from '@ai-qa/reporting';
 const prisma=new PrismaClient(),store=new ArtifactStore('/data/artifacts');
-const target=createServer((_q,r)=>{r.setHeader('content-type','text/html; charset=utf-8');r.end('<!doctype html><h1>Release fixture</h1><p data-testid="order-status">付款待办</p>');});
+const target=createServer((_q,r)=>{if(_q.url==='/build'){r.setHeader('content-type','application/json');r.end(JSON.stringify({buildId:'release-fixture-v1'}));return;}r.setHeader('content-type','text/html; charset=utf-8');r.end('<!doctype html><h1>Release fixture</h1><p data-testid="order-status">付款待办</p>');});
 await new Promise<void>(resolve=>target.listen(7999,'127.0.0.1',resolve));
 const browser=await chromium.launch({headless:true}),page=await browser.newPage();await page.goto('http://127.0.0.1:7999/orders');
 try{
  const assets=await seedMinimalAssets(prisma,store);
  const admin=await prisma.user.findUniqueOrThrow({where:{username:process.env.SEED_ADMIN_USERNAME!}});
  await prisma.projectMembership.create({data:{projectId:assets.projectId,userId:admin.id,role:'ADMIN'}});
- const created=await createRun(prisma,store,{...assets,caseVersionIds:[assets.caseVersionId],mode:'real',idempotencyKey:'release-fixture'});
+ const created=await createRun(prisma,store,{...assets,caseVersionIds:[assets.caseVersionId],mode:'real',idempotencyKey:'release-fixture',buildId:'release-fixture-v1'});
  await processRun(prisma,{databaseUrl:process.env.DATABASE_URL!,redisUrl:process.env.REDIS_URL!,artifactDir:'/data/artifacts',demoFixtureToken:'unused',logLevel:'warn',port:7200,host:'127.0.0.1'},created.runId);
  const report=await buildRunReport(prisma,store,created.runId);
  if(report.run.acceptanceStatus!=='PASS')throw new Error('Synthetic production browser did not pass: '+JSON.stringify(report));
@@ -49,6 +49,7 @@ export async function seedMinimalAssets(
         name: "测试环境",
         baseUrl: "http://127.0.0.1:7999",
         allowedOrigins: ["http://127.0.0.1:7999"],
+        runtime:{buildProbe:{path:"/build",field:"buildId"}},
       },
     })
   ).id;
@@ -117,7 +118,7 @@ export async function seedMinimalAssets(
     ],
     actions: [
       { id: "s1", type: "switchRole", role: "applicant", effect: "READ" },
-      { id: "s-nav", type: "navigate", path: "/orders", effect: "READ" },
+      { id: "s-nav", type: "goto", path: "/orders", effect: "READ" },
       { id: "s2", type: "assert", assertionId: "a1", effect: "READ" },
     ],
     assertions: [
@@ -136,7 +137,7 @@ export async function seedMinimalAssets(
     dataSpec: { strategy: "create", note: "x" },
     steps: [{ id: "st1", role: "applicant", action: "a" }],
     assertions,
-    cleanup: { strategy: "namespace" },
+    cleanup: { strategy: "manual", note: "Read-only isolated synthetic page; no business resources created" },
     priority: "P1",
     approvalStatus: "DRAFT",
     supersedesId: null,
@@ -171,7 +172,7 @@ export async function seedMinimalAssets(
         dataSpec: { strategy: "create", note: "x" },
         steps: [{ id: "st1", role: "applicant", action: "a" }],
         assertions: assertions as never,
-        cleanup: { strategy: "namespace" },
+        cleanup: { strategy: "manual", note: "Read-only isolated synthetic page; no business resources created" },
         origin: "manual",
         approvalStatus: "APPROVED",
         approvalHash: acceptanceHash,

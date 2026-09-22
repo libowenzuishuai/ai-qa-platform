@@ -1,3 +1,4 @@
+import {formUx} from './form-ux.js';
 import { productStyle, workspaceNavigation } from "./design-system.js";
 const escapeHtml = (v: unknown) => String(v ?? "").replace(/[&<>"\']/g, c => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;", "\'":"&#39;"}[c]!));
 /** 页面渲染（服务端模板，零客户端依赖；SSE 用原生 EventSource）。 */
@@ -8,7 +9,7 @@ export function layout(title: string, body: string, context: LayoutContext = {})
     ? workspaceNavigation.map(([key,label,icon]) => `<a href="/space/${encodeURIComponent(context.projectId!)}?tab=${key}" ${key===context.activeTab?'aria-current="page"':''}><span class="nav-icon" aria-hidden="true">${icon}</span>${label}</a>`).join('')
     : `<a href="/"><span class="nav-icon" aria-hidden="true">▦</span>我的项目</a><a href="/runs"><span class="nav-icon" aria-hidden="true">▷</span>全部运行</a>`;
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} · AI QA</title><style>${productStyle}</style></head>
-<body><aside class="app-sidebar"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true">q.</span><div>AI QA<small>QUALITY WORKSPACE</small></div></a><div class="space-label"><small>PROJECT SPACE</small>${escapeHtml(context.projectName??'软件验收工作空间')}</div><div class="nav-label">WORKSPACE</div><nav aria-label="工作空间导航">${navigation}${context.projectId?`<a href="/projects/${encodeURIComponent(context.projectId)}/delivery"><span class="nav-icon" aria-hidden="true">◎</span>交付中心</a>`:""}</nav><div class="sidebar-note"><b>每次交付，都有依据。</b>从业务要求到执行证据，<br>让质量判断可以复核。<p style="margin:20px 0 0"><a href="/">切换项目 ↗</a></p></div></aside><div class="app-shell"><header class="topbar"><div class="breadcrumb">${escapeHtml(context.projectName??'工作空间')}<span>/</span><b>${escapeHtml(title)}</b></div><div class="top-meta">需求 · 执行 · 证据</div></header><main class="app-main" id="main-content">${body}</main><footer class="app-footer">AI QA / 软件验收平台 · 以批准的要求为依据，以实际证据为结论。</footer></div></body></html>`;
+<body data-project-id="${escapeHtml(context.projectId??'')}"><aside class="app-sidebar"><a class="brand" href="/"><span class="brand-mark" aria-hidden="true">q.</span><div>AI QA<small>QUALITY WORKSPACE</small></div></a><div class="space-label"><small>PROJECT SPACE</small>${escapeHtml(context.projectName??'软件验收工作空间')}</div><div class="nav-label">WORKSPACE</div><nav aria-label="工作空间导航">${navigation}${context.projectId?`<a href="/projects/${encodeURIComponent(context.projectId)}/delivery"><span class="nav-icon" aria-hidden="true">◎</span>交付中心</a>`:""}</nav><div class="sidebar-note"><b>每次交付，都有依据。</b>从业务要求到执行证据，<br>让质量判断可以复核。<p style="margin:20px 0 0"><a href="/">切换项目 ↗</a></p></div></aside><div class="app-shell"><header class="topbar"><div class="breadcrumb">${escapeHtml(context.projectName??'工作空间')}<span>/</span><b>${escapeHtml(title)}</b></div><div class="top-meta">需求 · 执行 · 证据</div></header><main class="app-main" id="main-content">${body}</main><footer class="app-footer">AI QA / 软件验收平台 · 以批准的要求为依据，以实际证据为结论。</footer></div>${formUx}</body></html>`;
 }
 
 export function loginPage(error?: string): string {
@@ -192,13 +193,13 @@ export function reportPage(data: ReportData): string {
         .map((a) => {
           const shots = a.evidence
             .filter((e) => e.type.startsWith("assert") && e.exists)
-            .map((e) => `<img class="shot" src="${e.url}" alt="${a.assertionId}">`)
+            .map((e) => `<img class="shot" src="${e.url}" alt="${escapeHtml(a.assertionId)}">`)
             .join("");
           const traces = a.evidence
             .filter((e) => e.type === "TRACE" && e.exists)
             .map((e) => `<a href="${e.url}">下载 trace（受限）</a>`)
             .join(" ");
-          return `<tr><td>${a.assertionId}</td>
+          return `<tr><td>${escapeHtml(a.assertionId)}</td>
           <td>${escapeHtml(a.expected ?? "—")}${a.unit ? ` <span class="muted">${escapeHtml(a.unit)}</span>` : ""}</td>
           <td>${escapeHtml(a.actual ?? "—")}</td>
           <td><span class="badge ${a.result}">${a.result}</span></td>
@@ -222,7 +223,7 @@ export function reportPage(data: ReportData): string {
     .join("");
   return layout(
     "报告",
-    `<h1>运行报告</h1>
+    `<h1>运行报告</h1><p><a href="/runs/${encodeURIComponent(data.run.id)}/export/json">导出 JSON</a> · <a href="/runs/${encodeURIComponent(data.run.id)}/export/markdown">导出 Markdown</a></p>
     <div class="card">
       <div class="kv"><b>运行</b><a href="/runs/${data.run.id}">${data.run.id}</a></div>
       <div class="kv"><b>生命周期</b><span class="badge ${data.run.lifecycle}">${data.run.lifecycle}</span></div>
@@ -239,5 +240,5 @@ export function reportPage(data: ReportData): string {
 }
 
 export function errorPage(message: string): string {
-  return layout("错误", `<h1>出错了</h1><div class="error-box">${message}</div><p><a href="/">返回项目列表</a></p>`);
+  return layout("错误", `<h1>出错了</h1><div class="error-box" role="alert" data-error-page>${escapeHtml(message)}</div><p><a href="/">返回项目列表</a></p>`);
 }

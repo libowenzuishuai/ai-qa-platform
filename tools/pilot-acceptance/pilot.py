@@ -42,7 +42,7 @@ class Client:
   req=urllib.request.Request(self.base+path,data=raw,headers={'Cookie':self.cookie,'Content-Type':content_type})
   class NoRedirect(urllib.request.HTTPRedirectHandler):
    def redirect_request(self,*args,**kwargs):raise ValueError('API redirect refused')
-  with urllib.request.build_opener(NoRedirect).open(req,timeout=30) as response:
+  with urllib.request.build_opener(*([urllib.request.ProxyHandler({})] if urllib.parse.urlsplit(self.base).hostname in ['localhost','127.0.0.1','::1'] else []),NoRedirect).open(req,timeout=30) as response:
    data=response.read(8*1024*1024+1)
    if len(data)>8*1024*1024:raise ValueError('API response too large')
    return json.loads(data)

@@ -44,3 +44,7 @@ tools/phase1-acceptance/artifacts-*/
 /apps/api/src/*.js
 /apps/api/src/*.js.map
 /apps/api/src/*.d.ts
+
+# Operator-only deployment configuration
+/deploy/.env.production
+/deploy/.env.github

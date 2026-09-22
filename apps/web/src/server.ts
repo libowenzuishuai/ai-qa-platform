@@ -1,3 +1,4 @@
+import {registerReleasePages} from './release-pages.js';
 import {registerDeploymentPages} from './deployment-pages.js';
 import {registerDefectPages} from './defect-pages.js';
 import {registerAgentPages} from './agent-pages.js';
@@ -42,6 +43,18 @@ const app = Fastify({ logger: { level: process.env.WEB_LOG_LEVEL ?? "warn" } });
 app.get("/healthz", async () => ({ ok: true }));
 await app.register(cookie);
 await app.register(formbody);
+app.addHook('onSend',async(req,reply,payload)=>{
+  if(typeof payload!=='string'||!String(reply.getHeader('content-type')).includes('text/html')||!req.cookies.web_sid)return payload;
+  const projectId=payload.match(/data-project-id="([A-Za-z0-9_-]+)"/)?.[1];if(!projectId)return payload;
+  let role='VIEWER';try{role=(await api<{role:string}>(`/api/projects/${projectId}/access`,{sid:req.cookies.web_sid})).data.role;}catch{}
+  const adminPage=/\/projects\/[^/]+\/(integrations|evidence-retention)(?:[/?]|$)/.test(req.url);
+  if(role==='VIEWER'||(adminPage&&role!=='ADMIN')){
+    const note=role==='VIEWER'?'当前为只读权限，可查看记录；修改和执行需要项目负责人授权。':'此页的配置修改需要项目管理员权限。';
+    payload=payload.replace('<main class="app-main" id="main-content">','<main class="app-main" id="main-content"><p class="delivery-banner" role="status">'+note+'</p>');
+    payload=String(payload).replace(/(<form\b[^>]*method=["']post["'][^>]*>)([\s\S]*?)(<\/form>)/gi,(_all,start,body,end)=>start+'<fieldset disabled style="border:0;padding:0;margin:0">'+body+'</fieldset>'+end);
+  }
+  return payload;
+});
 registerWorkbenchRoutes(app);
 registerProductPages(app);
 registerPreparationPages(app);
@@ -50,6 +63,7 @@ registerDeliveryPages(app);
 registerAgentPages(app);
 registerDefectPages(app);
 registerDeploymentPages(app);
+registerReleasePages(app);
 registerTemplateEditor(app);
 registerIntegrationPages(app);
 

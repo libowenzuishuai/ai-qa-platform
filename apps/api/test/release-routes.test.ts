@@ -344,3 +344,12 @@ it('报告自动诊断冻结事实证据且幂等，不修改 verdict；伪造�
  expect((await env.prisma.run.findUniqueOrThrow({where:{id:finishedRunId}})).acceptanceStatus).toBe(before.acceptanceStatus);
  expect((await post(`/projects/${projectId}/diagnoses`,{runId:finishedRunId,category:'PRODUCT_FAILURE',facts:[{text:'伪造',evidenceId:'missing'}],confidence:'high'})).statusCode).toBe(422);
 });
+
+it('发布决定并发重试只追加一次，内容变化冲突；历史结论保持 FAIL',async()=>{
+ const body={runIds:[finishedRunId],decision:'ACCEPT_WITH_RISK',reason:'风险由业务负责人知悉，保留原失败',idempotencyKey:'decision-once-2026'};
+ const responses=await Promise.all([post(`/projects/${projectId}/release-decisions`,body),post(`/projects/${projectId}/release-decisions`,body)]);
+ for(const r of responses)expect(r.statusCode,r.body).toBe(200);expect(responses[0]!.json().id).toBe(responses[1]!.json().id);
+ expect((await post(`/projects/${projectId}/release-decisions`,{...body,decision:'REJECT'})).statusCode).toBe(409);
+ const audit=await env.prisma.auditEvent.count({where:{entityId:responses[0]!.json().id,action:'releaseDecision.create'}});expect(audit).toBe(1);
+ expect((await env.prisma.run.findUniqueOrThrow({where:{id:finishedRunId}})).acceptanceStatus).toBe('FAIL');
+});

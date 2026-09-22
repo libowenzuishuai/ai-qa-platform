@@ -71,7 +71,7 @@ export function registerChangeReviewRoutes(
       db.document.findMany({
         where: { projectId },
         orderBy: { createdAt: "desc" },
-        take: 100,
+        take:30,skip:(q.page-1)*30,
         include: {
           versions: {
             where: { parseStatus: { in: ["PARSED", "NEEDS_OCR"] } },
@@ -83,7 +83,7 @@ export function registerChangeReviewRoutes(
       db.baseline.findMany({
         where: { projectId },
         orderBy: { createdAt: "desc" },
-        take: 100,
+        take:30,skip:(q.page-1)*30,
         select: { id: true, name: true },
       }),
     ]);
@@ -93,7 +93,7 @@ export function registerChangeReviewRoutes(
       page: q.page,
       documents,
       baselines,
-      selectionLimit: 100,
+      selectionLimit:30,selectionTotal:Math.max(await db.document.count({where:{projectId}}),await db.baseline.count({where:{projectId}})),
     };
   });
   app.post("/api/projects/:id/changes", async (req, reply) => {

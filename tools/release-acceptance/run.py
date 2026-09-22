@@ -27,7 +27,7 @@ with tempfile.TemporaryDirectory(prefix=PROJECT+'-') as temp:
  folder=Path(temp);password=secrets.token_hex(20);session=secrets.token_hex(32);token=secrets.token_hex(32);admin=secrets.token_hex(20);secrets_to_mask.extend([password,session,token,admin])
  values={'POSTGRES_USER':'release_test','POSTGRES_DB':'release_test','POSTGRES_PASSWORD':password,'SESSION_SECRET':session,'AIQA_INTELLIGENCE_TOKEN':token,'SEED_ADMIN_USERNAME':'release_admin','SEED_ADMIN_PASSWORD':admin,'API_PORT_PUBLISHED':'0','WORKER_PORT_PUBLISHED':'0','WEB_PORT_PUBLISHED':'0'}
  envfile=folder/'stack.env';envfile.write_text('\n'.join(k+'='+v for k,v in values.items()));envfile.chmod(0o600)
- runtime={'DATABASE_URL':f'postgresql://release_test:{password}@postgres:5432/release_test?schema=public','REDIS_URL':'redis://redis:6379/0','AIQA_ARTIFACT_DIR':'/data/artifacts','SEED_ADMIN_USERNAME':'release_admin','SESSION_SECRET':session,'API_HOST':'0.0.0.0','API_PORT':'7300'}
+ runtime={'DATABASE_URL':f'postgresql://release_test:{password}@postgres:5432/release_test?schema=public','REDIS_URL':'redis://redis:6379/0','AIQA_ARTIFACT_DIR':'/data/artifacts','SEED_ADMIN_USERNAME':'release_admin','SEED_ADMIN_PASSWORD':admin,'SESSION_SECRET':session,'API_HOST':'0.0.0.0','API_PORT':'7300'}
  runtimefile=folder/'runtime.env';runtimefile.write_text('\n'.join(k+'='+v for k,v in runtime.items()));runtimefile.chmod(0o600)
  override=folder/'images.json'
  def select(old=False):
@@ -51,7 +51,7 @@ with tempfile.TemporaryDirectory(prefix=PROJECT+'-') as temp:
   artifactTar=command(['docker','run','--rm','-v',PROJECT+'_artifacts-prod:/data:ro','node:22-bookworm-slim','tar','-C','/data','-cf','-','.']);done('Database and evidence backup',databaseBytes=len(backup),artifactBytes=len(artifactTar),databaseSha256=hashlib.sha256(backup).hexdigest(),artifactSha256=hashlib.sha256(artifactTar).hexdigest())
   select();compose('run','--rm','migrate');compose('up','-d','--no-build','--wait','--wait-timeout','180','api','worker','web','intelligence');done('Upgrade: six production services healthy')
   def verify(base):
-   jar=http.cookiejar.CookieJar();client=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+   jar=http.cookiejar.CookieJar();client=urllib.request.build_opener(urllib.request.ProxyHandler({}),urllib.request.HTTPCookieProcessor(jar))
    req=urllib.request.Request(base+'/api/auth/login',data=json.dumps({'username':'release_admin','password':admin}).encode(),headers={'Content-Type':'application/json'})
    with client.open(req,timeout=10) as r:assert r.status==200
    with client.open(base+'/api/runs/'+record['runId']+'/report',timeout=30) as r:report=json.load(r)
@@ -59,6 +59,12 @@ with tempfile.TemporaryDirectory(prefix=PROJECT+'-') as temp:
    assert report['run']['acceptanceStatus']=='PASS',report
    return report
   upgraded=verify(endpoint('api',7300));done('Upgraded API: old run and evidence still PASS')
+  command(['docker','exec',container('postgres'),'createdb','-U','release_test','release_fresh'])
+  runtime['DATABASE_URL']=runtime['DATABASE_URL'].replace('/release_test?','/release_fresh?');runtimefile.write_text('\n'.join(k+'='+v for k,v in runtime.items()))
+  command(['docker','run','--rm','--network',PROJECT+'_default','--env-file',str(runtimefile),NEW['api'],'./node_modules/.bin/prisma','migrate','deploy'])
+  command(['docker','run','--rm','--network',PROJECT+'_default','--env-file',str(runtimefile),NEW['api'],'node','--import','tsx','prisma/seed.ts'])
+  done('Final API image: independent empty database migration and administrator initialization')
+  runtime['DATABASE_URL']=runtime['DATABASE_URL'].replace('/release_fresh?','/release_test?')
   # Restore pre-upgrade backup into a separate database and evidence volume, then apply real new migrations.
   command(['docker','exec',container('postgres'),'createdb','-U','release_test','release_restored'])
   command(['docker','exec','-i',container('postgres'),'pg_restore','-U','release_test','--no-owner','-d','release_restored'],backup)
@@ -71,7 +77,7 @@ with tempfile.TemporaryDirectory(prefix=PROJECT+'-') as temp:
   base='http://127.0.0.1:'+json.loads(command(['docker','inspect',restoreApi]))[0]['NetworkSettings']['Ports']['7300/tcp'][0]['HostPort']
   for i in range(40):
    try:
-    with urllib.request.urlopen(base+'/api/health',timeout=2) as r:
+    with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(base+'/api/health',timeout=2) as r:
      if r.status==200:break
    except Exception:time.sleep(.5)
   restored=verify(base);assert restored==upgraded,'Restored report differs from upgraded report';done('Restored isolated database and evidence: complete report identical')

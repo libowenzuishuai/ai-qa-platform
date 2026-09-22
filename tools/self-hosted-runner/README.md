@@ -25,7 +25,7 @@
 
 `apps/worker/test/runner-e2e.test.ts` 默认跳过；显式设置 `REAL_RUNNER_EVAL=1`、`AIQA_RUNNER_FIXTURE_SHA` 为已上传的完整夹具提交后，运行 `pnpm --filter @ai-qa/worker exec vitest run test/runner-e2e.test.ts`。还需本机测试 PostgreSQL、Docker 与上述已审核镜像。它启动临时 API，通过实际 runner CLI 从公共 Git 下载，然后检查平台终态与证据校验和；测试库与服务在结束时清理。
 
-本轮夹具提交为 `5713c1deec65ae352b119f0aa1ba9f8d610b726b`，包括 Node/pytest 成功及失败样例，属于合成评测数据。证据输出到忽略提交的 `data/pilot-evidence/runner-e2e.json`。
+最新夹具提交为 `053d003c5aab768b12402bed0b956369abc3cbe0`，包括 Node/pytest 成功及失败样例及 Node HTTP + PostgreSQL，属于合成评测数据。证据输出到忽略提交的 `data/pilot-evidence/runner-e2e.json`。
 
 若 Python 的 HTTPS 请求报可信证书缺失，为运行器配置正确的系统/组织 CA，例如本机 macOS 可用 `SSL_CERT_FILE=/etc/ssl/cert.pem`（先确认文件存在）。不得关闭证书校验。初次失败和后续复验分别记录，不把环境错误视为业务失败。
 
@@ -45,6 +45,14 @@ Node HTTP 部署检查新增 `NODE_HTTP`：选择固定 JavaScript 入口、是�
 docker build -t aiqa-registry-proxy:1 -f tools/self-hosted-runner/Dockerfile.registry-proxy tools/self-hosted-runner
 ```
 
-生产使用审核过的镜像 digest，通过 `AIQA_RUNNER_REGISTRY_PROXY_IMAGE` 配置。安装容器只连接任务内部的 isolated 网络，经代理访问 npm/PyPI 官方 HTTPS 注册表；代理拒绝其他目的地址，npm 生命周期脚本禁用。实际测试、构建和 HTTP 服务不接公网。未准备镜像会明确报错，不自动退回不受限网络。支持范围依据 [Docker isolated 网关说明](https://docs.docker.com/engine/network/port-publishing/#gateway-modes)。
+生产使用审核过的镜像 digest，通过 `AIQA_RUNNER_INSTALL_PROXY_IMAGE` 配置。安装容器只连接任务内部的 isolated 网络，经代理访问 npm/PyPI 官方 HTTPS 注册表；代理拒绝其他目的地址，npm 生命周期脚本禁用。实际测试、构建和 HTTP 服务不接公网。未准备镜像会明确报错，不自动退回不受限网络。支持范围依据 [Docker isolated 网关说明](https://docs.docker.com/engine/network/port-publishing/#gateway-modes)。
 
-实测命令同上：本轮 23 项通过，包含真实 Docker 的八类适配、Node HTTP、构建、独立数据库、健康超时、取消和清理。全部为合成工程夹具，不代替真实项目验收。
+实测命令同上，最终数量与日志见 [1.0 完成评审](../../docs/delivery/v1-code-completion-20260922.md)。夹具包含八类适配、Node HTTP、独立数据库、健康超时、取消、清理和覆盖报告；全部为合成工程，不代替真实项目验收。
+
+## LCOV 行覆盖率
+
+在工程检查页面勾选“导入 LCOV 行覆盖报告”并填写仓库子目录内的相对路径（默认 `coverage/lcov.info`）。运行器先清除旧报告；Node 内置测试自动启用 LCOV reporter，其他框架由项目已有配置生成 LCOV，平台不会改写项目配置。运行器应携带本目录的 `coverage_report.py`，不能只复制单个 runner.py。
+
+报告限制 256 KiB / 2,000 个源文件，拒绝目录穿越、重复文件/行、未闭合记录、矛盾计数与错误哈希。平台独立重算原文中的行数，原报告留在受限证据中；零分母显示 0 / 0，不显示 100%。当前只导入行覆盖率，不声称支持 Cobertura 或函数/分支覆盖统计；代码覆盖不等于业务需求覆盖。
+
+私有 GitHub 仓库使用已授权 GitHub App，由平台在有效任务租约内代理获取冻结源码；运行器不会取得 GitHub 安装令牌。真实 GitHub App 部署验收见 [接入说明](../../docs/delivery/github-app-integration.md)。

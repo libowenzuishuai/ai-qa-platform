@@ -18,6 +18,9 @@ import uuid
 from pathlib import Path
 from xml.etree import ElementTree
 
+sys.path.insert(0,str(Path(__file__).resolve().parent))
+from coverage_report import parse_lcov
+
 MAX_ARCHIVE = 25 * 1024 * 1024
 MAX_EXPANDED = 100 * 1024 * 1024
 
@@ -291,7 +294,16 @@ def execute(spec, continue_work=lambda: True, source_directory=None, source_arch
             docker(['volume','create',volume],timeout=10)
             seed='aiqa-seed-'+identity;containers.append(seed)
             docker(['create','--name',seed,'--network','none','--cap-drop=ALL','-v',volume+':/work',image,'true'],timeout=10)
-            docker(['cp',str(source)+'/.',seed+':/work'],timeout=remaining())
+            # Normalize ownership in a trusted archive: host UID 501 must not make
+            # copied directories unwritable after all container capabilities are dropped.
+            archive_path=Path(temporary)/'source.tar'
+            def normalized(member):
+                if not member.isfile() and not member.isdir():raise ValueError('Source links/devices are not supported')
+                member.uid=member.gid=0;member.uname=member.gname='';member.mode=0o755 if member.isdir() else 0o644
+                return member
+            with tarfile.open(archive_path,'w') as archive:archive.add(source,arcname='.',filter=normalized)
+            with archive_path.open('rb') as archive:
+                subprocess.run(['docker','cp','-a','-',seed+':/work'],stdin=archive,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=remaining(),check=True)
             manifest=source/spec.get('subdirectory','')
             command,kind_env=adapter_for(spec,manifest)
             if spec.get('installDependencies'):
@@ -323,7 +335,26 @@ def execute(spec, continue_work=lambda: True, source_directory=None, source_arch
                 return result
             if command is None:
                 command=['python','-c',"import sys;sys.path.insert(0,'/work/.deps');import pytest;raise SystemExit(pytest.main(['--junitxml=/work/report.xml','-q']))"]
+            if spec.get('coverage'):
+                cfg=spec['coverage'];coverage_path=cfg.get('path','coverage/lcov.info')
+                if cfg.get('format')!='LCOV' or not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_./-]*',coverage_path) or '..' in coverage_path.split('/') or len(coverage_path)>300:raise ValueError('Invalid coverage configuration')
+                absolute='/work/'+spec.get('subdirectory','').strip('/')+'/'+coverage_path
+                prepare=['python','-c',"import pathlib,sys;p=pathlib.Path(sys.argv[1]);p.unlink(missing_ok=True);p.parent.mkdir(parents=True,exist_ok=True)",absolute] if spec['kind']=='PYTHON_TEST' else ['node','-e',"const fs=require('fs'),p=process.argv[1];fs.rmSync(p,{force:true});fs.mkdirSync(require('path').dirname(p),{recursive:true})",absolute]
+                _,prepared=run_phase(image,prepare)
+                if prepared:raise ValueError('Coverage destination preparation failed')
+                if spec['kind']=='NODE_TEST':command=command+['--experimental-test-coverage','--test-reporter=lcov','--test-reporter-destination='+absolute]
             name,code=run_phase(image,command,env=kind_env)
+            if spec.get('coverage'):
+                cfg=spec['coverage'];path=cfg.get('path','coverage/lcov.info')
+                if cfg.get('format')!='LCOV' or not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_./-]*',path) or '..' in path.split('/') or len(path)>300:raise ValueError('Invalid coverage configuration')
+                # Read in a separate fixed command with no repository code or network; reject links and oversized files.
+                capture="const fs=require('fs');const p=process.argv[1];const real=fs.realpathSync(p);if(!real.startsWith('/work/')||fs.lstatSync(p).isSymbolicLink()||!fs.statSync(real).isFile()||fs.statSync(real).size>262144)process.exit(2);process.stdout.write(fs.readFileSync(real))"
+                capture_python="import pathlib,sys;p=pathlib.Path(sys.argv[1]);r=p.resolve();assert str(r).startswith('/work/') and not p.is_symlink() and r.is_file() and r.stat().st_size<=262144;sys.stdout.buffer.write(r.read_bytes())"
+                read_command=['python','-c',capture_python] if spec['kind']=='PYTHON_TEST' else ['node','-e',capture]
+                source='/work/'+spec.get('subdirectory','').strip('/')+'/'+path
+                reader_name='aiqa-coverage-'+uuid.uuid4().hex;containers.append(reader_name)
+                captured=docker(['run','--rm','--name',reader_name,'--network','none','--read-only','--user','1000:1000','--cap-drop=ALL','--security-opt=no-new-privileges','--pids-limit=32','--memory=128m','--cpus=1','-v',volume+':/work:ro',image,*read_command,source],timeout=remaining())
+                result['coverage']=parse_lcov(captured.stdout.decode('utf8'))
             # Docker CLI output is bounded on disk, then read at a bounded size.
             log_path=Path(temporary)/'output.log'
             with log_path.open('wb') as log:

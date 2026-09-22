@@ -31,3 +31,5 @@ export * from "./chunk-validation.js";
 export * from './github.js';
 
 export * from './exploration.js';
+
+export * from './code-coverage.js';

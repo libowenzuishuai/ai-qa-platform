@@ -1,0 +1,52 @@
+[
+  {
+    "name": "valid",
+    "raw": "TN:\nSF:src/a.js\nDA:1,1\nDA:2,0\nLF:2\nLH:1\nend_of_record\n",
+    "valid": true
+  },
+  {
+    "name": "empty-lines",
+    "raw": "SF:a.js\nLF:0\nLH:0\nend_of_record\n",
+    "valid": true
+  },
+  {
+    "name": "wrong-total",
+    "raw": "TN:\nSF:src/a.js\nDA:1,1\nDA:2,0\nLF:3\nLH:1\nend_of_record\n",
+    "valid": false
+  },
+  {
+    "name": "wrong-hit",
+    "raw": "TN:\nSF:src/a.js\nDA:1,1\nDA:2,0\nLF:2\nLH:2\nend_of_record\n",
+    "valid": false
+  },
+  {
+    "name": "traversal",
+    "raw": "TN:\nSF:../a.js\nDA:1,1\nDA:2,0\nLF:2\nLH:1\nend_of_record\n",
+    "valid": false
+  },
+  {
+    "name": "duplicate-line",
+    "raw": "TN:\nSF:src/a.js\nDA:1,1\nDA:1,0\nLF:2\nLH:1\nend_of_record\n",
+    "valid": false
+  },
+  {
+    "name": "duplicate-file",
+    "raw": "TN:\nSF:src/a.js\nDA:1,1\nDA:2,0\nLF:2\nLH:1\nend_of_record\nTN:\nSF:src/a.js\nDA:1,1\nDA:2,0\nLF:2\nLH:1\nend_of_record\n",
+    "valid": false
+  },
+  {
+    "name": "truncated",
+    "raw": "TN:\nSF:src/a.js\nDA:1,1\nDA:2,0\nLF:2\nLH:1\n",
+    "valid": false
+  },
+  {
+    "name": "negative",
+    "raw": "TN:\nSF:src/a.js\nDA:1,-1\nDA:2,0\nLF:2\nLH:1\nend_of_record\n",
+    "valid": false
+  },
+  {
+    "name": "empty",
+    "raw": "",
+    "valid": false
+  }
+]

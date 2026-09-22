@@ -26,13 +26,14 @@ for(const [kind,name,verdict] of [['NODE_TEST','node-pass','PASS'],['NODE_TEST',
  it.skipIf(!enabled)(`GitHub → runner CLI → ${name} → ${verdict}`,async()=>{
   const project=await env.prisma.project.create({data:{name,memberships:{create:{userId:actor.id,role:'ADMIN'}}}});
   const r=await post(`/api/projects/${project.id}/runners`,{name:'real local runner',capabilities:[kind]});
-  const check=await post(`/api/projects/${project.id}/code-checks`,{repositoryUrl:'https://github.com/libowenzuishuai/ai-qa-platform',commitSha:process.env.AIQA_RUNNER_FIXTURE_SHA,subdirectory:`tests-golden/runner-projects/${name}`,kind,timeoutSeconds:120,...(kind==='NODE_HTTP'?{deployment:{entrypoint:'server.cjs',postgres:true}}:{})});
+  const check=await post(`/api/projects/${project.id}/code-checks`,{repositoryUrl:'https://github.com/libowenzuishuai/ai-qa-platform',commitSha:process.env.AIQA_RUNNER_FIXTURE_SHA,subdirectory:`tests-golden/runner-projects/${name}`,kind,timeoutSeconds:120,...(name==='node-pass'?{coverage:{format:'LCOV',path:'coverage/lcov.info'}}:{}),...(kind==='NODE_HTTP'?{deployment:{entrypoint:'server.cjs',postgres:true}}:{})});
   const child=spawn(root+'services/intelligence/.venv/bin/python',[root+'tools/self-hosted-runner/runner.py','--once'],{env:{PATH:process.env.PATH,HOME:process.env.HOME,DOCKER_HOST:process.env.DOCKER_HOST,SSL_CERT_FILE:process.env.SSL_CERT_FILE,AIQA_PLATFORM_URL:base,AIQA_RUNNER_TOKEN:r.token,AIQA_RUNNER_PYTHON_IMAGE:process.env.AIQA_RUNNER_PYTHON_IMAGE??'aiqa-python-test:local'},stdio:['ignore','pipe','pipe']});
   let logs='';child.stdout.on('data',b=>logs+=b.toString());child.stderr.on('data',b=>logs+=b.toString());
   const exit=await new Promise<number|null>((resolve,reject)=>{const timer=setTimeout(()=>{child.kill();reject(new Error('Runner CLI exceeded timeout'));},140000);child.once('error',reject);child.once('exit',code=>{clearTimeout(timer);resolve(code);});});expect(exit,logs).toBe(0);
   const finished=await env.prisma.codeCheck.findUniqueOrThrow({where:{id:check.id}});
   evidence.push({kind,request:check.request,status:finished.status,verdict:finished.verdict,result:finished.result});
   expect(finished.status,JSON.stringify(finished.result)).toBe('FINISHED');expect(finished.verdict).toBe(verdict);
+  if(name==='node-pass'){expect((finished.result as any).coverage.linesFound).toBeGreaterThan(0);expect((finished.result as any).coverage.linesHit).toBeGreaterThan(0);}
   if(kind==='NODE_HTTP'){expect((finished.result as any).deployment.postgresReady).toBe(true);expect((finished.result as any).resources.every((r:any)=>r.status==='CLEANED')).toBe(true);}
   const artifact=await env.prisma.artifact.findUniqueOrThrow({where:{id:finished.evidenceId!}});expect(env.store.verify(artifact.storageKey,artifact.checksum)).toBe(true);
  },150000);

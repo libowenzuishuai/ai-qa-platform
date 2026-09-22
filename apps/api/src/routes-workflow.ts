@@ -37,16 +37,10 @@ export function registerWorkflowRoutes(
     const wf=await createWorkflow(prisma,projectId,req.body,requireAuth(req).userId);
     return reply.code(202).send({ workflowId: wf.id });
   });
-  app.get("/api/projects/:id/workflows", async (req) => {
-    const projectId = param(req, "id");
-    await requireProjectAccess(prisma, req, projectId);
-    return {
-      workflows: await prisma.workflowRun.findMany({
-        where: { projectId },
-        orderBy: { createdAt: "desc" },
-        take: 100,
-      }),
-    };
+  app.get('/api/projects/:id/workflows',async req=>{
+    const projectId=param(req,'id');await requireProjectAccess(prisma,req,projectId);
+    const page=z.coerce.number().int().min(1).max(100000).default(1).parse((req.query as any).page);
+    return {page,pageSize:30,total:await prisma.workflowRun.count({where:{projectId}}),workflows:await prisma.workflowRun.findMany({where:{projectId},orderBy:[{createdAt:'desc'},{id:'asc'}],take:30,skip:(page-1)*30})};
   });
   app.get("/api/workflows/:id", async (req) => find(req));
   app.post("/api/workflows/:id/cancel", async (req) => {

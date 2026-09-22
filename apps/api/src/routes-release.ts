@@ -59,7 +59,8 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
     const projectId = param(req, 'id');
     await requireProjectAccess(prisma, req, projectId, 'LEAD');
     const body = z.object({
-      runIds: z.array(z.string().min(1)).min(1),
+      runIds: z.array(z.string().min(1)).min(1).max(200).refine(v=>new Set(v).size===v.length),
+      idempotencyKey:z.string().min(8).max(120).optional(),
       decision: ReleaseDecisionKind,
       reason: z.string().min(1).max(4000),
       scope: z.string().max(2000).optional(),
@@ -96,39 +97,20 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
       };
     }
 
-    const decision = await prisma.releaseDecision.create({
-      data: {
-        projectId,
-        runIds: body.runIds,
-        decision: body.decision,
-        decidedBy: requireAuth(req).userId,
-        reason: body.reason,
-        scope: body.scope,
-        evidenceSnapshot: json(evidenceSnapshot),
-      },
+    const fingerprint=contentHash({runIds:[...body.runIds].sort(),decision:body.decision,reason:body.reason,scope:body.scope??null});
+    return prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT id FROM "Project" WHERE id=${projectId} FOR UPDATE`;
+      if(body.idempotencyKey){const old=await tx.releaseDecision.findUnique({where:{projectId_idempotencyKey:{projectId,idempotencyKey:body.idempotencyKey}}});if(old){if(old.requestFingerprint!==fingerprint)throw new ApiError('IDEMPOTENCY_CONFLICT','同一提交标识的决策内容发生变化');return old;}}
+      const decision=await tx.releaseDecision.create({data:{projectId,runIds:body.runIds,decision:body.decision,decidedBy:requireAuth(req).userId,reason:body.reason,scope:body.scope,evidenceSnapshot:json(evidenceSnapshot),idempotencyKey:body.idempotencyKey,requestFingerprint:fingerprint}});
+      await tx.auditEvent.create({data:{actorId:requireAuth(req).userId,action:'releaseDecision.create',entityType:'ReleaseDecision',entityId:decision.id,metadata:json({decision:body.decision,runIds:body.runIds})}});
+      return decision;
     });
-    await prisma.auditEvent.create({
-      data: {
-        actorId: requireAuth(req).userId,
-        action: 'releaseDecision.create',
-        entityType: 'ReleaseDecision',
-        entityId: decision.id,
-        metadata: json({ decision: body.decision, runIds: body.runIds }),
-      },
-    });
-    return decision;
   });
 
   app.get('/api/projects/:id/release-decisions', async req => {
-    const projectId = param(req, 'id');
-    await requireProjectAccess(prisma, req, projectId);
-    return {
-      decisions: await prisma.releaseDecision.findMany({
-        where: { projectId },
-        orderBy: { decidedAt: 'desc' },
-        take: 100,
-      }),
-    };
+    const projectId=param(req,'id');await requireProjectAccess(prisma,req,projectId);
+    const page=z.coerce.number().int().min(1).max(100000).default(1).parse((req.query as any).page);
+    return {page,pageSize:30,total:await prisma.releaseDecision.count({where:{projectId}}),decisions:await prisma.releaseDecision.findMany({where:{projectId},orderBy:[{decidedAt:'desc'},{id:'asc'}],skip:(page-1)*30,take:30})};
   });
 
   // ============ R09: 导出（JSON / Markdown）与全量统计 ============

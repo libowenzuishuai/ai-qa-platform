@@ -1,3 +1,4 @@
+import {registerRunRoutes} from '../../api/src/routes-runs.js';
 import {registerDefectRoutes} from '../../api/src/routes-defects.js';
 import {registerRunnerRoutes} from '../../api/src/routes-runners.js';
 import {registerGithubRoutes} from '../../api/src/routes-github.js';
@@ -541,6 +542,7 @@ beforeAll(async () => {
   registerGithubRoutes(app,env.prisma);
   registerRunnerRoutes(app,env.prisma,env.store);
   registerDefectRoutes(app,env.prisma,env.store,queue);
+  registerRunRoutes(app,env.prisma,queue,env.store);
   registerChangeReviewRoutes(app,env.prisma,env.store,queue);
   registerSnapshotChangeRoutes(app,env.prisma,env.store,queue);
   registerChunkRoutes(app,env.prisma,queue);
@@ -1532,7 +1534,7 @@ it('交付中心、模板和多文件页面真实浏览器可用，桌面与手�
   mkdirSync(root+'data/pilot-evidence',{recursive:true});
   for(const width of [1440,390]){
    await page.setViewportSize({width,height:1000});
-   for(const route of ['delivery','templates','snapshot-changes','evidence-retention','agent','integrations','templates/editor','defects','deployments']){
+   for(const route of ['delivery','templates','snapshot-changes','evidence-retention','agent','integrations','templates/editor','defects','deployments','release']){
     const response=await page.goto(`${webUrl}/projects/${project.id}/${route}`);expect(response?.status()).toBe(200);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
     await page.screenshot({path:root+`data/pilot-evidence/delivery-${route.replaceAll('/','-')}-${width}.png`,fullPage:true});
@@ -1569,13 +1571,41 @@ it('部署表单错误保留输入、真实创建与取消；缺陷表单负责�
  const defect=await env.prisma.defect.create({data:{projectId:project.id,fingerprint:'ui-triage',title:'表单验收发现',description:'合成 UI 测试记录'}});
  const browser=await chromium.launch({headless:true});
  try{
-  const context=await browser.newContext();await context.addCookies([{name:'web_sid',value:'p0-test',url:webUrl}]);const page=await context.newPage();
+  const context=await browser.newContext();await context.addCookies([{name:'web_sid',value:'p0-test',url:webUrl}]);const page=await context.newPage();page.setDefaultTimeout(5000);
   await page.goto(`${webUrl}/projects/${project.id}/deployments`);
   await page.getByLabel('GitHub 仓库',{exact:true}).fill('https://github.com/example/fixture');await page.getByLabel('固定提交版本',{exact:true}).fill('a'.repeat(40));await page.getByLabel('启动文件',{exact:true}).fill('../outside.js');
   await page.getByRole('button',{name:'创建隔离部署检查'}).click();await page.waitForSelector('[role=alert]');expect(await page.getByLabel('GitHub 仓库',{exact:true}).inputValue()).toBe('https://github.com/example/fixture');
   await page.getByLabel('启动文件',{exact:true}).fill('server.js');await page.getByRole('button',{name:'创建隔离部署检查'}).click();await page.waitForURL(`**/projects/${project.id}/deployments`);
-  await page.getByRole('button',{name:'取消检查',exact:true}).click();await page.waitForURL(`**/projects/${project.id}/deployments`);await page.getByText('已取消 ·', {exact:false}).waitFor();const cancelled=await env.prisma.codeCheck.findFirst({where:{projectId:project.id,request:{path:['repositoryUrl'],equals:'https://github.com/example/fixture'}}});expect(cancelled?.status).toBe('CANCELLED');
-  await page.goto(`${webUrl}/defects/${defect.id}`);await page.getByLabel('负责人',{exact:true}).selectOption(actor.id);await page.getByLabel('严重度',{exact:true}).selectOption('P1');await page.getByLabel('严重度依据',{exact:true}).fill('申请提交被阻断，影响所有申请人');await page.getByLabel('本次处理说明',{exact:true}).fill('已在合成页面复现');await page.getByRole('button',{name:'保存处理记录'}).click();await page.waitForURL(`**/defects/${defect.id}`);
+  await page.getByRole('button',{name:'取消检查',exact:true}).click();await page.waitForURL(`**/projects/${project.id}/deployments`);await page.waitForLoadState('domcontentloaded');const cancelled=await env.prisma.codeCheck.findFirst({where:{projectId:project.id,request:{path:['repositoryUrl'],equals:'https://github.com/example/fixture'}}});expect(cancelled?.status).toBe('CANCELLED');expect(await page.locator('body').textContent()).toContain('已取消');
+  const detailResponse=await page.goto(`${webUrl}/defects/${defect.id}`);expect(detailResponse?.status(),await page.locator('body').textContent()).toBe(200);await page.getByLabel('负责人').selectOption(actor.id);await page.getByRole('combobox',{name:'严重度',exact:false}).selectOption('P1');await page.getByLabel('严重度依据',{exact:true}).fill('申请提交被阻断，影响所有申请人');await page.getByLabel('本次处理说明',{exact:true}).fill('已在合成页面复现');await page.getByRole('button',{name:'保存处理记录'}).click();await page.waitForURL(`**/defects/${defect.id}`);
   const saved=await env.prisma.defect.findUniqueOrThrow({where:{id:defect.id}});expect(saved.assignedTo).toBe(actor.id);expect(saved.severity).toBe('P1');expect(saved.severityBasis).toContain('所有申请人');
+ }finally{await browser.close();}
+},30000);
+
+it('权限变更后拒绝提交且草稿可恢复；只读页面禁用写入按钮',async()=>{
+ const browser=await chromium.launch({headless:true});
+ try{
+  const context=await browser.newContext();await context.addCookies([{name:'web_sid',value:'p0-test',url:webUrl}]);const page=await context.newPage();page.setDefaultTimeout(5000);
+  await page.goto(`${webUrl}/projects/${project.id}/delivery`);await page.getByLabel('这次要验证什么？').fill('权限变化后，这段验收目标仍应保留');
+  await env.prisma.projectMembership.update({where:{projectId_userId:{projectId:project.id,userId:actor.id}},data:{role:'VIEWER'}});
+  await page.getByRole('button',{name:'生成验收建议'}).click();await page.getByRole('link',{name:'返回填写页面（保留非敏感输入）'}).waitFor();
+  await env.prisma.projectMembership.update({where:{projectId_userId:{projectId:project.id,userId:actor.id}},data:{role:'ADMIN'}});
+  await page.getByRole('link',{name:'返回填写页面（保留非敏感输入）'}).click();expect(await page.getByLabel('这次要验证什么？').inputValue()).toBe('权限变化后，这段验收目标仍应保留');
+  await env.prisma.projectMembership.update({where:{projectId_userId:{projectId:project.id,userId:actor.id}},data:{role:'VIEWER'}});
+  await page.reload();expect(await page.getByRole('button',{name:'生成验收建议'}).isDisabled()).toBe(true);expect(await page.getByRole('status').textContent()).toContain('只读权限');
+ }finally{await env.prisma.projectMembership.update({where:{projectId_userId:{projectId:project.id,userId:actor.id}},data:{role:'ADMIN'}});await browser.close();}
+},20000);
+
+it('真实浏览器验收后提交发布决定，导出与当前报告一致且保持原结论',async()=>{
+ const a=await baseline();const run=await request('POST','/api/runs',{projectId:a.projectId,baselineId:a.baselineId,environmentId:a.environmentId,caseVersionIds:[a.caseVersionId],mode:'real',buildId:'v1',idempotencyKey:randomUUID()},202);await processRun(env.prisma,config(),run.runId);
+ expect((await buildRunReport(env.prisma,env.store,run.runId)).run.acceptanceStatus).toBe('PASS');
+ const browser=await chromium.launch({headless:true});
+ try{
+  const context=await browser.newContext();await context.addCookies([{name:'web_sid',value:'p0-test',url:webUrl}]);const page=await context.newPage();page.setDefaultTimeout(5000);
+  await page.goto(`${webUrl}/projects/${a.projectId}/release`);await page.getByLabel('决定依据与风险说明').fill('业务负责人要求先完成额外验收');await page.getByLabel('发布决定',{exact:true}).selectOption('REJECT');await page.getByRole('button',{name:'保存发布决定'}).click();await page.getByRole('alert').waitFor();expect(await page.getByLabel('决定依据与风险说明').inputValue()).toBe('业务负责人要求先完成额外验收');
+  await page.locator('input[name=runIds]').check();await page.getByRole('button',{name:'保存发布决定'}).click();await page.getByRole('heading',{name:'拒绝交付',exact:true}).waitFor();
+  const decision=await env.prisma.releaseDecision.findFirstOrThrow({where:{projectId:a.projectId}});expect(decision.decision).toBe('REJECT');expect((decision.evidenceSnapshot as any)[run.runId].acceptanceStatus).toBe('PASS');
+  const exported=await context.request.get(`${webUrl}/runs/${run.runId}/export/json`);expect(exported.status()).toBe(200);expect((await exported.json()).run.acceptanceStatus).toBe('PASS');expect(exported.headers()['content-disposition']).toContain('.json');
+  const markdown=await context.request.get(`${webUrl}/runs/${run.runId}/export/markdown`);expect(markdown.status()).toBe(200);expect(await markdown.text()).toContain('验收状态：PASS');
  }finally{await browser.close();}
 },30000);

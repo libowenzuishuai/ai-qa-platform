@@ -30,6 +30,7 @@ export function registerProductRoutes(app: FastifyInstance, prisma: PrismaClient
     if (!row) throw new ApiError('NOT_FOUND','用例不存在');
     await requireProjectAccess(prisma, req, row.projectId, write ? 'LEAD' : 'VIEWER'); return row;
   }
+  app.get('/api/projects/:id/access',async req=>{const projectId=param(req);const access=await requireProjectAccess(prisma,req,projectId);const member=await prisma.projectMembership.findUnique({where:{projectId_userId:{projectId,userId:requireAuth(req).userId}}});return {role:member?access.role:'VIEWER'};});
   app.get('/api/projects/:id/workspace', async req => {
     const projectId = param(req); await requireProjectAccess(prisma, req, projectId);
     const page=z.coerce.number().int().min(1).max(100000).default(1).parse((req.query as any).page),pageSize=30;

@@ -260,10 +260,11 @@ export function registerPreparationPages(app: FastifyInstance) {
     const sid = req.cookies.web_sid;
     if (!sid) return reply.redirect("/login");
     const { id } = req.params as { id: string };
+    const page=Math.max(1,Number((req.query as any).page)||1);
     try {
       const [{ data: d }, { data: w }, { data: docs }] = await Promise.all([
         api<any>(`/api/projects/${id}/workspace`, { sid }),
-        api<any>(`/api/projects/${id}/workflows`, { sid }),
+        api<any>(`/api/projects/${id}/workflows?page=${page}`, { sid }),
         api<any>(`/api/projects/${id}/documents`, { sid }),
       ]);
       const versions = docs.documents.flatMap((d: any) =>
@@ -275,7 +276,7 @@ export function registerPreparationPages(app: FastifyInstance) {
       return reply.type("text/html").send(
         layout(
           "测试工作流",
-          `<header class="page-heading"><div><span class="eyebrow">AUTONOMOUS TESTING</span><h1>测试工作流</h1><p>从需求到评估，逐步推进；关键验收标准由人审阅。</p></div><a href="/preparation/${esc(id)}">检查准备情况 →</a></header><div class="dashboard-grid"><section class="card"><h2>创建工作流</h2><form method="post" action="/workflows/project/${esc(id)}">${hidden("idempotencyKey", randomUUID())}${select("environmentId", "测试环境", d.environments)}<label>使用已有验收基线<select name="baselineId"><option value="">从需求资料开始</option>${d.baselines.map((b: any) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join("")}</select></label><fieldset><legend>需求资料（选择基线时无需勾选）</legend>${versions.map((v: any) => `<label><input type="checkbox" name="documentVersionIds" value="${esc(v.id)}">${esc(v.name)}</label>`).join("") || "还没有资料，请先上传。"}</fieldset>${input("buildId", "本次构建版本", "", false)}${input("role", "观察页面的角色", "visitor")}${input("path", "观察页面路径", "/")}<label>最长持续时间（分钟）<input name="minutes" type="number" min="1" max="1440" value="60" required></label><p class="muted">时间包含等待人工审阅。模型预算使用保守预留，额度不足时停止，不自动追加。</p><button>开始工作流</button></form></section><section class="card"><h2>最近的工作流</h2>${w.workflows.map((x: any) => `<article><h3><a href="/workflows/${esc(x.id)}">${esc(new Date(x.createdAt).toLocaleString("zh-CN"))}</a></h3>${badge(x.status)}<p>${esc(nodeNames[x.currentGate] ?? "查看执行进度与证据")}</p></article>`).join("") || '<p class="empty-state">创建第一个工作流，持续跟踪测试进度。</p>'}</section></div>`,
+          `<header class="page-heading"><div><span class="eyebrow">AUTONOMOUS TESTING</span><h1>测试工作流</h1><p>从需求到评估，逐步推进；关键验收标准由人审阅。</p></div><a href="/preparation/${esc(id)}">检查准备情况 →</a></header><div class="dashboard-grid"><section class="card"><h2>创建工作流</h2><form method="post" action="/workflows/project/${esc(id)}">${hidden("idempotencyKey", randomUUID())}${select("environmentId", "测试环境", d.environments)}<label>使用已有验收基线<select name="baselineId"><option value="">从需求资料开始</option>${d.baselines.map((b: any) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join("")}</select></label><fieldset><legend>需求资料（选择基线时无需勾选）</legend>${versions.map((v: any) => `<label><input type="checkbox" name="documentVersionIds" value="${esc(v.id)}">${esc(v.name)}</label>`).join("") || "还没有资料，请先上传。"}</fieldset>${input("buildId", "本次构建版本", "", false)}${input("role", "观察页面的角色", "visitor")}${input("path", "观察页面路径", "/")}<label>最长持续时间（分钟）<input name="minutes" type="number" min="1" max="1440" value="60" required></label><p class="muted">时间包含等待人工审阅。模型预算使用保守预留，额度不足时停止，不自动追加。</p><button>开始工作流</button></form></section><section class="card"><h2>最近的工作流</h2>${w.workflows.map((x: any) => `<article><h3><a href="/workflows/${esc(x.id)}">${esc(new Date(x.createdAt).toLocaleString("zh-CN"))}</a></h3>${badge(x.status)}<p>${esc(nodeNames[x.currentGate] ?? "查看执行进度与证据")}</p></article>`).join("") || '<p class="empty-state">创建第一个工作流，持续跟踪测试进度。</p>'}<nav><p>共 ${w.total} 次 · 第 ${page} 页</p>${page>1?`<a href="?page=${page-1}">上一页</a>`:""} ${page*w.pageSize<w.total?`<a href="?page=${page+1}">下一页</a>`:""}</nav></section></div>`,
           {
             projectId: id,
             projectName: d.project.name,

@@ -1,16 +1,14 @@
 # 实施状态
 
-2026-09-22 增量：B 多文件 diff 已评审修复并冻结正式模块契约，见 [多文件契约与接线要求](delivery/b-multi-file-review-and-contract.md)。仅纯模块/共享校验已交付，多文件 API/worker/UI 仍需按正式契约接线；GLM 开发分支不能当作 main 的已支持功能。
+更新：2026-09-22。当前为 **1.0 代码候选版**，不再按三人分工等待接线。
 
-2026-09-21 文档更新：新增 [完整 PRD r3](product/v1.0/PRD.md)、[GLM 全部剩余开发任务书](product/v1.0/GLM-COMPLETE-IMPLEMENTATION.md)、[发布矩阵](product/v1.0/release/ACCEPTANCE.md)。本次仅更新规格与交接，未实现 R00–R12 的剩余代码，当前运行能力仍以以下交付记录为准。
+- 多文件 diff 的正式共享契约、服务端快照、逐文件复核与新基线 API/worker/UI 已合流。
+- 长资料分块、持久化租约、全文累计预算、批量处理与恢复已接通。
+- 账号准备、数据插件、版本固定的任务组合、批准后目标执行、受限探索、来源记忆和诊断已接通。
+- GitHub App/Checks、八类工程适配、Node HTTP + 独立 PostgreSQL 部署检查、LCOV 行覆盖率已实现；外部服务真实验证单独记录。
+- 页面包含交付中心、模板编辑、工程/部署检查、缺陷管理、发布决定和 JSON/Markdown 报告；分页、错误输入恢复、只读权限已验证。
 
-当前 main 增量：账号准备、数据插件、持久化工作流、B/C 模块及 B3 评测、P0-4 变更复核闭环。完整验证与仍缺功能见 [最新交付和 PRD 差距](delivery/p04-completion-and-prd-review.md)。尚未达到通用商业版 1.0 的全部发布条件。
-
-更新日期：2026-09-21。当前新增交付：**前四步受支持路径已接通**。完整能力、验证记录、启动方式与明确限制统一见 [前四步实施与验收](delivery/v1-implementation.md)。
-
-后续增量：`v1/pilot-platform` 已补接入向导、完整用例编辑、准备检查与真实 Git 运行器整链，见 [试点平台进展](delivery/pilot-platform-progress.md)。本轮继续升级真实前端外观；代码收尾、可组合智能体与 GLM 任务见 [开发路线](product/v1.1/CODE-ROADMAP.md)、[GLM 开发任务书](product/v1.1/GLM-DEVELOPMENT-PROMPT.md) 和 [前端设计](product/v1.1/FRONTEND-DESIGN.md)。相关代码已合入 main；受支持范围与未验证条件以最新交付文档为准。
-
-Python 正式解析/规则/用例管线已合入；本次新增通用浏览器计划、GitHub 上下文、七个产品页面、任务/缺陷/复测、HTTP API 与自有运行器。小样本真实模型验证不代表任意项目都能自动完成验收。
+以 [1.0 完成评审](delivery/v1-code-completion-20260922.md)、[R00–R12 台账](delivery/release-completion-progress.md) 和 [发布矩阵](product/v1.0/release/ACCEPTANCE.md) 为当前事实。真实业务试点及提供商验收仍待外部资料/配置，不能声称商业发布全部通过。
 
 ## 历史验收记录
 

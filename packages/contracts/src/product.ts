@@ -1,3 +1,4 @@
+import {CodeCoverageRequest,CodeCoverageResult} from './code-coverage.js';
 import { z } from 'zod';
 import { ObservedLocator, PlanAction, PlanValue, TargetBinding } from './test-plan.js';
 import { TestCaseVersion } from './test-case.js';
@@ -84,12 +85,14 @@ export const CodeCheckRequest = z.object({
   timeoutSeconds: z.number().int().min(10).max(600).default(120),
   installDependencies: z.boolean().default(false),
   deployment: NodeHttpDeployment.optional(),
+  coverage:CodeCoverageRequest.optional(),
 }).strict();
 export const RunnerResult = z.object({
   commitSha: z.string().regex(/^[a-f0-9]{40}$/),
   exitCode: z.number().int(),
   cases: z.array(z.object({name:z.string().min(1).max(500),status:z.enum(['PASS','FAIL','SKIP']),detail:z.string().max(2000).optional()})).max(10000),
   output: z.string().max(200000),
+  coverage:CodeCoverageResult.optional(),
   platformError: z.string().max(2000).optional(),
   deployment:z.object({instanceId:z.string().max(100),commitSha:z.string().regex(/^[a-f0-9]{40}$/),artifactSha256:z.string().regex(/^[a-f0-9]{64}$/),healthStatus:z.number().int(),postgresReady:z.boolean(),ephemeral:z.literal(true)}).strict().optional(),
   resources:z.array(z.object({kind:z.enum(['container','volume','network']),name:z.string().max(120),status:z.enum(['CLEANED','RESIDUAL'])}).strict()).max(100).optional(),

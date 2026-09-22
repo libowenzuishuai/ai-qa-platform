@@ -1,6 +1,6 @@
 import {beforeAll,afterAll,it,expect} from 'vitest';
 import Fastify from 'fastify';
-import {randomUUID} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {createTestEnv,type TestEnv} from './helpers/db.js';
 import {registerRunnerRoutes} from '../src/routes-runners.js';
 import {sendApiError} from '../src/errors.js';
@@ -18,4 +18,17 @@ it('健康、提交版本、资源清理证据必须闭合；残留不能通过'
  result.deployment={instanceId:'aiqa-task',commitSha:'b'.repeat(40),artifactSha256:'c'.repeat(64),healthStatus:200,postgresReady:true,ephemeral:true};result.resources=[{kind:'container',name:'aiqa-task',status:'CLEANED'}];
  expect((await submit()).statusCode).toBe(422);result.deployment.commitSha=sha;result.deployment.postgresReady=false;expect((await submit()).statusCode).toBe(422);result.deployment.postgresReady=true;result.resources[0].status='RESIDUAL';
  const response=await submit();expect(response.statusCode,response.body).toBe(200);expect(response.json().verdict).toBe('INCOMPLETE');const row=await env.prisma.codeCheck.findUniqueOrThrow({where:{id:task.id}});expect(row.status).toBe('ERROR');expect((row.result as any).platformError).toMatch(/Cleanup/);
+});
+
+it('覆盖报告须按任务声明且独立复核原文、哈希与统计',async()=>{
+ const runner=await app.inject({method:'POST',url:`/api/projects/${projectId}/runners`,payload:{name:'coverage runner',capabilities:['NODE_TEST']}});const auth={authorization:'Bearer '+runner.json().token};
+ const created=await create({repositoryUrl:spec.repositoryUrl,commitSha:sha,kind:'NODE_TEST',coverage:{format:'LCOV',path:'coverage/lcov.info'}});expect(created.statusCode,created.body).toBe(200);
+ const task=(await app.inject({method:'POST',url:'/api/runner/claim',payload:{},headers:auth})).json().task;
+ const result:any={commitSha:sha,exitCode:0,cases:[{name:'actual test',status:'PASS'}],output:''};
+ const submit=()=>app.inject({method:'POST',url:`/api/runner/tasks/${task.id}/result`,headers:auth,payload:{leaseToken:task.leaseToken,result}});
+ expect((await submit()).statusCode).toBe(422);
+ const raw='SF:src/a.js\nDA:1,1\nDA:2,0\nLF:2\nLH:1\nend_of_record\n';result.coverage={format:'LCOV',sha256:createHash('sha256').update(raw).digest('hex'),raw,linesFound:2,linesHit:2,files:[{path:'src/a.js',linesFound:2,linesHit:1}]};
+ expect((await submit()).statusCode).toBe(422);result.coverage.linesHit=1;result.coverage.sha256='0'.repeat(64);expect((await submit()).statusCode).toBe(422);result.coverage.sha256=createHash('sha256').update(raw).digest('hex');
+ const response=await submit();expect(response.statusCode,response.body).toBe(200);expect(response.json().verdict).toBe('PASS');
+ const stored=await env.prisma.codeCheck.findUniqueOrThrow({where:{id:task.id}});expect((stored.result as any).coverage.linesHit).toBe(1);
 });

@@ -1072,6 +1072,9 @@ model WorkflowTemplate {
 }
 
 model ReleaseDecision {
+  idempotencyKey String?
+  requestFingerprint String?
+  @@unique([projectId,idempotencyKey])
   project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   id               String       @id @default(cuid())
   projectId        String
