@@ -5,7 +5,7 @@
 | 编号 | 代码状态 | 发布状态 | 本轮动作 | 变更文件 | 测试 | 证据/限制 |
 |---|---|---|---|---|---|---|
 | R00 契约 | DONE | — | 新增 ChunkManifest/Capability/ReleaseDecision/GoalProposal/Memory/Diagnosis 契约 + 6 张表迁移（修复干净库重放） | packages/contracts/src/{chunking,capability,release}.ts, prisma schema+migration, contracts/test/r00.test.ts | 189/189 contracts | Python 端已同步（R03 随 chunk wire 一并生成） |
-| R01 多文件diff | TODO | NOT_RUN | 待实现 | — | — | 依赖 R00 契约 |
+| R01 多文件diff | DONE | NOT_RUN | Python compare_files（同路径配对→唯一哈希重命名→增删/不确定→片段比较→对账→稳定排序）+ 契约 + 可复现目录夹具 | source_changes/multi_file.py, contracts source-changes.ts, fixtures/multi-file-diff/ | Python 13/13 新增，contracts 199/199（新增 6） | 重命名只认同字节唯一哈希；名称相似不当证据；改名字节变→诚实增删 |
 | R02 多文件影响 | TODO | NOT_RUN | 待实现 | — | — | 依赖 R01 |
 | R03 长文档 | IN_PROGRESS | NOT_RUN | 确定性分块器（chunk-v1）+ 跨语言共享测试向量 + /v1/documents/chunk wire 端点（零模型调用） | services/intelligence/doc_ingestion/chunking.py, contracts chunking wire, fixtures/chunking/shared-vector.json | Python 292/292（新增 11），contracts 193/193（新增 4） | 剩余：chunk 状态持久化/租约/幂等 + 分层合并 + worker 接线 |
 | R04 可安装 | TODO | NOT_RUN | 待实现 | — | — | 需真实容器构建验证 |

@@ -84,6 +84,132 @@ export const SourceChangeReport = z
     }
   });
 export type SourceChangeReport = z.infer<typeof SourceChangeReport>;
+
+// ---------- R01：多文件快照差异 ----------
+
+export const FileSnapshotEntry = z.object({
+  /** 仓库内相对路径（UTF-8，大小写敏感，逐字节比较）。 */
+  path: z.string().min(1).max(1024),
+  bundle: ParsedDocumentBundle,
+}).strict();
+export type FileSnapshotEntry = z.infer<typeof FileSnapshotEntry>;
+
+export const MultiFileComparisonInput = z.object({
+  oldFiles: z.array(FileSnapshotEntry).min(1).max(200),
+  newFiles: z.array(FileSnapshotEntry).min(1).max(200),
+  /** 本轮比较排除（不参与）的路径集合；范围变化本身要在报告中体现。 */
+  excludedPaths: z.array(z.string().min(1).max(1024)).max(200).default([]),
+}).strict().superRefine((input, ctx) => {
+  for (const side of ["oldFiles", "newFiles"] as const) {
+    const seen = new Set<string>();
+    for (const entry of input[side]) {
+      if (seen.has(entry.path)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [side],
+          message: `路径重复：${entry.path}`,
+        });
+      }
+      seen.add(entry.path);
+    }
+  }
+});
+export type MultiFileComparisonInput = z.infer<typeof MultiFileComparisonInput>;
+
+/** 单个文件在多文件对比中的结局（闭集）。 */
+export const FileOutcomeKind = z.enum([
+  "unchanged",    // 同路径同内容哈希
+  "modified",     // 同路径内容变化（内嵌片段级报告）
+  "added",        // 仅存在于新版
+  "removed",      // 仅存在于旧版
+  "renamed",      // 唯一内容哈希跨路径匹配（仅同字节重命名）
+  "uncertain",    // 解析失败/重复候选/预算截断，需人工分派
+]);
+export type FileOutcomeKind = z.infer<typeof FileOutcomeKind>;
+
+export const FileOutcome = z.object({
+  kind: FileOutcomeKind,
+  /** 旧侧路径（added 时为 null）。 */
+  oldPath: z.string().min(1).max(1024).nullable(),
+  /** 新侧路径（removed 时为 null）。 */
+  newPath: z.string().min(1).max(1024).nullable(),
+  /** 内容指纹（sha256，覆盖文本与解析质量；unchanged/renamed 两侧一致）。 */
+  contentHash: z.string().nullable(),
+  /** modified 时的片段级差异报告（复用单文件口径）。 */
+  fragmentReport: SourceChangeReport.nullable(),
+  /** uncertain/removed/added 的说明（重命名候选、解析失败原因等）。 */
+  reason: z.string().nullable(),
+}).strict();
+export type FileOutcome = z.infer<typeof FileOutcome>;
+
+export const MultiFileChangeReport = z.object({
+  outcomes: z.array(FileOutcome).min(1).max(400),
+  /** 输入对账：两侧文件总数与各结局计数（默默遗漏即拒绝）。 */
+  totals: z.object({
+    oldFiles: z.number().int().min(0),
+    newFiles: z.number().int().min(0),
+    unchanged: z.number().int().min(0),
+    modified: z.number().int().min(0),
+    added: z.number().int().min(0),
+    removed: z.number().int().min(0),
+    renamed: z.number().int().min(0),
+    uncertain: z.number().int().min(0),
+  }),
+  /** 回显本轮排除路径（供审计比对口径）。 */
+  excludedPaths: z.array(z.string().min(1).max(1024)).max(200).default([]),
+  /** 排除范围与本轮快照冲突（排除项仍出现在对比快照里 → 口径漂移）。 */
+  exclusionsChanged: z.boolean(),
+  /** 是否有文件因超过单次预算未完成比较（分页续比）。 */
+  truncated: z.boolean(),
+}).strict().superRefine((report, ctx) => {
+  // 覆盖对账：每个结局恰好覆盖一个旧文件或一个新文件（renamed 覆盖两侧各一）。
+  const coveredOld = new Set<string>();
+  const coveredNew = new Set<string>();
+  for (const outcome of report.outcomes) {
+    if (outcome.oldPath) {
+      if (coveredOld.has(outcome.oldPath)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["outcomes"], message: `旧路径重复归属：${outcome.oldPath}` });
+      }
+      coveredOld.add(outcome.oldPath);
+    }
+    if (outcome.newPath) {
+      if (coveredNew.has(outcome.newPath)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["outcomes"], message: `新路径重复归属：${outcome.newPath}` });
+      }
+      coveredNew.add(outcome.newPath);
+    }
+    if (outcome.kind === "renamed" && (!outcome.oldPath || !outcome.newPath || outcome.oldPath === outcome.newPath)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["outcomes"], message: "renamed 必须是不同路径" });
+    }
+    if (outcome.kind === "modified" && !outcome.fragmentReport) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["outcomes"], message: "modified 必须内嵌片段级报告" });
+    }
+    if (outcome.kind === "uncertain" && !outcome.reason) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["outcomes"], message: "uncertain 必须说明原因" });
+    }
+  }
+  if (
+    coveredOld.size !== report.totals.oldFiles ||
+    coveredNew.size !== report.totals.newFiles
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["totals"],
+      message: `覆盖对账失败：旧 ${coveredOld.size}/${report.totals.oldFiles}，新 ${coveredNew.size}/${report.totals.newFiles}`,
+    });
+  }
+  const count = (k: z.infer<typeof FileOutcomeKind>) => report.outcomes.filter(o => o.kind === k).length;
+  for (const k of FileOutcomeKind.options) {
+    if (count(k) !== report.totals[k]) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["totals"],
+        message: `${k} 计数与明细不一致`,
+      });
+    }
+  }
+});
+export type MultiFileChangeReport = z.infer<typeof MultiFileChangeReport>;
 export const ImpactAnalysisInput = z
   .object({
     sourceReports: z.array(SourceChangeReport).max(100),

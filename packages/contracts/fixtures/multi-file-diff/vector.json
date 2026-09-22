@@ -1,0 +1,423 @@
+{
+  "description": "R01 多文件快照差异夹具（synthetic，可从本目录 old/ new/ 复现）：modified(prd.md) + renamed(legacy→archived) + added(payment.md) + removed(ops/deploy.md)",
+  "synthetic": true,
+  "reproduction": "对 old/ 与 new/ 目录内文件逐个 MARKDOWN 解析后调用 compare_files；文件字节 sha256 记录在 fileChecksums",
+  "fileChecksums": {
+    "old": {
+      "ops/deploy.md": "025ea69d7d357e17f249576df9452032a82e3421d4f6981b2d229ae3bcfaadb3",
+      "requirements/legacy-rules.md": "9535294afea02898e0a9d4971e086ab7f6332364e849e83ab1e1bd9485825b4d",
+      "requirements/prd.md": "3a2c6f7bb3b41f0f05e13dc35bb5507df0dd4fa250eee3303c61003ddf890f42"
+    },
+    "new": {
+      "requirements/archived-rules.md": "9535294afea02898e0a9d4971e086ab7f6332364e849e83ab1e1bd9485825b4d",
+      "requirements/payment.md": "c52d88a820917d997d0478c1ae565280e6f7259ad56a1df270a5fcfa73cc42cb",
+      "requirements/prd.md": "0d92fc6cf4a067660d182cd121c681f1c6c0716be2896a94416ad7181a73a275"
+    }
+  },
+  "input": {
+    "oldFiles": [
+      {
+        "path": "ops/deploy.md",
+        "bundle": {
+          "documentVersionId": "snapshot-old-ops-deploy.md",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "python-doc-ingestion-1.3",
+          "blocks": [
+            {
+              "id": "b-ecd9491af4c39dd4d40eb46f-0",
+              "kind": "paragraph",
+              "text": "部署说明，不在需求范围。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "s-ecd9491af4c39dd4d40eb46f-0",
+              "documentVersionId": "snapshot-old-ops-deploy.md",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 1,
+                "endLine": 1
+              },
+              "quotedText": "部署说明，不在需求范围。",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "warnings": [],
+          "coverageSummary": {
+            "totalBlocks": 1,
+            "goodSpans": 1,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          }
+        }
+      },
+      {
+        "path": "requirements/legacy-rules.md",
+        "bundle": {
+          "documentVersionId": "snapshot-old-requirements-legacy-rules.md",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "python-doc-ingestion-1.3",
+          "blocks": [
+            {
+              "id": "b-9c8a72d00e939472a36a2ef8-0",
+              "kind": "heading",
+              "text": "旧规则"
+            },
+            {
+              "id": "b-9c8a72d00e939472a36a2ef8-1",
+              "kind": "paragraph",
+              "text": "已废弃的规则文件，将被移动重命名。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "s-9c8a72d00e939472a36a2ef8-0",
+              "documentVersionId": "snapshot-old-requirements-legacy-rules.md",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 1,
+                "endLine": 1
+              },
+              "quotedText": "旧规则",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "s-9c8a72d00e939472a36a2ef8-1",
+              "documentVersionId": "snapshot-old-requirements-legacy-rules.md",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 3,
+                "endLine": 3
+              },
+              "quotedText": "已废弃的规则文件，将被移动重命名。",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "warnings": [],
+          "coverageSummary": {
+            "totalBlocks": 2,
+            "goodSpans": 2,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          }
+        }
+      },
+      {
+        "path": "requirements/prd.md",
+        "bundle": {
+          "documentVersionId": "snapshot-old-requirements-prd.md",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "python-doc-ingestion-1.3",
+          "blocks": [
+            {
+              "id": "b-eb471847c3a138e74b92641c-0",
+              "kind": "heading",
+              "text": "采购系统 PRD"
+            },
+            {
+              "id": "b-eb471847c3a138e74b92641c-1",
+              "kind": "paragraph",
+              "text": "申请人提交采购单后，金额超过 50 万元的必须经过部门经理审批。"
+            },
+            {
+              "id": "b-eb471847c3a138e74b92641c-2",
+              "kind": "paragraph",
+              "text": "审批时效为 2 个工作日，超时自动升级到总监。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "s-eb471847c3a138e74b92641c-0",
+              "documentVersionId": "snapshot-old-requirements-prd.md",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 1,
+                "endLine": 1
+              },
+              "quotedText": "采购系统 PRD",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "s-eb471847c3a138e74b92641c-1",
+              "documentVersionId": "snapshot-old-requirements-prd.md",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 3,
+                "endLine": 3
+              },
+              "quotedText": "申请人提交采购单后，金额超过 50 万元的必须经过部门经理审批。",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "s-eb471847c3a138e74b92641c-2",
+              "documentVersionId": "snapshot-old-requirements-prd.md",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 4,
+                "endLine": 4
+              },
+              "quotedText": "审批时效为 2 个工作日，超时自动升级到总监。",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "warnings": [],
+          "coverageSummary": {
+            "totalBlocks": 3,
+            "goodSpans": 3,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          }
+        }
+      }
+    ],
+    "newFiles": [
+      {
+        "path": "requirements/archived-rules.md",
+        "bundle": {
+          "documentVersionId": "snapshot-new-requirements-archived-rules.md",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "python-doc-ingestion-1.3",
+          "blocks": [
+            {
+              "id": "b-375d67fa04f69eec44033399-0",
+              "kind": "heading",
+              "text": "旧规则"
+            },
+            {
+              "id": "b-375d67fa04f69eec44033399-1",
+              "kind": "paragraph",
+              "text": "已废弃的规则文件，将被移动重命名。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "s-375d67fa04f69eec44033399-0",
+              "documentVersionId": "snapshot-new-requirements-archived-rules.md",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 1,
+                "endLine": 1
+              },
+              "quotedText": "旧规则",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "s-375d67fa04f69eec44033399-1",
+              "documentVersionId": "snapshot-new-requirements-archived-rules.md",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 3,
+                "endLine": 3
+              },
+              "quotedText": "已废弃的规则文件，将被移动重命名。",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "warnings": [],
+          "coverageSummary": {
+            "totalBlocks": 2,
+            "goodSpans": 2,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          }
+        }
+      },
+      {
+        "path": "requirements/payment.md",
+        "bundle": {
+          "documentVersionId": "snapshot-new-requirements-payment.md",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "python-doc-ingestion-1.3",
+          "blocks": [
+            {
+              "id": "b-a643ba04e484698d90b8859a-0",
+              "kind": "paragraph",
+              "text": "新增的支付需求文档。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "s-a643ba04e484698d90b8859a-0",
+              "documentVersionId": "snapshot-new-requirements-payment.md",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 1,
+                "endLine": 1
+              },
+              "quotedText": "新增的支付需求文档。",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "warnings": [],
+          "coverageSummary": {
+            "totalBlocks": 1,
+            "goodSpans": 1,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          }
+        }
+      },
+      {
+        "path": "requirements/prd.md",
+        "bundle": {
+          "documentVersionId": "snapshot-new-requirements-prd.md",
+          "format": "MARKDOWN",
+          "parseStatus": "PARSED",
+          "parserVersion": "python-doc-ingestion-1.3",
+          "blocks": [
+            {
+              "id": "b-4f526d69ae5cd50a0ae3a1af-0",
+              "kind": "heading",
+              "text": "采购系统 PRD"
+            },
+            {
+              "id": "b-4f526d69ae5cd50a0ae3a1af-1",
+              "kind": "paragraph",
+              "text": "申请人提交采购单后，金额超过 30 万元的必须经过部门经理审批。"
+            },
+            {
+              "id": "b-4f526d69ae5cd50a0ae3a1af-2",
+              "kind": "paragraph",
+              "text": "审批时效为 2 个工作日，超时自动升级到总监。"
+            }
+          ],
+          "spans": [
+            {
+              "id": "s-4f526d69ae5cd50a0ae3a1af-0",
+              "documentVersionId": "snapshot-new-requirements-prd.md",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 1,
+                "endLine": 1
+              },
+              "quotedText": "采购系统 PRD",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "s-4f526d69ae5cd50a0ae3a1af-1",
+              "documentVersionId": "snapshot-new-requirements-prd.md",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 3,
+                "endLine": 3
+              },
+              "quotedText": "申请人提交采购单后，金额超过 30 万元的必须经过部门经理审批。",
+              "extractionQuality": "GOOD"
+            },
+            {
+              "id": "s-4f526d69ae5cd50a0ae3a1af-2",
+              "documentVersionId": "snapshot-new-requirements-prd.md",
+              "locator": {
+                "kind": "markdown-line",
+                "startLine": 4,
+                "endLine": 4
+              },
+              "quotedText": "审批时效为 2 个工作日，超时自动升级到总监。",
+              "extractionQuality": "GOOD"
+            }
+          ],
+          "warnings": [],
+          "coverageSummary": {
+            "totalBlocks": 3,
+            "goodSpans": 3,
+            "lowSpans": 0,
+            "unparsedSpans": 0
+          }
+        }
+      }
+    ],
+    "excludedPaths": [
+      "requirements/payment.md"
+    ]
+  },
+  "expectedReport": {
+    "outcomes": [
+      {
+        "kind": "removed",
+        "oldPath": "ops/deploy.md",
+        "newPath": null,
+        "contentHash": "2e0dabbe19e2b170e5ad1be70da34ddb14da9dc01dc722f5b226db5accdddf49",
+        "fragmentReport": null,
+        "reason": null
+      },
+      {
+        "kind": "renamed",
+        "oldPath": "requirements/legacy-rules.md",
+        "newPath": "requirements/archived-rules.md",
+        "contentHash": "4179dc1433e76669a0a7e54e7d937e9b64306eb017c71d976ff6543687cd8c6a",
+        "fragmentReport": null,
+        "reason": null
+      },
+      {
+        "kind": "added",
+        "oldPath": null,
+        "newPath": "requirements/payment.md",
+        "contentHash": "6b82bd4c33a9e36fa4e7591e63ee8a95fc428be85bbc6f809aa75ddb2dac5fa1",
+        "fragmentReport": null,
+        "reason": null
+      },
+      {
+        "kind": "modified",
+        "oldPath": "requirements/prd.md",
+        "newPath": "requirements/prd.md",
+        "contentHash": "0600bcb3d9d08196ec875fc55487f9f54fd3b8b473cba92d404a2895339b80f2",
+        "fragmentReport": {
+          "path": "requirements/prd.md",
+          "oldDocumentVersionId": "snapshot-old-requirements-prd.md",
+          "newDocumentVersionId": "snapshot-new-requirements-prd.md",
+          "format": "MARKDOWN",
+          "changes": [
+            {
+              "path": "requirements/prd.md",
+              "kind": "modified",
+              "old": {
+                "id": "s-eb471847c3a138e74b92641c-1",
+                "documentVersionId": "snapshot-old-requirements-prd.md",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 3,
+                  "endLine": 3
+                },
+                "quotedText": "申请人提交采购单后，金额超过 50 万元的必须经过部门经理审批。",
+                "extractionQuality": "GOOD"
+              },
+              "new": {
+                "id": "s-4f526d69ae5cd50a0ae3a1af-1",
+                "documentVersionId": "snapshot-new-requirements-prd.md",
+                "locator": {
+                  "kind": "markdown-line",
+                  "startLine": 3,
+                  "endLine": 3
+                },
+                "quotedText": "申请人提交采购单后，金额超过 30 万元的必须经过部门经理审批。",
+                "extractionQuality": "GOOD"
+              },
+              "reason": null
+            }
+          ]
+        },
+        "reason": null
+      }
+    ],
+    "totals": {
+      "oldFiles": 3,
+      "newFiles": 3,
+      "unchanged": 0,
+      "modified": 1,
+      "added": 1,
+      "removed": 1,
+      "renamed": 1,
+      "uncertain": 0
+    },
+    "excludedPaths": [
+      "requirements/payment.md"
+    ],
+    "exclusionsChanged": true,
+    "truncated": false
+  }
+}
