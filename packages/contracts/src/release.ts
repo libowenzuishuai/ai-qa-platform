@@ -96,7 +96,8 @@ export const MemoryRecord = z.object({
   /** 版本信息（来源资料版本、环境版本）。 */
   context: z.object({
     documentVersionId: EntityId.optional(),
-    environmentRevision: z.number().int().optional(),
+    environmentId: EntityId.optional(),
+    environmentRevision: z.number().int().positive().optional(),
     buildId: z.string().optional(),
   }).default({}),
   /** 有效期与失效条件。 */

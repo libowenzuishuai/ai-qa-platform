@@ -113,6 +113,12 @@ class Gateway:
         self, request, channel: str, messages: list, wire: dict
     ) -> ModelResponse:
         start = time.monotonic()
+        if hasattr(self, "input_char_limit"):
+            # Includes serialized messages/system/schema and output allowance. Code points are
+            # an explicit conservative estimate, not an assertion of provider tokenization.
+            estimated = len(json.dumps(messages, ensure_ascii=False)) + wire.get("maxOutputTokens", 4096) + 1024
+            if estimated > self.input_char_limit:
+                raise ServiceError("BUDGET_EXCEEDED", f"完整模型请求估算 {estimated} 字符超过分块预算 {self.input_char_limit}")
         if hasattr(self, "remaining_calls"):
             # Conservative UTF-8 byte reservation includes prompt/schema/image payload
             # and framing overhead. Reservation is charged before any network effect.

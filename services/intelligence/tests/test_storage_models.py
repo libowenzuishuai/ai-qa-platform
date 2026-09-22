@@ -217,3 +217,19 @@ def test_workflow_budget_caps_output_and_prevents_second_call(tmp_path, monkeypa
         asyncio.run(gateway.complete_text(req))
     assert exc.value.code == "BUDGET_EXCEEDED"
     assert len(calls)==1
+
+
+def test_chunk_budget_includes_schema_system_output_and_stops_before_mock_lookup(tmp_path):
+    gateway = Gateway("mock", ArtifactReader(tmp_path), "test-1", [])
+    request = text_request()
+    gateway.register_mock(request, {"text": "valid"})
+    gateway.input_char_limit = 1000
+    with pytest.raises(ServiceError) as error:
+        asyncio.run(gateway.complete_text(request))
+    assert error.value.code == "BUDGET_EXCEEDED"
+    gateway.input_char_limit = 40000
+    gateway.set_budget(1, 100000)
+    assert asyncio.run(gateway.complete_text(request)).parsedJson == {"text": "valid"}
+    with pytest.raises(ServiceError) as error:
+        asyncio.run(gateway.complete_text(request))
+    assert error.value.code == "BUDGET_EXCEEDED"

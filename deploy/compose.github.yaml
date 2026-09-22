@@ -1,0 +1,24 @@
+# Optional GitHub App integration overlay. Mount the operator's key read-only;
+# it is not copied into an image, stored in PostgreSQL, or passed to task containers.
+x-github-env: &github-env
+  AIQA_GITHUB_APP_ID: ${AIQA_GITHUB_APP_ID:?configure GitHub App id}
+  AIQA_GITHUB_CLIENT_ID: ${AIQA_GITHUB_CLIENT_ID:?configure GitHub client id}
+  AIQA_GITHUB_CLIENT_SECRET: ${AIQA_GITHUB_CLIENT_SECRET:?configure GitHub client secret}
+  AIQA_GITHUB_WEBHOOK_SECRET: ${AIQA_GITHUB_WEBHOOK_SECRET:?configure webhook secret}
+  AIQA_GITHUB_CALLBACK_URL: ${AIQA_GITHUB_CALLBACK_URL:?configure public web callback URL}
+  AIQA_GITHUB_PRIVATE_KEY_FILE: /run/secrets/github-app.pem
+services:
+  api:
+    environment: *github-env
+    volumes:
+      - type: bind
+        source: ${AIQA_GITHUB_KEY_HOST_PATH:?configure private key path}
+        target: /run/secrets/github-app.pem
+        read_only: true
+  worker:
+    environment: *github-env
+    volumes:
+      - type: bind
+        source: ${AIQA_GITHUB_KEY_HOST_PATH:?configure private key path}
+        target: /run/secrets/github-app.pem
+        read_only: true

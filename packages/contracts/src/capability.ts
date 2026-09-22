@@ -29,7 +29,7 @@ export const CapabilityVersion = z.object({
   outputSchema: z.unknown(),
   effects: z.array(CapabilityEffect).min(1),
   /** 所需角色。 */
-  requiredRoles: z.array(z.string()).default([]),
+  requiredRoles: z.array(z.enum(['VIEWER','LEAD','ADMIN'])).default([]),
   /** 所需环境类型。 */
   requiresEnvironment: z.boolean().default(false),
   /** 预算类别。 */

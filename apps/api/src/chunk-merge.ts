@@ -1,6 +1,6 @@
 import { RuleExtractionOutput, canonicalStringify } from '@ai-qa/contracts';
 export interface ChunkExtractionResult {chunkId:string;seq:number;output:RuleExtractionOutput}
-/** Platform reference reconciliation. No inferred business conflicts; preserve all supplied semantics. */
+/** Platform reference reconciliation. Preserve semantics; detect only literal expectation/forbidden contradictions in identical scopes. */
 export function mergeChunkExtractions(results:ChunkExtractionResult[]):RuleExtractionOutput {
   if(results.length>1000 || results.reduce((n,r)=>n+r.output.ruleDrafts.length,0)>5000 || Buffer.byteLength(JSON.stringify(results))>10*1024*1024)throw new Error('合并超过 1000 块 / 5000 规则 / 10 MiB 上限');
   if(new Set(results.map(r=>r.chunkId)).size!==results.length || new Set(results.map(r=>r.seq)).size!==results.length)throw new Error('合并块重复');
@@ -45,6 +45,27 @@ export function mergeChunkExtractions(results:ChunkExtractionResult[]):RuleExtra
       if(!seenClarifications.has(signature)){seenClarifications.add(signature);clarifications.push(item);}
     }
     for(const r of result.output.unparsedRanges)unparsed.set(canonicalStringify(r),r);
+  }
+  // Bounded cross-chunk conflict pass. Exact same scope and an explicitly forbidden
+  // expectation are contradictory; similar wording or different numbers alone are not proof.
+  const scopes=new Map<string,typeof ruleDrafts>();
+  for(const draft of ruleDrafts){
+    if(draft.classification!=='EXPLICIT')continue;
+    const scope=canonicalStringify({role:draft.role??null,precondition:draft.precondition??null,condition:draft.condition??null,action:draft.action});
+    const same=scopes.get(scope)??[];same.push(draft);scopes.set(scope,same);
+  }
+  const pairs=new Set<string>();let comparisons=0;
+  for(const group of scopes.values()){
+    const expected=new Map<string,typeof ruleDrafts>();
+    for(const d of group){const same=expected.get(d.expectation)??[];same.push(d);expected.set(d.expectation,same);}
+    for(const d of group)for(const forbidden of d.forbiddenBehaviors)for(const other of expected.get(forbidden)??[]){
+      if(++comparisons>20000)throw new Error('跨块冲突候选超过 20000 上限，请分组审阅');
+      if(d.key===other.key)continue;
+      const keys=[d.key,other.key].sort(),key=keys.join(':');if(pairs.has(key))continue;pairs.add(key);
+      if(!d.conflictsWith.includes(other.key))d.conflictsWith.push(other.key);
+      if(!other.conflictsWith.includes(d.key))other.conflictsWith.push(d.key);
+      if(!clarifications.some(c=>c.kind==='CONFLICT'&&keys.every(k=>c.ruleDraftKeys.includes(k))))clarifications.push({kind:'CONFLICT',ruleDraftKeys:keys,question:'相同角色、前置条件、条件和动作下，一条要求的结果被另一条明确禁止。请依据双方原文确认适用规则；合并器不会自行选择。'});
+    }
   }
   for(const d of ruleDrafts){d.conflictsWith.sort();d.sources.sort((a,b)=>a.documentVersionId<b.documentVersionId?-1:1);}
   return RuleExtractionOutput.parse({ruleDrafts,clarifications,unparsedRanges:[...unparsed.values()]});

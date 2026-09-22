@@ -18,3 +18,8 @@ it.each(['tail','overlap','text','identity','duplicate'] as const)('拒绝失真
  if(kind==='duplicate')m.chunks[1]!.chunkId='c-0';
  expect(()=>validateChunkManifest(m,bundle,'a'.repeat(64))).toThrow();
 });
+
+it('无法证明表头的续表切片降级，不能作为 EXPLICIT 来源',()=>{
+ const b=structuredClone(bundle);b.blocks[0]!.kind='table';const m=manifest();m.chunks[1]!.isTableContinuation=true;
+ const part=materializeChunk(m,'c-1',b,'a'.repeat(64));expect(part.spans[0]!.extractionQuality).toBe('LOW');expect(part.warnings.join()).toContain('TABLE_DEGRADED');expect(b.spans[0]!.extractionQuality).toBe('GOOD');
+});

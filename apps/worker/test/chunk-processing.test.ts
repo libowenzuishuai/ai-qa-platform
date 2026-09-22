@@ -301,3 +301,32 @@ it('已取消作业不得提交块结果，另一执行持有块时不得假成�
  await processAgentJob(env.prisma,config(),cancelled.id);
  expect((await env.prisma.job.findUniqueOrThrow({where:{id:cancelled.id}})).status).toBe('CANCELLED');
 });
+
+it('全文预算累计耗尽后保留完成块，显式增额恢复，不重跑已完成块',async()=>{
+ await env.prisma.documentChunk.updateMany({where:{documentVersionId},data:{status:'pending',leaseOwnerJobId:null,leaseExpiresAt:null,output:null,outputHash:null}});
+ // A fresh accounting period in this isolated test; production never offers a reset endpoint.
+ await env.prisma.documentVersion.update({where:{id:documentVersionId},data:{chunkBudget:{limits:{maxModelCalls:1,maxReservedTokens:100000,perCallTokenLimit:100000,maxWallClockMs:60000},usedCalls:0,reservedTokens:0,deadline:new Date(Date.now()+60000).toISOString(),mode:'mock',updatedBy:actor.id}}});
+ const base=`/api/projects/${projectId}/documents/${documentVersionId}/chunks`;
+ const first=await app.inject({method:'POST',url:base+'/process',payload:{idempotencyKey:'budget-batch-first'}});expect(first.statusCode,first.body).toBe(202);
+ await processAgentJob(env.prisma,config(),first.json().jobId);
+ expect((await env.prisma.job.findUniqueOrThrow({where:{id:first.json().jobId}})).error).toMatchObject({code:'BUDGET_EXCEEDED'});
+ expect(await env.prisma.documentChunk.count({where:{documentVersionId,status:'completed'}})).toBe(1);
+ const completed=await env.prisma.documentChunk.findFirstOrThrow({where:{documentVersionId,status:'completed'}});
+ const budget1=(await env.prisma.documentVersion.findUniqueOrThrow({where:{id:documentVersionId}})).chunkBudget as any;expect(budget1.usedCalls).toBe(1);expect(budget1.reservedTokens).toBe(100000);
+ const increase=await app.inject({method:'PUT',url:base+'/budget',payload:{mode:'mock',limits:{maxModelCalls:20,maxReservedTokens:2000000,perCallTokenLimit:100000,maxWallClockMs:60000}}});expect(increase.statusCode,increase.body).toBe(200);expect(increase.json().budget.usedCalls).toBe(1);
+ const resume=await app.inject({method:'POST',url:base+'/process',payload:{idempotencyKey:'budget-batch-resume'}});await processAgentJob(env.prisma,config(),resume.json().jobId);
+ expect((await env.prisma.job.findUniqueOrThrow({where:{id:resume.json().jobId}})).status).toBe('SUCCEEDED');
+ expect((await env.prisma.documentChunk.findUniqueOrThrow({where:{id:completed.id}})).attempts).toBe(completed.attempts);
+ expect((await app.inject({url:`/api/jobs/${resume.json().jobId}`})).statusCode).toBe(200);
+ const repeated=await app.inject({method:'POST',url:base+'/process',payload:{idempotencyKey:'budget-batch-resume'}});expect(repeated.json().jobId).toBe(resume.json().jobId);
+},30000);
+it('全文作业排队取消不调用模型；过期预算拒绝',async()=>{
+ const base=`/api/projects/${projectId}/documents/${documentVersionId}/chunks`;
+ const before=await env.prisma.modelInvocation.count({where:{projectId}});
+ const job=await app.inject({method:'POST',url:base+'/process',payload:{idempotencyKey:'budget-cancel-batch'}});
+ expect((await app.inject({method:'POST',url:`/api/jobs/${job.json().jobId}/cancel`})).statusCode).toBe(200);await processAgentJob(env.prisma,config(),job.json().jobId);
+ expect(await env.prisma.modelInvocation.count({where:{projectId}})).toBe(before);
+ const budget=(await env.prisma.documentVersion.findUniqueOrThrow({where:{id:documentVersionId}})).chunkBudget as any;
+ await env.prisma.documentVersion.update({where:{id:documentVersionId},data:{chunkBudget:{...budget,deadline:new Date(0).toISOString()}}});
+ expect((await app.inject({method:'POST',url:base+'/process',payload:{idempotencyKey:'budget-expired-batch'}})).statusCode).toBe(429);
+});

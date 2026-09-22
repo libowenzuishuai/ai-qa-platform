@@ -58,7 +58,21 @@ export function materializeChunk(raw:unknown,chunkId:string,whole:ParsedDocument
     spans.push({...original,quotedText:original.quotedText===null?null:text});blocks.push({...block,text});
   }
   if(new Set(spans.map(s=>s.id)).size!==spans.length)throw new Error('同块不得重复引用同一 span');
+  // Preserve proven table headers by locator; never assume two adjacent table blocks share columns.
+  const tableContext:string[]=[];
+  for(const [i,block] of blocks.entries())if(block.kind==='table'){
+    const loc=spans[i]!.locator;
+    let headers:typeof whole.spans=[];
+    if(loc.kind==='docx-cell')headers=whole.spans.filter(s=>s.locator.kind==='docx-cell'&&s.locator.tableIndex===loc.tableIndex&&s.locator.row===0);
+    const text=headers.map(h=>JSON.stringify({sourceSpanId:h.id,locator:h.locator,text:h.quotedText})).join('\n');
+    if(headers.length && headers.every(h=>h.extractionQuality==='GOOD'&&h.quotedText!==null) && Array.from(text).length<=5000){tableContext.push('表格首行上下文（仍需判断是否表头）：'+text);}
+    else if(c.isTableContinuation || c.spanRefs.some(r=>r.type==='slice'&&r.slice.startOffset>0)){
+      if(spans[i]!.extractionQuality==='GOOD')spans[i]={...spans[i]!,extractionQuality:'LOW'};
+      tableContext.push('TABLE_DEGRADED：无法确认本片段的完整表头和列关系；该片段不能支持 EXPLICIT，必须列核对澄清。');
+    }
+  }
   return ParsedDocumentBundle.parse({...whole,blocks,spans,warnings:[
+    ...tableContext,
     `块范围提取（chunk ${c.seq} / ${m.chunks.length}）`,
     `仅处理本块正文；以下重叠上下文不是新需求、不能新增来源引用：${c.contextOverlap}`,
     ...(c.isTableContinuation?['表格延续：未确认表头对应时必须列 TABLE_DEGRADED，禁止猜测列含义。']:[]),

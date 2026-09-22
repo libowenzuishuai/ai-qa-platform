@@ -183,6 +183,14 @@ def create_app(
                 context.models.set_budget(calls, tokens)
             except (ValueError, TypeError) as exc:
                 raise ServiceError("VALIDATION_ERROR", "模型预算不合法") from exc
+        char_limit = request.headers.get("x-aiqa-input-char-limit")
+        if char_limit is not None:
+            try:
+                context.models.input_char_limit = int(char_limit)
+                if not 1000 <= context.models.input_char_limit <= 200000:
+                    raise ValueError()
+            except ValueError as exc:
+                raise ServiceError("VALIDATION_ERROR", "请求字符预算不合法") from exc
         methods = {
             "document": parser.parse_document,
             "rules": agents.extract_rules,

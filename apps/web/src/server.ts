@@ -1,3 +1,6 @@
+import {registerAgentPages} from './agent-pages.js';
+import {registerTemplateEditor} from './template-editor.js';
+import {registerIntegrationPages} from './integrations.js';
 import {registerDeliveryPages} from './delivery.js';
 import {registerChangeReviewPages} from "./change-review.js";
 import { registerPreparationPages } from './preparation.js';
@@ -40,6 +43,9 @@ registerProductPages(app);
 registerPreparationPages(app);
 registerChangeReviewPages(app);
 registerDeliveryPages(app);
+registerAgentPages(app);
+registerTemplateEditor(app);
+registerIntegrationPages(app);
 
 function sid(req: { cookies: Record<string, string | undefined> }): string | undefined {
   return req.cookies["web_sid"];

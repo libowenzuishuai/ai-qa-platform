@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const WorkerConfig = z.object({
+  modelInputCharLimit:z.number().int().optional(),
   executionSignal:z.custom<AbortSignal>().optional(),
   executionBudget: z.object({maxModelCalls:z.number().int().nonnegative(),maxTokens:z.number().int().nonnegative(),deadline:z.number().int()}).optional(),
   port: z.number().int().default(7200),

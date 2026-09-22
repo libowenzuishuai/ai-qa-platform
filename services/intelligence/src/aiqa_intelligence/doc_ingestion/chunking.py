@@ -9,7 +9,7 @@
 - 不切掉尾部正文：每个 block 必须完整归属某个块（长块用显式切片）；
 - 上下文重叠与正文分别记录（contextOverlap 不计入正文预算）；
 - UNPARSED 块照样入块（引用保持），覆盖对账时归为 blocked；
-- 跨块表格延续标记 isTableContinuation，表头保留在 contextOverlap。
+- 跨块表格延续标记 isTableContinuation，表头不能仅由相邻尾部保证；消费端按来源 locator 单独补充或降级。
 """
 from __future__ import annotations
 
@@ -103,7 +103,7 @@ def chunk_bundle(
         if overlap > 0 and chunks:
             prev = chunks[-1]["text"]
             context = prev[-overlap:] if len(prev) > overlap else prev
-        # 跨块表格延续：本块以表格开始，且上一块以表格结束（表头经 contextOverlap 带入）。
+        # 跨块表格延续：本块以表格开始，且上一块以表格结束（不据此断言表头完整，消费端独立核实）。
         table_cont = first_kind == "table" and last_emitted_kind == "table"
         chunks.append(
             {

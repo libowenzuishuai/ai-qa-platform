@@ -185,7 +185,7 @@ it('记忆：创建/列表默认隐藏已失效；失效 CAS；跨项目拒绝',
   const url = `/projects/${projectId}/memories`;
   const created = await post(url, {
     content: '登录页 URL 为 /login',
-    source: { kind: 'observation' },
+    source: { kind: 'manual' },
     context: {},
     invalidationTriggers: [{ kind: 'document_change', condition: 'PRD 登录章节变化' }],
   });
@@ -306,4 +306,41 @@ it('并发能力注册与模板新版本分配唯一版本号，不返回 500',a
  const template={key:'concurrent-template',name:'并发',nodes:[{key:'parse',capabilityKey:'doc-parse',capabilityVersion:1}]};
  const ts=await Promise.all([post(`/projects/${projectId}/workflow-templates`,template),post(`/projects/${projectId}/workflow-templates`,template)]);
  expect(ts.map(r=>r.statusCode)).toEqual([200,200]);expect(ts.map(r=>r.json().version).sort()).toEqual([1,2]);
+});
+it('批准目标到真实工作流原子绑定：阻塞/模拟/越权范围拒绝，并发执行只建一份',async()=>{
+ await post(`/projects/${projectId}/workflow-templates/builtins`,{});
+ const template=await env.prisma.workflowTemplate.findFirstOrThrow({where:{projectId,key:'engineering-check',status:'PUBLISHED'}});
+ const make=async(blockers:any[]=[])=>{const r=await post(`/projects/${projectId}/goal-proposals`,{goal:'工程质量检查',suggestedTools:[{capabilityKey:'code-check',reason:'执行已有工程检查'}],suggestedScope:{},suggestedBudget:{},blockers});expect(r.statusCode,r.body).toBe(200);return r.json();};
+ const p=await make(),body={templateId:template.id,inputs:{codeCheck:{repositoryUrl:'https://github.com/fixture/project',commitSha:'a'.repeat(40),kind:'NODE_TEST',timeoutSeconds:60,installDependencies:false}}};
+ expect((await post(`/goal-proposals/${p.id}/execute`,body)).statusCode).toBe(409);
+ await post(`/goal-proposals/${p.id}/review`,{decision:'approve'});
+ const [a,b]=await Promise.all([post(`/goal-proposals/${p.id}/execute`,body),post(`/goal-proposals/${p.id}/execute`,body)]);
+ expect(a.statusCode,a.body).toBe(202);expect(b.json().workflowId).toBe(a.json().workflowId);
+ expect(await env.prisma.workflowRun.count({where:{projectId,idempotencyKey:'goal:'+p.id}})).toBe(1);
+ expect((await env.prisma.goalProposal.findUniqueOrThrow({where:{id:p.id}})).status).toBe('EXECUTED');
+ expect((await post(`/goal-proposals/${p.id}/execute`,{...body,inputs:{codeCheck:{...body.inputs.codeCheck,commitSha:'b'.repeat(40)}}})).statusCode).toBe(409);
+ const blocked=await make([{kind:'MISSING_DATA',description:'缺少 PRD'}]);await post(`/goal-proposals/${blocked.id}/review`,{decision:'approve'});
+ expect((await post(`/goal-proposals/${blocked.id}/execute`,body)).statusCode).toBe(409);
+ const mock=await make();await env.prisma.goalProposal.update({where:{id:mock.id},data:{status:'APPROVED',suggestedScope:{mode:'mock'}}});
+ expect((await post(`/goal-proposals/${mock.id}/execute`,body)).statusCode).toBe(422);
+});
+it('记忆来源、有效期、环境版本校验；false 查询不返回已失效条目',async()=>{
+ const url=`/projects/${projectId}/memories`;
+ expect((await post(url,{content:'伪造观察',source:{kind:'observation'}})).statusCode).toBe(422);
+ expect((await post(url,{content:'错项目执行',source:{kind:'execution',referenceId:otherRunId}})).statusCode).toBe(422);
+ expect((await post(url,{content:'过期',source:{kind:'manual'},validUntil:new Date(Date.now()-1000).toISOString()})).statusCode).toBe(422);
+ const environment=await env.prisma.environment.findFirstOrThrow({where:{projectId}});
+ const created=await post(url,{content:'当前环境观察提示',source:{kind:'execution',referenceId:finishedRunId},context:{environmentId:environment.id,environmentRevision:environment.revision}});
+ expect(created.statusCode,created.body).toBe(200);expect(created.json().validUntil).toBeTruthy();
+ await env.prisma.environment.update({where:{id:environment.id},data:{revision:{increment:1}}});
+ const visible=(await get(url+'?includeInvalidated=false')).json();expect(visible.memories.find((m:any)=>m.id===created.json().id)).toBeUndefined();
+ expect((await env.prisma.projectMemory.findUniqueOrThrow({where:{id:created.json().id}})).invalidatedReason).toContain('环境');
+});
+it('报告自动诊断冻结事实证据且幂等，不修改 verdict；伪造证据拒绝',async()=>{
+ const before=await env.prisma.run.findUniqueOrThrow({where:{id:finishedRunId}});
+ const [a,b]=await Promise.all([post(`/projects/${projectId}/diagnoses/generate`,{runId:finishedRunId}),post(`/projects/${projectId}/diagnoses/generate`,{runId:finishedRunId})]);
+ expect(a.statusCode,a.body).toBe(200);expect(b.json().id).toBe(a.json().id);expect(a.json().hypotheses).toEqual([]);
+ const artifact=await env.prisma.artifact.findUniqueOrThrow({where:{id:a.json().facts[0].evidenceId}});expect(env.store.verify(artifact.storageKey,artifact.checksum)).toBe(true);
+ expect((await env.prisma.run.findUniqueOrThrow({where:{id:finishedRunId}})).acceptanceStatus).toBe(before.acceptanceStatus);
+ expect((await post(`/projects/${projectId}/diagnoses`,{runId:finishedRunId,category:'PRODUCT_FAILURE',facts:[{text:'伪造',evidenceId:'missing'}],confidence:'high'})).statusCode).toBe(422);
 });

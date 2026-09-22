@@ -1,3 +1,4 @@
+import {reserveChunkCall} from './chunk-budget.js';
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { ArtifactStore } from "@ai-qa/artifact-store";
 import {
@@ -149,12 +150,14 @@ export async function runChunkExtract(
   const attempt=row.attempts+1;
   const expiresAt=new Date(Date.now()+LEASE_MS);
   let completed=false;
+  let reservation:Awaited<ReturnType<typeof reserveChunkCall>>|undefined;
   await commit(prisma,job,async tx=>{
     if(row.status==='completed'){
       if(!row.output||contentHash(row.output)!==row.outputHash)throw new Error('已完成块的证据损坏');
       await tx.job.update({where:{id:job.id},data:{status:'SUCCEEDED',result:{chunkRowId:row.id,chunkId:row.chunkId,status:'completed'},finishedAt:new Date()}});
       completed=true;return;
     }
+    reservation=await reserveChunkCall(tx,row.documentVersionId,job.projectId,job.id,request.mode);
     const claimed=await tx.documentChunk.updateMany({where:{id:row.id,attempts:row.attempts,OR:[{status:{in:['pending','failed','cancelled']}},{status:'in_progress',leaseExpiresAt:{lt:new Date()}}]},data:{status:'in_progress',attempts:attempt,leaseOwnerJobId:job.id,leaseExpiresAt:expiresAt,generationMode:request.mode}});
     if(!claimed.count)throw Object.assign(new Error('块仍由其他执行持有，不能报告成功'),{code:'CONFLICT'});
   });
@@ -173,8 +176,10 @@ export async function runChunkExtract(
       images: [],
       promptVersion: "agents-v2",
     });
-    const remote = await callIntelligence({ ...config, intelligenceTimeoutMs: 120000 }, "rules", job.id, request.mode, input);
-    for(const invocation of remote.invocations)await prisma.modelInvocation.create({data:{projectId:job.projectId,provider:invocation.response.provider,model:invocation.response.model,promptVersion:invocation.promptVersion,requestId:job.id,usage:invocation.response.usage as never,outcome:invocation.response.outcome,latencyMs:invocation.response.latencyMs}});
+    const remote = await callIntelligence({ ...config, executionBudget:reservation!, modelInputCharLimit:manifest.strategyParams.modelBudgetChars, intelligenceTimeoutMs: 120000 }, "rules", job.id, request.mode, input);
+    if(remote.invocations.length>1)throw Object.assign(new Error('分块调用超过预留次数'),{code:'MODEL_OUTPUT_INVALID'});
+    const invocation=remote.invocations[0];
+    if(invocation)await prisma.modelInvocation.update({where:{id:reservation!.invocationId},data:{provider:invocation.response.provider,model:invocation.response.model,promptVersion:invocation.promptVersion,usage:{reported:invocation.response.usage,reservedTokens:reservation!.maxTokens},outcome:invocation.response.outcome,latencyMs:invocation.response.latencyMs}});
     const output = RuleExtractionOutput.parse(remote.output);
     // 联合校验：引用必须来自块范围（span ID 不变 → 越界引用在此拦截）。
     const validation = validateRuleExtraction(input, output);

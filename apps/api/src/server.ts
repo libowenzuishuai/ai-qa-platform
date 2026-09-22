@@ -1,3 +1,4 @@
+import {registerGithubRoutes} from './routes-github.js';
 import {registerChangeReviewRoutes} from "./routes-change-review.js";
 import { registerRunnerRoutes } from "./routes-runners.js";
 import { registerDefectRoutes } from "./routes-defects.js";
@@ -85,6 +86,7 @@ export async function buildServer() {
   registerPreparationRoutes(app, prisma, agentJobsQueue);
   registerDataPluginRoutes(app, prisma, agentJobsQueue);
   registerWorkflowRoutes(app, prisma);
+  registerGithubRoutes(app, prisma);
   registerReleaseRoutes(app, prisma, artifactStore, agentJobsQueue);
   registerDocumentRoutes(app, prisma, agentJobsQueue, artifactStore);
   registerReviewRoutes(app, prisma);

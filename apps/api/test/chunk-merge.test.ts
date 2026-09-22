@@ -149,3 +149,12 @@ it('未知状态、额外块、重复块和空清单都不能显示完整',()=>{
  expect(chunkCoverage(m,[{chunkId:'a',status:'completed'},{chunkId:'a',status:'completed'}]).complete).toBe(false);
  expect(chunkCoverage([],[]).complete).toBe(false);
 });
+
+it('不同块中相同适用范围的明确禁止与要求形成双向冲突，条件不同不臆造',()=>{
+ const a=draft({expectation:'生成审批单',condition:'境内交易'});
+ const b=draft({statement:'禁止生成审批单',expectation:'直接付款',forbiddenBehaviors:['生成审批单'],condition:'境内交易',sources:[{documentVersionId:'dv-1',sourceSpanIds:['s-9']}]});
+ const merge=(second:unknown)=>mergeChunkExtractions([{chunkId:'a',seq:0,output:output([a])},{chunkId:'b',seq:1,output:output([second])}]);
+ const result=merge(b);expect(result.ruleDrafts[0]!.conflictsWith).toEqual(['rule-draft-02']);expect(result.ruleDrafts[1]!.conflictsWith).toEqual(['rule-draft-01']);expect(result.clarifications).toHaveLength(1);expect(result.clarifications[0]!.kind).toBe('CONFLICT');
+ expect(result.ruleDrafts[0]!.expectation).toBe('生成审批单');expect(result.ruleDrafts[1]!.sources[0]!.sourceSpanIds).toEqual(['s-9']);
+ expect(merge({...b,condition:'跨境交易'}).clarifications).toEqual([]);
+});

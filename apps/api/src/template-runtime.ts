@@ -1,3 +1,4 @@
+import {capabilityValidator} from './capability-schema.js';
 import type {Prisma,PrismaClient} from '@prisma/client';
 import {TemplateNodeDefinition,WorkflowTemplateVersion,canonicalStringify} from '@ai-qa/contracts';
 import {ApiError} from './errors.js';
@@ -46,6 +47,7 @@ export async function freezeExecutableTemplate(db:PrismaClient|Prisma.Transactio
   const writes=['browser-execute','code-check'].includes(n.capabilityKey);
   if(writes&&(!cap.effects.includes('WRITE')||!cap.cleanupResponsibility))throw new ApiError('VALIDATION_ERROR','写入能力必须声明 WRITE 与清理责任');
   if(!cap.inputSchema||typeof cap.inputSchema!=='object'||!cap.outputSchema||typeof cap.outputSchema!=='object')throw new ApiError('VALIDATION_ERROR','能力需要输入输出对象 Schema');
+  capabilityValidator(cap.inputSchema);capabilityValidator(cap.outputSchema);
   capabilities.push({id:cap.id,key:cap.key,version:cap.version,effects:cap.effects,requiredRoles:cap.requiredRoles,cleanupResponsibility:cap.cleanupResponsibility,inputSchema:cap.inputSchema,outputSchema:cap.outputSchema});
  }
  return {nodes,capabilities};

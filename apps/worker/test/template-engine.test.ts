@@ -60,3 +60,28 @@ it('运行冻结模板版本，排队后修改目录内容不能改变执行图�
  await advanceWorkflow(env.prisma,id,env.store);
  expect((await env.prisma.workflowRun.findUniqueOrThrow({where:{id}})).status).toBe('FAILED');
 });
+it('能力输入输出 Schema 真实执行校验；禁用和成员降权终止排队任务',async()=>{
+ const cap=await env.prisma.capabilityCatalog.findUniqueOrThrow({where:{projectId_key_version:{projectId,key:'code-check',version:1}}});
+ try{
+  await env.prisma.capabilityCatalog.update({where:{id:cap.id},data:{inputSchema:{type:'object',properties:{mustHave:{type:'string'}},required:['mustHave']}}});
+  const invalid=await create();await advanceWorkflow(env.prisma,invalid,env.store);
+  expect((await env.prisma.workflowRun.findUniqueOrThrow({where:{id:invalid}})).status).toBe('FAILED');
+  expect((await env.prisma.workflowNode.findFirstOrThrow({where:{workflowId:invalid}})).outputRef).toBeNull();
+  await env.prisma.capabilityCatalog.update({where:{id:cap.id},data:{inputSchema:{type:'object'},outputSchema:{type:'object',properties:{verdict:{const:'impossible'}},required:['verdict']}}});
+  const output=await create();await advanceWorkflow(env.prisma,output,env.store);
+  const node=await env.prisma.workflowNode.findFirstOrThrow({where:{workflowId:output}});const checkId=(node.outputRef as any).checkId;
+  await env.prisma.codeCheck.update({where:{id:checkId},data:{status:'FINISHED',verdict:'PASS'}});
+  await advanceWorkflow(env.prisma,output,env.store);
+  expect((await env.prisma.workflowRun.findUniqueOrThrow({where:{id:output}})).status).toBe('FAILED');
+  await env.prisma.capabilityCatalog.update({where:{id:cap.id},data:{outputSchema:{type:'object'}}});
+  const disabled=await create();await env.prisma.capabilityCatalog.update({where:{id:cap.id},data:{enabled:false}});await advanceWorkflow(env.prisma,disabled,env.store);
+  expect((await env.prisma.workflowRun.findUniqueOrThrow({where:{id:disabled}})).status).toBe('FAILED');
+  await env.prisma.capabilityCatalog.update({where:{id:cap.id},data:{enabled:true,requiredRoles:['ADMIN']}});
+  const revoked=await create();await env.prisma.projectMembership.update({where:{projectId_userId:{projectId,userId:actor.id}},data:{role:'LEAD'}});await advanceWorkflow(env.prisma,revoked,env.store);
+  expect((await env.prisma.workflowRun.findUniqueOrThrow({where:{id:revoked}})).status).toBe('FAILED');
+  expect((await post(`/api/projects/${projectId}/workflows`,{idempotencyKey:randomUUID(),templateId,inputs:{codeCheck:spec}})).statusCode).toBe(403);
+ }finally{
+  await env.prisma.projectMembership.update({where:{projectId_userId:{projectId,userId:actor.id}},data:{role:'ADMIN'}});
+  await env.prisma.capabilityCatalog.update({where:{id:cap.id},data:{inputSchema:cap.inputSchema as any,outputSchema:cap.outputSchema as any,requiredRoles:cap.requiredRoles,enabled:true}});
+ }
+});

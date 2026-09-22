@@ -1,3 +1,4 @@
+import {runExploration} from './exploration-job.js';
 import {runGoalProposal} from './goal-job.js';
 import { loadCompletedChunks } from "../../api/src/chunk-results.js";
 import {runChangeReview} from "./change-review-job.js";
@@ -156,9 +157,10 @@ export async function processAgentJob(
     }).then(r=>{if(!r.count)controller.abort();}).catch(() => controller.abort());
   }, ((job.request as {workflowId?:string}).workflowId||["LOGIN_CHECK","DATA_PREPARE","DATA_CLEANUP","DATA_INSPECT","CHANGE_REVIEW"].includes(job.kind))?250:10_000);
   heartbeat.unref();
-  config={...config,executionSignal:controller.signal};
+  config={...config,executionSignal:AbortSignal.any([controller.signal,...(config.executionSignal?[config.executionSignal]:[])])};
   try {
-    const request=job.request as {workflowId?:string;workflowBudget?:WorkerConfig['executionBudget']};
+    const request=job.request as {chunkBatchId?:string;workflowId?:string;workflowBudget?:WorkerConfig['executionBudget']};
+    if(request.chunkBatchId&&!await prisma.job.findFirst({where:{id:request.chunkBatchId,projectId:job.projectId,kind:"CHUNK_BATCH",status:"RUNNING"}}))throw Object.assign(new Error("分块父作业已停止"),{code:"CONFLICT"});
     if(request.workflowId){
       const wf=await prisma.workflowRun.findUniqueOrThrow({where:{id:request.workflowId}});
       if(wf.status!=='RUNNING'||!request.workflowBudget||Date.now()>=request.workflowBudget.deadline)throw Object.assign(new Error('工作流已停止或预算到期'),{code:'BUDGET_EXCEEDED'});
@@ -166,7 +168,9 @@ export async function processAgentJob(
       config={...config,executionBudget:request.workflowBudget};
     }
     const store = new ArtifactStore(config.artifactDir);
-    if(job.kind === "GOAL_PROPOSAL"){
+    if(job.kind === "EXPLORATION"){
+      await runExploration(prisma,store,job,config.executionSignal,commitJob);
+    } else if(job.kind === "GOAL_PROPOSAL"){
       await runGoalProposal(prisma,job,config,commitJob);
     } else if(job.kind === "CHANGE_REVIEW") {
       await runChangeReview(prisma,store,job,config,commitJob);
@@ -174,6 +178,8 @@ export async function processAgentJob(
       await runSnapshotDiff(prisma,store,job,config,commitJob);
     } else if(job.kind === "DOCUMENT_CHUNK") {
       await runDocumentChunk(prisma,store,job,config,commitJob);
+    } else if(job.kind === "CHUNK_BATCH") {
+      await runChunkBatch(prisma,job,config);
     } else if(job.kind === "CHUNK_EXTRACT") {
       await runChunkExtract(prisma,store,job,config,commitJob);
     } else if(job.kind === "LOGIN_CHECK") {
@@ -210,6 +216,11 @@ async function commitJob(
   await prisma.$transaction(async (tx) => {
     const guard = await tx.job.updateMany({ where: ownedJob(job), data: { updatedAt: new Date() } });
     if (guard.count !== 1) throw new Error("作业租约已失效，拒绝提交旧执行结果");
+    const parentId=(job.request as {chunkBatchId?:string}).chunkBatchId;
+    if(parentId){
+      const parent=await tx.job.updateMany({where:{id:parentId,projectId:job.projectId,kind:'CHUNK_BATCH',status:'RUNNING'},data:{updatedAt:new Date()}});
+      if(!parent.count)throw Object.assign(new Error('分块父作业已停止，拒绝提交'),{code:'CONFLICT'});
+    }
     await persist(tx);
   }, { timeout: 30_000 });
 }
@@ -514,4 +525,26 @@ async function runCaseGeneration(prisma: PrismaClient, job: JobRow, config: Work
       data: { status: "SUCCEEDED", result: result as never, finishedAt: new Date() },
     });
   });
+}
+
+async function runChunkBatch(prisma:PrismaClient,job:JobRow,config:WorkerConfig){
+ const request=job.request as {documentVersionId:string;manifestHash:string;mode:'real'|'mock'};
+ const doc=await prisma.documentVersion.findUniqueOrThrow({where:{id:request.documentVersionId},include:{document:true}});
+ if(doc.document.projectId!==job.projectId||doc.chunkManifestHash!==request.manifestHash)throw Object.assign(new Error('分块批处理来源已变化'),{code:'CONFLICT'});
+ const chunks=await prisma.documentChunk.findMany({where:{documentVersionId:doc.id,manifestHash:request.manifestHash},orderBy:{seq:'asc'}});
+ const manifest=doc.chunkManifest as any;
+ if(!chunks.length||chunks.length!==manifest?.chunks?.length||chunks.some(c=>!manifest.chunks.some((m:any)=>m.chunkId===c.chunkId)))throw Object.assign(new Error('分块清单与处理记录不一致'),{code:'CONFLICT'});
+ for(const chunk of chunks){
+  if(config.executionSignal?.aborted)throw new Error('已取消');
+  const parent=await prisma.job.findUniqueOrThrow({where:{id:job.id}});if(parent.status!=='RUNNING')throw new Error('父作业已停止');
+  if(chunk.status==='completed')continue;
+  let childId='';
+  await commitJob(prisma,job,async tx=>{
+   const child=await tx.job.upsert({where:{projectId_kind_fingerprint:{projectId:job.projectId,kind:'CHUNK_EXTRACT',fingerprint:job.id+':'+chunk.id}},create:{projectId:job.projectId,kind:'CHUNK_EXTRACT',fingerprint:job.id+':'+chunk.id,request:{chunkRowId:chunk.id,mode:request.mode,chunkBatchId:job.id}},update:{}});childId=child.id;
+  });
+  await processAgentJob(prisma,config,childId);
+  const child=await prisma.job.findUniqueOrThrow({where:{id:childId}});
+  if(child.status!=='SUCCEEDED')throw Object.assign(new Error('分块未完成；保留已有结果，修复后显式恢复'),{code:(child.error as any)?.code??'CONFLICT'});
+ }
+ await commitJob(prisma,job,async tx=>{await tx.job.update({where:{id:job.id},data:{status:'SUCCEEDED',result:{documentVersionId:doc.id,completed:chunks.length},finishedAt:new Date()}});});
 }

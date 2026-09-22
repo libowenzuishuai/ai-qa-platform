@@ -1,3 +1,4 @@
+import {GitHubApp,githubConfig,installationForRepository,privateRepositoryFetch} from '../../api/src/github-app.js';
 import { SourceClassificationOutput, TestCaseVersion, ObservationBundle, PlanProposalOutput, TestPlanV1, computePlanAcceptanceHash, verifyStoredPlan, validatePlanForExecutor, PHASE1_EXECUTOR_ACTIONS } from '@ai-qa/contracts';
 import type { PrismaClient, Prisma } from '@prisma/client';
 import type { ArtifactStore } from '@ai-qa/artifact-store';
@@ -12,7 +13,9 @@ export async function processProductJob(prisma: PrismaClient, store: ArtifactSto
   let result: unknown;
   if (job.kind === 'WEB_OBSERVATION') result = await observeProject(prisma, store, job.projectId, request,{signal:config.executionSignal,deadline:config.executionBudget?.deadline});
   else if (job.kind === 'REPO_DISCOVERY') {
-    const discovered = await discoverRepository(request, store, job.id);
+    const integration=await installationForRepository(prisma,job.projectId,request.url);
+    if(integration&&integration.status!=='ACTIVE')throw Object.assign(new Error('GitHub 仓库授权已撤销'),{code:'FORBIDDEN'});
+    const discovered = await discoverRepository(request, store, job.id,integration?privateRepositoryFetch(prisma,job.projectId,integration.id,new GitHubApp(githubConfig())):undefined);
     if (discovered.files.length) {
       const response = await callIntelligence(config, 'sources', job.id, 'real', {promptVersion:'sources-v1',files:discovered.files.map(file=>({path:file.path,format:file.format,excerpt:['MARKDOWN','TXT'].includes(file.format)?store.read(file.storageKey).toString('utf8').slice(0,2000):''}))});
       for (const r of response.invocations) await prisma.modelInvocation.create({data:{projectId:job.projectId,provider:r.response.provider,model:r.response.model,promptVersion:r.promptVersion,requestId:job.id,usage:r.response.usage as never,outcome:r.response.outcome,latencyMs:r.response.latencyMs}});
@@ -21,6 +24,7 @@ export async function processProductJob(prisma: PrismaClient, store: ArtifactSto
       discovered.files=discovered.files.map(file=>({...file,...classification.files.find(f=>f.path===file.path)!}));
     }
     await commit(prisma, job, async tx => {
+      if(integration&&!await tx.githubIntegration.findFirst({where:{id:integration.id,status:'ACTIVE',revision:integration.revision}}))throw Object.assign(new Error('仓库授权已变化，拒绝提交'),{code:'CONFLICT'});
       const previous = await tx.contextSnapshot.findFirst({ where: { projectId: job.projectId, repositoryUrl: discovered.repositoryUrl, subdirectory: discovered.subdirectory }, orderBy: { createdAt: 'desc' } });
       const snapshot = await tx.contextSnapshot.create({ data: { ...discovered, projectId: job.projectId, previousId: previous?.id } as never });
       await tx.job.update({ where: { id: job.id }, data: { status: 'SUCCEEDED', finishedAt: new Date(), result: { snapshotId: snapshot.id, fileCount: discovered.files.length } } });

@@ -1,3 +1,4 @@
+import {GitHubApp,githubConfig,installationForRepository,privateSourceArchive} from './github-app.js';
 import { reconcileCodeChecks } from '@ai-qa/run-events';
 export { reconcileCodeChecks } from '@ai-qa/run-events';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -9,7 +10,7 @@ import { CodeCheckRequest, RunnerResult } from '@ai-qa/contracts';
 import { requireAuth, requireProjectAccess } from './auth.js';
 import { ApiError } from './errors.js';
 const digest=(x:string)=>createHash('sha256').update(x).digest('hex');
-export function registerRunnerRoutes(app:FastifyInstance,prisma:PrismaClient,store:ArtifactStore){
+export function registerRunnerRoutes(app:FastifyInstance,prisma:PrismaClient,store:ArtifactStore,githubProvider=()=>new GitHubApp(githubConfig())){
   const id=(req:FastifyRequest)=>(req.params as {id:string}).id;
   async function runner(req:FastifyRequest){
     const token=req.headers.authorization?.match(/^Bearer (.{32,200})$/)?.[1];
@@ -56,8 +57,19 @@ export function registerRunnerRoutes(app:FastifyInstance,prisma:PrismaClient,sto
       const next=rows[0];if(!next)return {task:null};
       const spec=CodeCheckRequest.parse(next.request);const leaseToken=randomBytes(32).toString('hex');
       const saved=await tx.codeCheck.update({where:{id:next.id},data:{status:'RUNNING',runnerId:r.id,leaseToken,leaseExpiresAt:new Date(Date.now()+45000),deadlineAt:new Date(Date.now()+spec.timeoutSeconds*1000)}});
-      return {task:{id:saved.id,request:spec,leaseToken,deadlineAt:saved.deadlineAt}};
+      const integration=await installationForRepository(prisma,r.projectId,spec.repositoryUrl);
+      if(integration?.status==='REVOKED'){await tx.codeCheck.update({where:{id:saved.id},data:{status:'ERROR',verdict:'INCOMPLETE',leaseToken:null,result:{reason:'GitHub 授权已撤销'}}});return {task:null};}
+      return {task:{id:saved.id,request:spec,leaseToken,deadlineAt:saved.deadlineAt,sourceViaPlatform:Boolean(integration)}};
     });
+  });
+  app.post('/api/runner/tasks/:id/source',async(req,reply)=>{
+    const r=await runner(req),body=z.object({leaseToken:z.string()}).strict().parse(req.body);
+    const task=await prisma.codeCheck.findFirst({where:{id:id(req),projectId:r.projectId,runnerId:r.id,leaseToken:body.leaseToken,status:'RUNNING',leaseExpiresAt:{gt:new Date()},deadlineAt:{gt:new Date()}}});if(!task)throw new ApiError('FORBIDDEN','源码读取租约无效');
+    const spec=CodeCheckRequest.parse(task.request),integration=await installationForRepository(prisma,r.projectId,spec.repositoryUrl);
+    if(!integration||integration.status!=='ACTIVE')throw new ApiError('FORBIDDEN','私库授权不可用');
+    const archive=await privateSourceArchive(githubProvider(),integration,spec.commitSha);
+    if(!await prisma.githubIntegration.findFirst({where:{id:integration.id,revision:integration.revision,status:'ACTIVE'}})||!await prisma.codeCheck.findFirst({where:{id:task.id,leaseToken:body.leaseToken,status:'RUNNING',leaseExpiresAt:{gt:new Date()},deadlineAt:{gt:new Date()}}}))throw new ApiError('FORBIDDEN','读取期间权限或租约已失效');
+    return reply.header('content-type','application/gzip').header('x-source-sha256',createHash('sha256').update(archive).digest('hex')).header('x-source-commit',spec.commitSha).send(archive);
   });
   app.post('/api/runner/tasks/:id/heartbeat',async req=>{
     const r=await runner(req);const {leaseToken}=z.object({leaseToken:z.string()}).parse(req.body);const now=new Date();

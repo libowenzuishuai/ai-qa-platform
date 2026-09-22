@@ -1,3 +1,5 @@
+import {registerRunnerRoutes} from '../../api/src/routes-runners.js';
+import {registerGithubRoutes} from '../../api/src/routes-github.js';
 import {registerReleaseRoutes} from '../../api/src/routes-release.js';
 import {registerChangeReviewRoutes} from '../../api/src/routes-change-review.js';
 import {registerSnapshotChangeRoutes} from '../../api/src/routes-snapshot-changes.js';
@@ -5,11 +7,11 @@ import {registerChunkRoutes} from '../../api/src/routes-chunks.js';
 import {installBuiltinTemplates,HANDLERS} from '../../api/src/template-runtime.js';
 import { beforeAll, afterAll, it, expect } from "vitest";
 import Fastify from "fastify";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { once } from "node:events";
-import { mkdirSync } from "node:fs";
+import { mkdirSync,writeFileSync } from "node:fs";
 import { chromium } from "playwright";
 import { Queue } from "bullmq";
 import { TestCaseVersion, computePlanAcceptanceHash } from "@ai-qa/contracts";
@@ -535,6 +537,8 @@ beforeAll(async () => {
   registerDataPluginRoutes(app, env.prisma, outbox);
   registerWorkflowRoutes(app, env.prisma);
   registerReleaseRoutes(app,env.prisma,env.store,queue);
+  registerGithubRoutes(app,env.prisma);
+  registerRunnerRoutes(app,env.prisma,env.store);
   registerChangeReviewRoutes(app,env.prisma,env.store,queue);
   registerSnapshotChangeRoutes(app,env.prisma,env.store,queue);
   registerChunkRoutes(app,env.prisma,queue);
@@ -1526,12 +1530,34 @@ it('交付中心、模板和多文件页面真实浏览器可用，桌面与手�
   mkdirSync(root+'data/pilot-evidence',{recursive:true});
   for(const width of [1440,390]){
    await page.setViewportSize({width,height:1000});
-   for(const route of ['delivery','templates','snapshot-changes','evidence-retention']){
+   for(const route of ['delivery','templates','snapshot-changes','evidence-retention','agent','integrations','templates/editor']){
     const response=await page.goto(`${webUrl}/projects/${project.id}/${route}`);expect(response?.status()).toBe(200);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
-    await page.screenshot({path:root+`data/pilot-evidence/delivery-${route}-${width}.png`,fullPage:true});
+    await page.screenshot({path:root+`data/pilot-evidence/delivery-${route.replaceAll('/','-')}-${width}.png`,fullPage:true});
    }
   }
   expect(errors).toEqual([]);
  }finally{await browser.close();}
-},25000);
+},40000);
+
+it('浏览器组合→保存→发布→运行真实工程模板；错误保留输入，人工记忆表单真实入库',async()=>{
+ await env.prisma.$transaction(tx=>installBuiltinTemplates(tx,project.id,actor.id));
+ const browser=await chromium.launch({headless:true});
+ try{
+  const context=await browser.newContext({viewport:{width:1440,height:1000}});await context.addCookies([{name:'web_sid',value:'p0-test',url:webUrl}]);const page=await context.newPage();
+  page.setDefaultTimeout(5000);
+  await page.goto(`${webUrl}/projects/${project.id}/templates/editor`);await page.getByLabel('模板名称').fill('浏览器组合工程检查');await page.getByRole('button',{name:'添加步骤'}).click();await page.getByLabel('执行能力').selectOption('browser-execute');
+  await page.getByRole('button',{name:'校验并保存草稿'}).click();await page.waitForSelector('[role=alert]');expect(await page.getByLabel('模板名称').inputValue()).toBe('浏览器组合工程检查');
+  await page.getByLabel('执行能力').selectOption('code-check');await page.getByRole('button',{name:'校验并保存草稿'}).click();await page.waitForURL(/templates\/[^/]+\/review/);await page.getByRole('button',{name:'确认并发布固定版本'}).click();
+  await page.goto(`${webUrl}/projects/${project.id}/templates`);const card=page.locator('section').filter({has:page.getByRole('heading',{name:'浏览器组合工程检查',exact:true})});
+  const token=randomUUID()+randomUUID();await env.prisma.executionRunner.create({data:{projectId:project.id,name:'UI 旅程运行器',tokenHash:createHash('sha256').update(token).digest('hex'),capabilities:['NODE_TEST']}});
+  await card.getByLabel('GitHub 仓库').fill('https://github.com/fixture/project');await card.getByLabel('提交版本（完整 SHA）').fill('a'.repeat(40));await card.getByLabel('检查类型').selectOption('NODE_TEST');await card.getByRole('button',{name:'运行此模板'}).click();await page.waitForURL(/\/workflows\/[^/]+$/);const wf=page.url().split('/').at(-1)!;
+  await advanceWorkflow(env.prisma,wf,env.store);
+  const headers={authorization:'Bearer '+token};const task=(await app.inject({method:'POST',url:'/api/runner/claim',headers,payload:{}})).json().task;expect(task).toBeTruthy();
+  const file=env.artifactDir+'/ui-smoke.test.mjs';writeFileSync(file,"import test from 'node:test';import assert from 'node:assert/strict';test('UI selected actual command',()=>assert.equal(10+20,30));");const output=execFileSync(process.execPath,['--test',file],{encoding:'utf8'});expect(output).toContain('pass 1');
+  const res=await app.inject({method:'POST',url:`/api/runner/tasks/${task.id}/result`,headers,payload:{leaseToken:task.leaseToken,result:{commitSha:'a'.repeat(40),exitCode:0,cases:[{name:'UI selected actual command',status:'PASS'}],output}}});expect(res.statusCode,res.body).toBe(200);
+  await advanceWorkflow(env.prisma,wf,env.store);await advanceWorkflow(env.prisma,wf,env.store);expect((await env.prisma.workflowRun.findUniqueOrThrow({where:{id:wf}})).status).toBe('COMPLETED');
+  await page.goto(`${webUrl}/projects/${project.id}/agent`);await page.getByLabel('人工提示').fill('UI 真实保存的项目提示');await page.getByRole('button',{name:'保存提示'}).click();await page.waitForLoadState('domcontentloaded');expect(await env.prisma.projectMemory.count({where:{projectId:project.id,content:'UI 真实保存的项目提示'}})).toBe(1);
+  await page.screenshot({path:root+'data/pilot-evidence/agent-live-1440.png',fullPage:true});
+ }finally{await browser.close();}
+},30000);

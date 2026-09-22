@@ -137,3 +137,15 @@ export const ChunkingOutput = z.object({
   coverage: ChunkCoverageReport,
 });
 export type ChunkingOutput = z.infer<typeof ChunkingOutput>;
+
+/** Conservative lifetime reservation for a document version. Unknown calls never refund their allowance. */
+export const ChunkProcessingBudget = z.object({
+  maxModelCalls:z.number().int().min(1).max(10000).default(100),
+  maxReservedTokens:z.number().int().min(1000).max(20000000).default(2000000),
+  perCallTokenLimit:z.number().int().min(1000).max(200000).default(100000),
+  maxWallClockMs:z.number().int().min(60000).max(86400000).default(3600000),
+}).strict();
+export const ChunkBudgetState = z.object({
+  limits:ChunkProcessingBudget,usedCalls:z.number().int().nonnegative(),reservedTokens:z.number().int().nonnegative(),
+  deadline:IsoDateTime,mode:z.enum(['real','mock']),updatedBy:EntityId,
+}).strict();

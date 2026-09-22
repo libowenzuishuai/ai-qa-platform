@@ -1,0 +1,7 @@
+CREATE TABLE "GithubAuthState" ("hash" TEXT PRIMARY KEY,"projectId" TEXT NOT NULL,"userId" TEXT NOT NULL,"repository" TEXT NOT NULL,"expiresAt" TIMESTAMP(3) NOT NULL,"consumedAt" TIMESTAMP(3),"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE "GithubIntegration" ("id" TEXT PRIMARY KEY,"projectId" TEXT NOT NULL,"repositoryId" TEXT NOT NULL,"repository" TEXT NOT NULL,"installationId" TEXT NOT NULL,"githubUserId" TEXT NOT NULL,"configuredBy" TEXT NOT NULL,"status" TEXT NOT NULL DEFAULT 'ACTIVE',"revision" INTEGER NOT NULL DEFAULT 1,"ci" JSONB,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL);
+CREATE UNIQUE INDEX "GithubIntegration_projectId_repositoryId_key" ON "GithubIntegration"("projectId","repositoryId");
+CREATE INDEX "GithubIntegration_installationId_idx" ON "GithubIntegration"("installationId");
+CREATE TABLE "GithubDelivery" ("id" TEXT PRIMARY KEY,"deliveryId" TEXT NOT NULL,"payloadHash" TEXT NOT NULL,"integrationId" TEXT,"integrationRevision" INTEGER,"projectId" TEXT,"event" TEXT NOT NULL,"payload" JSONB NOT NULL,"status" TEXT NOT NULL DEFAULT 'QUEUED',"detail" TEXT,"workflowId" TEXT,"remoteCheckId" TEXT,"attempts" INTEGER NOT NULL DEFAULT 0,"leaseExpiresAt" TIMESTAMP(3),"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL);
+CREATE UNIQUE INDEX "GithubDelivery_deliveryId_key" ON "GithubDelivery"("deliveryId");
+CREATE INDEX "GithubDelivery_status_updatedAt_idx" ON "GithubDelivery"("status","updatedAt");

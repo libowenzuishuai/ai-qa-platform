@@ -1,3 +1,4 @@
+import {assertCapabilityValue,assertCapabilityRole} from '../../api/src/capability-schema.js';
 import {HANDLERS,validateExecutableGraph,ancestors,readReference} from '../../api/src/template-runtime.js';
 import {configHash} from '../../api/src/preparation-service.js';
 import {CodeCheckRequest} from '@ai-qa/contracts';
@@ -135,6 +136,16 @@ export async function advanceWorkflow(
           if(value===undefined){await stop(`节点输入 ${key} 的前序结果缺失`,node.id);return;}
           (input as Record<string,unknown>)[key]=value;
         }
+        const cap=def?(frozen.templateCapabilities as any[])?.find(c=>c.key===def.capabilityKey&&c.version===def.capabilityVersion):undefined;
+        if(cap){
+          try{
+            const member=await tx.projectMembership.findUnique({where:{projectId_userId:{projectId:wf.projectId,userId:(input as any).createdBy??''}}});
+            if(!member)throw new Error('执行负责人已无项目权限');
+            assertCapabilityRole(['LEAD',...cap.requiredRoles],member.role);
+            const available=await tx.capabilityCatalog.findFirst({where:{id:cap.id,projectId:wf.projectId,enabled:true}});if(!available)throw new Error('能力已撤销');
+            assertCapabilityValue(cap.inputSchema,input);
+          }catch(error){await stop((error as Error).message,node.id);return;}
+        }
         if(def?.budgetOverride?.maxWallClockMs!==undefined)deadline=Math.min(deadline,(node.startedAt?.getTime()??Date.now())+def.budgetOverride.maxWallClockMs);
         if(Date.now()>=deadline){await stop('节点时间预算已耗尽',node.id);return;}
         const ref = (node.outputRef ?? {}) as Record<string, any>;
@@ -147,6 +158,7 @@ export async function advanceWorkflow(
           value: Record<string, unknown>,
           skipped = false,
         ) {
+          if(cap&&!skipped){try{assertCapabilityValue(cap.outputSchema,{...ref,...value});}catch(error){await stop((error as Error).message,node!.id);return;}}
           await tx.workflowNode.update({
             where: { id: node!.id },
             data: {

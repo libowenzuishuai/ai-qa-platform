@@ -1,7 +1,8 @@
+import {assertCapabilityRole,assertCapabilityValue} from './capability-schema.js';
 import { freezeExecutableTemplate } from './template-runtime.js';
 import { requireAuth } from './auth.js';
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { configHash } from "./preparation-service.js";
 import { WorkflowRunRequest } from "@ai-qa/contracts";
@@ -33,131 +34,7 @@ export function registerWorkflowRoutes(
   app.post("/api/projects/:id/workflows", async (req, reply) => {
     const projectId = param(req, "id");
     await requireProjectAccess(prisma, req, projectId, "LEAD");
-    const body = WorkflowRunRequest.parse(req.body);
-    if (!body.inputs.baselineId && !body.inputs.documentVersionIds.length && !body.inputs.codeCheck)
-      throw new ApiError("VALIDATION_ERROR", "请选择验收基线或需求资料");
-    if (body.inputs.baselineId && body.inputs.documentVersionIds.length)
-      throw new ApiError(
-        "VALIDATION_ERROR",
-        "一次工作流只使用固定基线或需求资料其中一种入口",
-      );
-    if (
-      new Set(body.inputs.documentVersionIds).size !==
-      body.inputs.documentVersionIds.length
-    )
-      throw new ApiError("VALIDATION_ERROR", "资料版本不能重复");
-    const fingerprint = configHash(body);
-    if (!body.templateVersion && !body.templateId)
-      throw new ApiError("VALIDATION_ERROR", "请指定内置模板（templateVersion v1）或已发布的能力目录模板（templateId）");
-    const wf = await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM "Project" WHERE id=${projectId} FOR UPDATE`;
-      const old = await tx.workflowRun.findUnique({
-        where: {
-          projectId_idempotencyKey: {
-            projectId,
-            idempotencyKey: body.idempotencyKey,
-          },
-        },
-      });
-      if (old) {
-        if (old.inputFingerprint !== fingerprint)
-          throw new ApiError("IDEMPOTENCY_CONFLICT", "相同幂等键对应不同请求");
-        return old;
-      }
-      // R07：目录模板 → 冻结节点快照（运行固定引用该版本，后续发布 v2 不影响）。
-      let templateNodes: unknown = null, templateCapabilities:unknown=null, templateParallelism=1;
-      if (body.templateId) {
-        const template = await tx.workflowTemplate.findFirst({
-          where: { id: body.templateId, projectId, status: "PUBLISHED" },
-        });
-        if (!template)
-          throw new ApiError("VALIDATION_ERROR", "模板不存在、未发布或不属于本项目");
-        const compiled=await freezeExecutableTemplate(tx,projectId,template.nodes);
-        templateNodes=compiled.nodes;templateCapabilities=compiled.capabilities;templateParallelism=template.defaultParallelism;
-        if(body.inputs.codeCheck && compiled.nodes.some(n=>n.capabilityKey!=="code-check"))throw new ApiError("VALIDATION_ERROR","工程体检输入只能使用工程检查模板");
-      }
-      if(body.inputs.codeCheck && !body.templateId)throw new ApiError("VALIDATION_ERROR","请选择工程体检模板");
-      const env = body.inputs.environmentId ? await tx.environment.findFirst({
-        where: {
-          id: body.inputs.environmentId,
-          projectId,
-          isProduction: false,
-        },
-      }):null;
-      if (!env && !body.inputs.codeCheck) throw new ApiError("VALIDATION_ERROR", "环境不可用");
-      if (
-        body.missionId &&
-        !(await tx.mission.findFirst({
-          where: { id: body.missionId, projectId, environmentId: env?.id },
-        }))
-      )
-        throw new ApiError("VALIDATION_ERROR", "任务不属于该项目和环境");
-      if (
-        (await tx.documentVersion.count({
-          where: {
-            id: { in: body.inputs.documentVersionIds },
-            document: { projectId },
-          },
-        })) !== body.inputs.documentVersionIds.length
-      )
-        throw new ApiError("VALIDATION_ERROR", "资料不属于该项目");
-      let frozen = {};
-      if (body.inputs.baselineId) {
-        const base = await tx.baseline.findFirst({
-          where: { id: body.inputs.baselineId, projectId },
-        });
-        if (!base?.caseVersionIds.length)
-          throw new ApiError("VALIDATION_ERROR", "基线不存在或没有用例");
-        const cases = await tx.testCaseVersion.findMany({
-          where: {
-            id: { in: base.caseVersionIds },
-            projectId,
-            approvalStatus: "APPROVED",
-          },
-          include: { plans: { orderBy: { version: "desc" }, take: 1 } },
-        });
-        if (cases.length !== base.caseVersionIds.length)
-          throw new ApiError("VALIDATION_ERROR", "基线用例尚未批准");
-        frozen = {
-          caseVersionIds: base.caseVersionIds,
-          ruleVersionIds: [...new Set(cases.flatMap((c) => c.ruleVersionIds))],
-          pinnedPlans: cases.flatMap((c) =>
-            c.plans[0]
-              ? [
-                  {
-                    caseVersionId: c.id,
-                    planVersionId: c.plans[0].id,
-                    acceptanceHash: c.plans[0].acceptanceHash,
-                  },
-                ]
-              : [],
-          ),
-        };
-      }
-      const row = await tx.workflowRun.create({
-        data: {
-          projectId,
-          missionId: body.missionId,
-          templateVersion: body.templateVersion ?? `catalog:${body.templateId}`,
-          templateId: body.templateId ?? null,
-          inputs: {
-            ...body.inputs,
-            ...frozen,
-            environmentRevision: env?.revision??0,
-            createdBy:requireAuth(req).userId,
-            ...(templateNodes ? { templateNodes, templateCapabilities, templateParallelism,templateHash:configHash({templateNodes,templateCapabilities,templateParallelism}) } : {}),
-          } as never,
-          budget: body.budget,
-          status: "QUEUED",
-          idempotencyKey: body.idempotencyKey,
-          inputFingerprint: fingerprint,
-        },
-      });
-      await emitWorkflowEvent(tx, row.id, "workflow.created", {
-        workflowId: row.id,
-      });
-      return row;
-    });
+    const wf=await createWorkflow(prisma,projectId,req.body,requireAuth(req).userId);
     return reply.code(202).send({ workflowId: wf.id });
   });
   app.get("/api/projects/:id/workflows", async (req) => {
@@ -227,6 +104,16 @@ export function registerWorkflowRoutes(
         body.decision === "approve"
           ? await workflowGateAssets(tx, wf.id, nodeKey)
           : {};
+      if(body.decision==='approve'){
+        const cap=(current.inputs as any)?.templateCapabilities?.find((c:any)=>c.key===node.capabilityKey);
+        if(cap){
+          const member=await tx.projectMembership.findFirst({where:{projectId:current.projectId,userId:requireAuth(req).userId}});
+          if(!member)throw new ApiError('FORBIDDEN','项目权限已撤销');
+          assertCapabilityRole(['LEAD',...cap.requiredRoles],member.role);
+          if(!await tx.capabilityCatalog.findFirst({where:{id:cap.id,enabled:true}}))throw new ApiError('FORBIDDEN','能力已禁用');
+          assertCapabilityValue(cap.outputSchema,output);
+        }
+      }
       await tx.workflowNode.update({
         where: { id: node.id },
         data: {
@@ -317,4 +204,135 @@ export function registerWorkflowRoutes(
     }
     return reply;
   });
+}
+
+export async function createWorkflow(prisma:PrismaClient,projectId:string,raw:unknown,actorId:string,transaction?:Prisma.TransactionClient){
+    const body = WorkflowRunRequest.parse(raw);
+    if (!body.inputs.baselineId && !body.inputs.documentVersionIds.length && !body.inputs.codeCheck)
+      throw new ApiError("VALIDATION_ERROR", "请选择验收基线或需求资料");
+    if (body.inputs.baselineId && body.inputs.documentVersionIds.length)
+      throw new ApiError(
+        "VALIDATION_ERROR",
+        "一次工作流只使用固定基线或需求资料其中一种入口",
+      );
+    if (
+      new Set(body.inputs.documentVersionIds).size !==
+      body.inputs.documentVersionIds.length
+    )
+      throw new ApiError("VALIDATION_ERROR", "资料版本不能重复");
+    const fingerprint = configHash(body);
+    if (!body.templateVersion && !body.templateId)
+      throw new ApiError("VALIDATION_ERROR", "请指定内置模板（templateVersion v1）或已发布的能力目录模板（templateId）");
+    const persist=async (tx:Prisma.TransactionClient) => {
+      await tx.$queryRaw`SELECT id FROM "Project" WHERE id=${projectId} FOR UPDATE`;
+      const old = await tx.workflowRun.findUnique({
+        where: {
+          projectId_idempotencyKey: {
+            projectId,
+            idempotencyKey: body.idempotencyKey,
+          },
+        },
+      });
+      if (old) {
+        if (old.inputFingerprint !== fingerprint)
+          throw new ApiError("IDEMPOTENCY_CONFLICT", "相同幂等键对应不同请求");
+        return old;
+      }
+      // R07：目录模板 → 冻结节点快照（运行固定引用该版本，后续发布 v2 不影响）。
+      let templateNodes: unknown = null, templateCapabilities:unknown=null, templateParallelism=1;
+      if (body.templateId) {
+        const template = await tx.workflowTemplate.findFirst({
+          where: { id: body.templateId, projectId, status: "PUBLISHED" },
+        });
+        if (!template)
+          throw new ApiError("VALIDATION_ERROR", "模板不存在、未发布或不属于本项目");
+        const compiled=await freezeExecutableTemplate(tx,projectId,template.nodes);
+        const member=await tx.projectMembership.findUnique({where:{projectId_userId:{projectId,userId:actorId}}});if(!member)throw new ApiError('FORBIDDEN','没有项目执行权限');
+        assertCapabilityRole(['LEAD',...compiled.capabilities.flatMap(c=>c.requiredRoles)],member.role);
+        templateNodes=compiled.nodes;templateCapabilities=compiled.capabilities;templateParallelism=template.defaultParallelism;
+        if(body.inputs.codeCheck && compiled.nodes.some(n=>n.capabilityKey!=="code-check"))throw new ApiError("VALIDATION_ERROR","工程体检输入只能使用工程检查模板");
+      }
+      if(body.inputs.codeCheck && !body.templateId)throw new ApiError("VALIDATION_ERROR","请选择工程体检模板");
+      const env = body.inputs.environmentId ? await tx.environment.findFirst({
+        where: {
+          id: body.inputs.environmentId,
+          projectId,
+          isProduction: false,
+        },
+      }):null;
+      if (!env && !body.inputs.codeCheck) throw new ApiError("VALIDATION_ERROR", "环境不可用");
+      if (
+        body.missionId &&
+        !(await tx.mission.findFirst({
+          where: { id: body.missionId, projectId, environmentId: env?.id },
+        }))
+      )
+        throw new ApiError("VALIDATION_ERROR", "任务不属于该项目和环境");
+      if (
+        (await tx.documentVersion.count({
+          where: {
+            id: { in: body.inputs.documentVersionIds },
+            document: { projectId },
+          },
+        })) !== body.inputs.documentVersionIds.length
+      )
+        throw new ApiError("VALIDATION_ERROR", "资料不属于该项目");
+      let frozen = {};
+      if (body.inputs.baselineId) {
+        const base = await tx.baseline.findFirst({
+          where: { id: body.inputs.baselineId, projectId },
+        });
+        if (!base?.caseVersionIds.length)
+          throw new ApiError("VALIDATION_ERROR", "基线不存在或没有用例");
+        const cases = await tx.testCaseVersion.findMany({
+          where: {
+            id: { in: base.caseVersionIds },
+            projectId,
+            approvalStatus: "APPROVED",
+          },
+          include: { plans: { orderBy: { version: "desc" }, take: 1 } },
+        });
+        if (cases.length !== base.caseVersionIds.length)
+          throw new ApiError("VALIDATION_ERROR", "基线用例尚未批准");
+        frozen = {
+          caseVersionIds: base.caseVersionIds,
+          ruleVersionIds: [...new Set(cases.flatMap((c) => c.ruleVersionIds))],
+          pinnedPlans: cases.flatMap((c) =>
+            c.plans[0]
+              ? [
+                  {
+                    caseVersionId: c.id,
+                    planVersionId: c.plans[0].id,
+                    acceptanceHash: c.plans[0].acceptanceHash,
+                  },
+                ]
+              : [],
+          ),
+        };
+      }
+      const row = await tx.workflowRun.create({
+        data: {
+          projectId,
+          missionId: body.missionId,
+          templateVersion: body.templateVersion ?? `catalog:${body.templateId}`,
+          templateId: body.templateId ?? null,
+          inputs: {
+            ...body.inputs,
+            ...frozen,
+            environmentRevision: env?.revision??0,
+            createdBy:actorId,
+            ...(templateNodes ? { templateNodes, templateCapabilities, templateParallelism,templateHash:configHash({templateNodes,templateCapabilities,templateParallelism}) } : {}),
+          } as never,
+          budget: body.budget,
+          status: "QUEUED",
+          idempotencyKey: body.idempotencyKey,
+          inputFingerprint: fingerprint,
+        },
+      });
+      await emitWorkflowEvent(tx, row.id, "workflow.created", {
+        workflowId: row.id,
+      });
+      return row;
+    };
+return transaction?persist(transaction):prisma.$transaction(persist);
 }

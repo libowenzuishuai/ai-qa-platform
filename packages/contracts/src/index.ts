@@ -28,3 +28,6 @@ export * from "./release.js";
 export * from "./snapshot-diff.js";
 
 export * from "./chunk-validation.js";
+export * from './github.js';
+
+export * from './exploration.js';

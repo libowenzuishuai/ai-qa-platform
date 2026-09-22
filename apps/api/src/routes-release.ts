@@ -1,3 +1,7 @@
+import {diagnoseRun} from './diagnosis-service.js';
+import {assertMemorySource,refreshMemories} from './memory-service.js';
+import {createWorkflow} from './routes-workflow.js';
+import {capabilityValidator} from './capability-schema.js';
 import type {Queue} from 'bullmq';
 import {freezeGoalInput} from './goal-service.js';
 import {contentHash} from './change-review-service.js';
@@ -6,7 +10,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import {
-  ReleaseDecisionKind, TemplateNodeDefinition, EvidenceRetentionPolicy,
+  ReleaseDecisionKind, TemplateNodeDefinition, EvidenceRetentionPolicy, WorkflowRunRequest, ExplorationRequest,
   GoalProposal,
   MemoryRecord,
   DiagnosisEntry,
@@ -259,7 +263,7 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
       inputSchema: z.unknown(),
       outputSchema: z.unknown(),
       effects: z.array(z.enum(['READ', 'WRITE', 'CREATE', 'DELETE'])).min(1),
-      requiredRoles: z.array(z.string()).default([]),
+      requiredRoles: z.array(z.enum(['VIEWER','LEAD','ADMIN'])).default([]),
       requiresEnvironment: z.boolean().default(false),
       budgetCategory: z.enum(['none', 'model', 'browser', 'compute']).default('none'),
       idempotencyStrategy: z.enum(['idempotent', 'read_only', 'write_uncertain', 'manual']),
@@ -267,6 +271,7 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
       cleanupResponsibility: z.string().max(1000).optional(),
     }).strict().parse(req.body);
 
+    capabilityValidator(body.inputSchema);capabilityValidator(body.outputSchema);
     return prisma.$transaction(async tx=>{
       await tx.$queryRaw`SELECT id FROM "Project" WHERE id = ${projectId} FOR UPDATE`;
     const prior = await tx.capabilityCatalog.findFirst({
@@ -317,6 +322,12 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
   });
 
   // ============ R07: Workflow Template（DAG 校验 + 发布不可变） ============
+
+  app.post('/api/projects/:id/workflow-templates/validate',async req=>{
+    const projectId=param(req,'id');await requireProjectAccess(prisma,req,projectId,'ADMIN');
+    const body=z.object({nodes:z.array(TemplateNodeDefinition).min(1).max(64)}).strict().parse(req.body);
+    const compiled=await freezeExecutableTemplate(prisma,projectId,body.nodes);return {valid:true,nodeCount:compiled.nodes.length};
+  });
 
   app.post('/api/projects/:id/workflow-templates', async req => {
     const projectId = param(req, 'id');
@@ -447,6 +458,22 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
     return { id, status: 'PUBLISHED' };
   });
 
+  app.post('/api/projects/:id/explorations',async(req,reply)=>{
+    const projectId=param(req,'id');await requireProjectAccess(prisma,req,projectId,'LEAD');
+    const body=ExplorationRequest.parse(req.body);
+    const environment=await prisma.environment.findFirst({where:{id:body.environmentId,projectId,isProduction:false}});
+    if(!environment)throw new ApiError('VALIDATION_ERROR','请选择本项目测试环境');
+    const fingerprint=contentHash({key:body.idempotencyKey});
+    const job=await prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT id FROM "Project" WHERE id=${projectId} FOR UPDATE`;
+      const old=await tx.job.findUnique({where:{projectId_kind_fingerprint:{projectId,kind:'EXPLORATION',fingerprint}}});
+      if(old){if((old.request as any).bodyHash!==contentHash(body))throw new ApiError('IDEMPOTENCY_CONFLICT','相同键对应不同探索范围');return old;}
+      return tx.job.create({data:{projectId,kind:'EXPLORATION',fingerprint,request:{...body,bodyHash:contentHash(body),environmentRevision:environment.revision,createdBy:requireAuth(req).userId}}});
+    });
+    if(job.status==='QUEUED'&&queue)try{await queue.add('run',{jobId:job.id},{removeOnComplete:true,removeOnFail:200});}catch{/* durable reconciliation */}
+    return reply.code(202).send({jobId:job.id});
+  });
+
   // ============ R08: GoalProposal ============
 
   app.post('/api/projects/:id/goal-proposals/propose',async(req,reply)=>{
@@ -533,6 +560,43 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
     return prisma.goalProposal.findUniqueOrThrow({ where: { id } });
   });
 
+  app.post('/api/goal-proposals/:id/execute',async(req,reply)=>{
+    const id=param(req,'id'),proposal=await prisma.goalProposal.findUnique({where:{id}});
+    if(!proposal)throw new ApiError('NOT_FOUND','目标规划不存在');
+    await requireProjectAccess(prisma,req,proposal.projectId,'LEAD');
+    const body=WorkflowRunRequest.innerType().omit({idempotencyKey:true,missionId:true}).parse(req.body);
+    const actor=requireAuth(req).userId;
+    const workflow=await prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT id FROM "Project" WHERE id=${proposal.projectId} FOR UPDATE`;
+      const current=await tx.goalProposal.findUniqueOrThrow({where:{id}});
+      if(current.workflowId){
+        if(contentHash(current.executionRequest)!==contentHash(body))throw new ApiError('IDEMPOTENCY_CONFLICT','本规划已经按其他输入启动');
+        return tx.workflowRun.findUniqueOrThrow({where:{id:current.workflowId}});
+      }
+      if(current.status!=='APPROVED')throw new ApiError('CONFLICT','先批准规划再执行');
+      if((current.blockers as any[]).length)throw new ApiError('CONFLICT','规划仍有阻塞项，请补齐条件后重新规划');
+      const scope=current.suggestedScope as any;
+      if(scope.mode==='mock')throw new ApiError('VALIDATION_ERROR','模拟规划不能启动真实任务');
+      if(scope.pins){
+        const now=await freezeGoalInput(tx,current.projectId,{goal:current.goal,documentVersionIds:scope.documentVersionIds??[],environmentId:scope.environmentId??undefined});
+        if(contentHash(now.pins)!==contentHash(scope.pins))throw new ApiError('CONFLICT','规划依据已变化，请重新规划');
+      }
+      const proposedDocs=[...(scope.documentVersionIds??[])].sort(),actualDocs=[...body.inputs.documentVersionIds].sort();
+      if(contentHash(proposedDocs)!==contentHash(actualDocs)||scope.environmentId&&scope.environmentId!==body.inputs.environmentId||scope.baselineId&&scope.baselineId!==body.inputs.baselineId)throw new ApiError('VALIDATION_ERROR','执行范围与批准规划不一致');
+      if(!body.templateId)throw new ApiError('VALIDATION_ERROR','请选择已发布模板');
+      const template=await tx.workflowTemplate.findFirst({where:{id:body.templateId,projectId:current.projectId,status:'PUBLISHED'}});
+      if(!template)throw new ApiError('VALIDATION_ERROR','模板不可用');
+      const keys=new Set((template.nodes as any[]).map(n=>n.capabilityKey));
+      if((current.suggestedTools as any[]).some(t=>!keys.has(t.capabilityKey)))throw new ApiError('VALIDATION_ERROR','模板未覆盖批准的建议工具');
+      const suggested=current.suggestedBudget as any;
+      for(const key of ['maxWallClockMs','maxModelCalls','maxToolCalls'] as const)if(suggested[key]&&body.budget[key]>suggested[key])throw new ApiError('BUDGET_EXCEEDED','执行预算超过已批准的规划预算');
+      const wf=await createWorkflow(prisma,current.projectId,{...body,idempotencyKey:'goal:'+id},actor,tx);
+      await tx.goalProposal.update({where:{id},data:{status:'EXECUTED',workflowId:wf.id,executionRequest:body as never}});
+      await tx.auditEvent.create({data:{actorId:actor,action:'goalProposal.execute',entityType:'GoalProposal',entityId:id,metadata:{workflowId:wf.id}}});return wf;
+    });
+    return reply.code(202).send({workflowId:workflow.id});
+  });
+
   // ============ R08: ProjectMemory（项目隔离 + 失效触发） ============
 
   app.post('/api/projects/:id/memories', async req => {
@@ -543,13 +607,16 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
     if (!parsed.success) {
       throw new ApiError('VALIDATION_ERROR', '不符合记忆契约', parsed.error.issues.slice(0, 3));
     }
+    const validUntil=parsed.data.validUntil?new Date(parsed.data.validUntil):new Date(Date.now()+7*86400000);
+    await assertMemorySource(prisma,store,projectId,{...parsed.data,validUntil});
     return prisma.projectMemory.create({
       data: {
         projectId,
         content: parsed.data.content,
         source: json(parsed.data.source),
         context: json(parsed.data.context),
-        validUntil: parsed.data.validUntil ? new Date(parsed.data.validUntil) : null,
+        validUntil,
+        environmentId:parsed.data.context.environmentId,
         invalidationTriggers: json(parsed.data.invalidationTriggers),
       },
     });
@@ -560,13 +627,16 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
     // 跨项目检索被 projectId where 条件硬隔离；无本项目权限一律 FORBIDDEN。
     await requireProjectAccess(prisma, req, projectId);
     const query = z.object({
-      includeInvalidated: z.coerce.boolean().default(false),
+      includeInvalidated: z.enum(['true','false']).default('false').transform(v=>v==='true'),
+      page:z.coerce.number().int().min(1).max(100000).default(1),
     }).strict().parse(req.query);
+    await refreshMemories(prisma,store,projectId);
     return {
+      page:query.page,total:await prisma.projectMemory.count({where:{projectId,...(query.includeInvalidated?{}:{invalidated:false})}}),
       memories: await prisma.projectMemory.findMany({
-        where: { projectId, invalidated: query.includeInvalidated },
+        where: { projectId, ...(query.includeInvalidated?{}:{invalidated:false}) },
         orderBy: { createdAt: 'desc' },
-        take: 200,
+        take: 50,skip:(query.page-1)*50,
       }),
     };
   });
@@ -589,6 +659,11 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
 
   // ============ R08: DiagnosisEntry（事实/假设/建议，不改变判） ============
 
+  app.post('/api/projects/:id/diagnoses/generate',async(req,reply)=>{
+    const projectId=param(req,'id');await requireProjectAccess(prisma,req,projectId,'LEAD');
+    const body=z.object({runId:z.string().min(1)}).strict().parse(req.body);
+    return diagnoseRun(prisma,store,projectId,body.runId,requireAuth(req).userId);
+  });
   app.post('/api/projects/:id/diagnoses', async req => {
     const projectId = param(req, 'id');
     await requireProjectAccess(prisma, req, projectId, 'LEAD');
@@ -605,9 +680,16 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
     if (parsed.data.attemptId) {
       const attempt = await prisma.caseAttempt.findUnique({ where: { id: parsed.data.attemptId } });
       const run = attempt && await prisma.run.findUnique({ where: { id: attempt.runId } });
-      if (!attempt || !run || run.projectId !== projectId) {
+      if (!attempt || !run || run.projectId !== projectId || parsed.data.runId && attempt.runId !== parsed.data.runId) {
         throw new ApiError('VALIDATION_ERROR', '引用的尝试不属于本项目');
       }
+    }
+    for(const fact of parsed.data.facts){
+      if(!fact.evidenceId)continue; // Human-entered notes remain attributed to their author.
+      const artifact=await prisma.artifact.findFirst({where:{id:fact.evidenceId,projectId}});
+      if(!artifact||!artifact.checksum||!store.verify(artifact.storageKey,artifact.checksum)||artifact.expiresAt&&artifact.expiresAt<=new Date())throw new ApiError('VALIDATION_ERROR','诊断证据不可用');
+      if(parsed.data.attemptId&&artifact.attemptId!==parsed.data.attemptId)throw new ApiError('VALIDATION_ERROR','证据不属于此执行尝试');
+      if(parsed.data.runId&&(!artifact.attemptId||!await prisma.caseAttempt.findFirst({where:{id:artifact.attemptId,runId:parsed.data.runId}})))throw new ApiError('VALIDATION_ERROR','证据不属于此运行');
     }
     return prisma.diagnosisEntry.create({
       data: {

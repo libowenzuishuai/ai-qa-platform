@@ -1,3 +1,4 @@
+import {reconcileGitHubDeliveries} from './github-ci.js';
 import { sweepProjectEvidence } from './evidence-retention.js';
 import { reconcileCodeChecks } from '@ai-qa/run-events';
 import { ArtifactStore } from "@ai-qa/artifact-store";
@@ -176,6 +177,9 @@ const retentionTimer=setInterval(()=>{
  })().catch(err=>console.error('[retention]',err.message)).finally(()=>{retentionRunning=false;});
 },60000);
 
+let githubRunning=false;
+const githubTimer=setInterval(()=>{if(githubRunning)return;githubRunning=true;void reconcileGitHubDeliveries(prisma,workflowStore).catch(err=>console.error('[github]',err.message)).finally(()=>{githubRunning=false;});},5000);
+
 // —— 健康服务 ——
 const app = Fastify({ logger: { level: config.logLevel } });
 app.get("/api/health", async () => ({
@@ -194,6 +198,7 @@ const shutdown = async () => {
   clearInterval(reconciler);
   clearInterval(workflowTimer);
   clearInterval(retentionTimer);
+  clearInterval(githubTimer);
   await runWorker.close();
   await agentJobWorker.close();
   await seedWorker.close();

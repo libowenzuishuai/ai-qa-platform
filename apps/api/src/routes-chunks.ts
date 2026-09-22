@@ -3,7 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { Queue } from "bullmq";
 import { z } from "zod";
 import { createHash } from "node:crypto";
-import { ChunkManifest, RuleExtractionOutput, chunkManifestPayload } from "@ai-qa/contracts";
+import { ChunkManifest, RuleExtractionOutput, chunkManifestPayload, ChunkProcessingBudget, ChunkBudgetState } from "@ai-qa/contracts";
 import { loadCompletedChunks } from "./chunk-results.js";
 import { contentHash } from "./change-review-service.js";
 import { requireAuth, requireProjectAccess } from "./auth.js";
@@ -38,6 +38,34 @@ export function registerChunkRoutes(
       throw new ApiError("NOT_FOUND", "文档版本不存在或不属于本项目");
     return doc;
   }
+
+  app.put('/api/projects/:id/documents/:versionId/chunks/budget',async req=>{
+    const doc=await ownedDocument(req,'LEAD');
+    const body=z.object({limits:ChunkProcessingBudget,mode:z.enum(['real','mock'])}).strict().parse(req.body);
+    if(body.mode==='real'&&doc.mode!=='real')throw new ApiError('VALIDATION_ERROR','模拟资料不能用于真实提取');
+    return db.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT id FROM "DocumentVersion" WHERE id=${doc.id} FOR UPDATE`;
+      const fresh=await tx.documentVersion.findUniqueOrThrow({where:{id:doc.id}});
+      const old=fresh.chunkBudget?ChunkBudgetState.parse(fresh.chunkBudget):null;
+      if(old && old.mode!==body.mode)throw new ApiError('CONFLICT','同一资料版本的提取模式不能混用');
+      if(old && (body.limits.maxModelCalls<old.usedCalls||body.limits.maxReservedTokens<old.reservedTokens))throw new ApiError('CONFLICT','预算不能低于已保留的调用额度');
+      const budget=ChunkBudgetState.parse({limits:body.limits,usedCalls:old?.usedCalls??0,reservedTokens:old?.reservedTokens??0,deadline:new Date(Date.now()+body.limits.maxWallClockMs).toISOString(),mode:body.mode,updatedBy:requireAuth(req).userId});
+      await tx.documentVersion.update({where:{id:doc.id},data:{chunkBudget:budget}});
+      await tx.auditEvent.create({data:{actorId:requireAuth(req).userId,action:'chunk.budget',entityType:'DocumentVersion',entityId:doc.id,metadata:{before:old,after:budget} as never}});
+      return {budget};
+    });
+  });
+  app.post('/api/projects/:id/documents/:versionId/chunks/process',async(req,reply)=>{
+    const doc=await ownedDocument(req,'LEAD');
+    const body=z.object({idempotencyKey:z.string().min(8).max(200)}).strict().parse(req.body);
+    if(!doc.chunkManifestHash||!doc.chunkBudget)throw new ApiError('CONFLICT','先创建分块清单并设置全文预算');
+    const budget=ChunkBudgetState.parse(doc.chunkBudget);
+    if(Date.parse(budget.deadline)<=Date.now())throw new ApiError('BUDGET_EXCEEDED','全文预算已到期，请明确延长预算');
+    const fingerprint=contentHash({documentVersionId:doc.id,manifestHash:doc.chunkManifestHash,idempotencyKey:body.idempotencyKey});
+    const job=await db.job.upsert({where:{projectId_kind_fingerprint:{projectId:doc.document.projectId,kind:'CHUNK_BATCH',fingerprint}},create:{projectId:doc.document.projectId,kind:'CHUNK_BATCH',fingerprint,request:{documentVersionId:doc.id,manifestHash:doc.chunkManifestHash,mode:budget.mode}},update:{}});
+    if(job.status==='QUEUED')try{await queue.add('run',{jobId:job.id},{removeOnComplete:true,removeOnFail:200});}catch{/* durable reconciliation */}
+    return reply.code(202).send({jobId:job.id});
+  });
 
   app.post("/api/projects/:id/documents/:versionId/chunks", async (req, reply) => {
     const doc = await ownedDocument(req, "LEAD");
@@ -109,6 +137,7 @@ export function registerChunkRoutes(
         manifestHash: doc.chunkManifestHash,
       },
       chunks: rows,
+      budget:doc.chunkBudget,
       coverage: {
         ...coverage,
         note: coverage.complete

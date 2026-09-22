@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Authenticated pull runner. Repository code executes only in disposable Docker containers."""
+import hashlib
 import argparse
 import io
 import json
@@ -160,7 +161,7 @@ def docker(args, **kwargs):
     return subprocess.run(['docker', *args], check=True, capture_output=True, **kwargs)
 
 
-def execute(spec, continue_work=lambda: True, source_directory=None):
+def execute(spec, continue_work=lambda: True, source_directory=None, source_archive=None):
     identity = uuid.uuid4().hex
     volume = 'aiqa-work-' + identity
     containers = []
@@ -197,7 +198,9 @@ def execute(spec, continue_work=lambda: True, source_directory=None):
             raise ValueError('Invalid repository subdirectory')
         with tempfile.TemporaryDirectory(prefix='aiqa-source-') as temporary:
             source=Path(temporary)/'source';source.mkdir()
-            if source_directory:
+            if source_archive is not None:
+                extract_archive(source_archive, source)
+            elif source_directory:
                 shutil.copytree(source_directory,source,dirs_exist_ok=True)
             else:
                 repo=spec['repositoryUrl'].removeprefix('https://github.com/').removesuffix('/').removesuffix('.git')
@@ -255,6 +258,20 @@ def execute(spec, continue_work=lambda: True, source_directory=None):
     return result
 
 
+def download_private_source(base, token, task):
+    payload=json.dumps({'leaseToken':task['leaseToken']}).encode()
+    req=urllib.request.Request(base+'/api/runner/tasks/'+task['id']+'/source',data=payload,headers={'authorization':'Bearer '+token,'content-type':'application/json'})
+    # Platform credentials must never follow a server-provided redirect.
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+    with urllib.request.build_opener(NoRedirect()).open(req,timeout=45) as response:
+        data=response.read(MAX_ARCHIVE+1)
+        if len(data)>MAX_ARCHIVE or response.headers.get('x-source-commit')!=task['request']['commitSha'] or hashlib.sha256(data).hexdigest()!=response.headers.get('x-source-sha256'):
+            raise ValueError('Private source identity/checksum mismatch')
+        return data
+
+
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--once',action='store_true');args=parser.parse_args()
     base=os.environ['AIQA_PLATFORM_URL'].rstrip('/');token=os.environ['AIQA_RUNNER_TOKEN']
@@ -275,7 +292,11 @@ def main():
                     stop.wait(10)
             monitor=threading.Thread(target=renew,daemon=True);monitor.start()
             try:
-                result=execute(task['request'],active.is_set)
+                try:
+                    archive=download_private_source(base,token,task) if task.get('sourceViaPlatform') else None
+                    result=execute(task['request'],active.is_set,source_archive=archive)
+                except Exception:
+                    result={'commitSha':task['request']['commitSha'],'exitCode':-1,'cases':[],'output':'Private source retrieval failed; credentials were not passed to repository code.','platformError':'Private source retrieval failed'}
                 try:
                     request(base+'/api/runner/tasks/'+task['id']+'/result',token,{'leaseToken':task['leaseToken'],'result':result})
                 except Exception:

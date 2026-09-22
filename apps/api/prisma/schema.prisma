@@ -157,6 +157,7 @@ model DocumentVersion {
   bundleStorageKey String?
   bundleChecksum   String?
   // R03：持久化分块清单（ChunkManifest JSON + 哈希；策略/输入随清单固定）。
+  chunkBudget         Json?
   chunkManifest     Json?
   chunkManifestHash String?
   parseWarnings    Json            @default("[]")
@@ -1084,6 +1085,8 @@ model ReleaseDecision {
 }
 
 model GoalProposal {
+  workflowId String? @unique
+  executionRequest Json?
   project         Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   id              String       @id @default(cuid())
   projectId       String
@@ -1122,6 +1125,7 @@ model ProjectMemory {
 }
 
 model DiagnosisEntry {
+  sourceKey String?
   project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   id            String       @id @default(cuid())
   projectId     String
@@ -1138,4 +1142,50 @@ model DiagnosisEntry {
   environmentId String?
 
   @@index([projectId])
+  @@unique([projectId, sourceKey])
+}
+
+model GithubAuthState {
+  hash String @id
+  projectId String
+  userId String
+  repository String
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+}
+model GithubIntegration {
+  id String @id @default(cuid())
+  projectId String
+  repositoryId String
+  repository String
+  installationId String
+  githubUserId String
+  configuredBy String
+  status String @default("ACTIVE")
+  revision Int @default(1)
+  ci Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([projectId, repositoryId])
+  @@index([installationId])
+}
+model GithubDelivery {
+  id String @id @default(cuid())
+  deliveryId String @unique
+  payloadHash String
+  integrationId String?
+  integrationRevision Int?
+  projectId String?
+  event String
+  payload Json
+  status String @default("QUEUED")
+  detail String?
+  workflowId String?
+  remoteCheckId String?
+  attempts Int @default(0)
+  leaseExpiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([status, updatedAt])
 }

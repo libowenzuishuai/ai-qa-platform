@@ -40,7 +40,7 @@ export async function callIntelligence(
   try {
     response = await fetch(new URL(contract.path, base), {
       method: 'POST', redirect: 'error', signal: AbortSignal.any([AbortSignal.timeout(timeoutMs),...(config.executionSignal?[config.executionSignal]:[])]),
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${config.intelligenceToken}`, ...(config.executionBudget?{'x-aiqa-model-calls':String(config.executionBudget.maxModelCalls),'x-aiqa-model-tokens':String(config.executionBudget.maxTokens)}:{}) },
+      headers: { ...(config.modelInputCharLimit?{'x-aiqa-input-char-limit':String(config.modelInputCharLimit)}:{}), 'content-type': 'application/json', authorization: `Bearer ${config.intelligenceToken}`, ...(config.executionBudget?{'x-aiqa-model-calls':String(config.executionBudget.maxModelCalls),'x-aiqa-model-tokens':String(config.executionBudget.maxTokens)}:{}) },
       body: JSON.stringify(request),
     });
     raw = await response.json();
