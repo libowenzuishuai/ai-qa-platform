@@ -54,9 +54,13 @@ compose project：`aiqa-prod-r04`（动态端口 17100/17200/17300，独立卷 p
 
 ## 待跑门（如实记录）
 
-1. **worker 生产镜像**：基础镜像 `mcr.microsoft.com/playwright:v1.63.0-noble` 体量大（约 2 GB），
-   拉取仍在进行；完成后执行 `docker compose … up -d --build worker` 并跑真实浏览器执行冒烟。
-   在此之前 worker 容器验收状态为 NOT_RUN，不宣称通过。
+1. ~~worker 生产镜像~~ **已关闭（2026-09-22）**：playwright 基础镜像（`mcr.microsoft.com/playwright:v1.63.0-noble`，3.48 GB）拉取完成后，
+   `docker compose … up -d --build worker` 构建并启动成功，worker 容器 `Up (healthy)`（`/api/health` 通过）。
+   过程中修复两个真实缺陷：worker 构建需包含 api 依赖与 prisma schema（`--filter @ai-qa/api` + COPY prisma）；
+   Prisma Query Engine 的 openssl 目标在 bookworm 构建与 noble 运行镜像间不一致 → schema 显式固定
+   `binaryTargets = ["native","linux-arm64-openssl-3.0.x","linux-arm64-openssl-1.1.x","debian-openssl-3.0.x"]`。
+   至此生产栈 6 服务（postgres/redis/intelligence/api/web/worker）全部 healthy。
+   生产 worker 内真实浏览器执行用例的端到端冒烟列入 R12 最终回归（需 demo profile 联动）。
 2. **registry 推送**：本环境仅能经 daocloud 镜像源拉取；`docker push` 到自有 registry 未配置，
    镜像以本地构建产物交付。
 3. 升级验证中 Run 表为空（隔离库未造 Run 数据）："升级后可读旧 Run"以结构完好 + 迁移日志一致

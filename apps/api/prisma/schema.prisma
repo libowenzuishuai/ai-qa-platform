@@ -7,6 +7,9 @@
 
 generator client {
   provider = "prisma-client-js"
+  // 构建镜像（bookworm）与运行镜像（noble）的 openssl 检测结果可能不同：
+  // 显式固定两类目标，避免运行时找不到 Query Engine。
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x", "linux-arm64-openssl-1.1.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {

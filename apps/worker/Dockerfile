@@ -9,10 +9,11 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages ./packages
 COPY apps/api/package.json ./apps/api/package.json
+COPY apps/api/prisma ./apps/api/prisma
 COPY apps/worker ./apps/worker
 # worker 编译需要引用 api/src（共享服务模块）：
 COPY apps/api/src ./apps/api/src
-RUN pnpm install --frozen-lockfile --filter @ai-qa/worker...
+RUN pnpm install --frozen-lockfile --filter @ai-qa/worker... --filter @ai-qa/api
 RUN pnpm --filter @ai-qa/api exec prisma generate
 RUN pnpm --filter @ai-qa/worker build
 
