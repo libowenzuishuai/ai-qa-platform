@@ -1185,7 +1185,7 @@ class ChunkManifest(BaseModel):
     strategyVersion: Literal['chunk-v1']
     documentChecksum: str
     strategyParams: StrategyParams
-    chunks: list[DocumentChunk] = Field(..., min_length=1)
+    chunks: list[DocumentChunk] = Field(..., max_length=1000, min_length=1)
     totalCodePoints: int = Field(..., ge=0)
     createdAt: AwareDatetime
 
@@ -1770,20 +1770,7 @@ class SnapshotCompareRequest(BaseModel):
     )
     mode: Literal['real', 'mock']
     timeoutMs: int = Field(..., ge=1000, le=600000)
-    input: MultiFileComparisonInput
-
-
-class SnapshotCompareResponse(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    schemaVersion: Literal['1.0']
-    requestId: str = Field(
-        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
-    )
-    mode: Literal['real', 'mock']
-    invocations: list[InvocationRecord]
-    output: MultiFileChangeReport
+    input: SnapshotDiffInput
 
 
 class GoalProposalAgentResponse(BaseModel):
@@ -1836,6 +1823,19 @@ class SnapshotDiffReport(BaseModel):
     complete: bool
     requiresHumanReview: Literal[True]
     coverage: Coverage
+
+
+class SnapshotCompareResponse(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    invocations: list[InvocationRecord]
+    output: SnapshotDiffReport
 
 
 class IntelligenceContracts(BaseModel):

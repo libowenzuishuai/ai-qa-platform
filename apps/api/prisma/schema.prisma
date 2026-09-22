@@ -617,6 +617,7 @@ model ContextSnapshot {
   subdirectory  String
   files         Json
   skipped       Json
+  inventory     Json?
   previousId    String?
   createdAt     DateTime        @default(now())
 
@@ -976,6 +977,8 @@ model DocumentChunk {
   attempts         Int       @default(0)
   /** 处理租约到期时间（过期由对账显式恢复为 pending）。 */
   leaseExpiresAt   DateTime?
+  leaseOwnerJobId  String?
+  generationMode  String?
   /** 该块的 RuleExtractionOutput（含 drafts/clarifications/unparsedRanges）。 */
   output           Json?
   outputHash       String?

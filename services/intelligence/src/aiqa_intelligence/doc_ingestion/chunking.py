@@ -36,7 +36,7 @@ def _validate_params(params: dict) -> dict:
         raise ChunkLimit("contextOverlapChars 必须在 [0, 5000]")
     if not isinstance(budget, int) or budget < 1000:
         raise ChunkLimit("modelBudgetChars 必须 ≥ 1000")
-    if max_chars > budget - OUTPUT_RESERVE_CHARS:
+    if max_chars + overlap > budget - OUTPUT_RESERVE_CHARS:
         raise ChunkLimit(
             f"maxCharsPerChunk({max_chars}) 超过请求预算扣除输出预留后的剩余"
             f"（modelBudgetChars={budget} - 预留{OUTPUT_RESERVE_CHARS}）；"
@@ -86,6 +86,8 @@ def chunk_bundle(
     spans = bundle.get("spans") or []
     if len(blocks) != len(spans):
         raise ChunkLimit("blocks 与 spans 数量不一致，输入损坏")
+    if len(blocks)>10000 or sum(len(b.get("text") or "") for b in blocks)>2_000_000:
+        raise ChunkLimit("分块输入超过 10000 块 / 200 万码点上限")
     document_id = bundle["documentVersionId"]
     prefix = hashlib.sha256(document_id.encode()).hexdigest()[:24]
 
@@ -167,7 +169,7 @@ def chunk_bundle(
             continue
 
         # 块粒度合并：加得下就并入当前块。
-        if current_texts and sum(len(t) for t in current_texts) + len(text) + 1 > max_chars:
+        if current_texts and len("\n".join(t for t in current_texts if t)) + len(text) + 1 > max_chars:
             flush()
         note_kind(kind)
         current_texts.append(text)

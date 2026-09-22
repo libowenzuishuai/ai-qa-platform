@@ -31,24 +31,31 @@ export async function discoverRepository(raw: unknown, store: ArtifactStore, job
   const tree = await github(`${prefix}/git/trees/${commit.commit.tree.sha}?recursive=1`, 8*1024*1024, fetcher, signal);
   const files: RepositoryFile[] = [], skipped: { path: string; reason: string }[] = [];
   if (tree.truncated) skipped.push({ path: '*', reason: 'GitHub 目录树被截断，本次发现不完整' });
+  const inventory: {policyVersion:string;enumerationStatus:string;enumerationReason:string|null;entries:Array<{path:string;fetchStatus:string;reason?:string}>} = {
+    policyVersion: 'repository-candidates-v1', enumerationStatus: tree.truncated ? 'PARTIAL' : 'COMPLETE',
+    enumerationReason: tree.truncated ? 'GitHub 目录树被截断' : null, entries: [],
+  };
   let bytes = 0;
   for (const entry of tree.tree) {
-    if (typeof entry.path !== 'string' || !/^[a-f0-9]{40}$/.test(entry.sha)) continue;
+    if (typeof entry.path !== 'string' || !/^[a-f0-9]{40}$/.test(entry.sha)) { inventory.enumerationStatus='PARTIAL'; inventory.enumerationReason='目录项损坏'; continue; }
     if (request.subdirectory && !entry.path.startsWith(request.subdirectory.replace(/\/$/,'')+'/')) continue;
     const category = classifyRepositoryPath(entry.path);
     if (entry.type !== 'blob' || entry.mode === '120000' || !category) {
       if (skipped.length < 1000) skipped.push({ path: entry.path, reason: '非候选资料、受限文件、目录或链接' }); continue;
     }
+    const candidate = {path:entry.path,fetchStatus:'NOT_FETCHED'};
+    inventory.entries.push(candidate);
     if (!Number.isInteger(entry.size) || entry.size <= 0 || entry.size > 1024*1024 || files.length >= 50 || bytes+entry.size > 8*1024*1024) { skipped.push({ path: entry.path, reason: '文件数量/字节预算限制' }); continue; }
     const blob = await github(`${prefix}/git/blobs/${entry.sha}`, 2*1024*1024, fetcher, signal);
     if (blob.encoding !== 'base64') throw new Error('不支持的 Git blob 编码');
     const data = Buffer.from(blob.content, 'base64');
     if (data.length !== entry.size || createHash('sha1').update(`blob ${data.length}\0`).update(data).digest('hex') !== entry.sha) throw new Error('Git blob 校验不符');
+    candidate.fetchStatus = 'OK';
     bytes += data.length;
     const saved = store.put({ runId: `repo-${jobId}`, attemptId: 'files', filename: `${entry.sha}.bin`, data });
     const ext = entry.path.split('.').pop()?.toLowerCase();
     const format = ext === 'md' ? 'MARKDOWN' : ext === 'pdf' ? 'PDF_TEXT' : ext === 'docx' ? 'DOCX' : ext === 'png' ? 'PNG' : ['jpg','jpeg'].includes(ext ?? '') ? 'JPEG' : 'TXT';
     files.push({ path: entry.path, blobHash: entry.sha, checksum: saved.checksum, storageKey: saved.storageKey, size: data.length, category, format });
   }
-  return { repositoryUrl, commitSha: commit.sha as string, subdirectory: request.subdirectory, files, skipped };
+  return { repositoryUrl, commitSha: commit.sha as string, subdirectory: request.subdirectory, files, skipped, inventory };
 }

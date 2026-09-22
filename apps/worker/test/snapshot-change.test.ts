@@ -113,7 +113,8 @@ async function seedDocumentVersion(
       documentId,
       version,
       checksum: fileChecksum,
-      storageKey: saved.storageKey,
+      storageKey: env.store.put({runId:"raw",attemptId:documentVersionId,filename:"source.md",data:Buffer.from(text)}).storageKey,
+      fileSizeBytes: Buffer.byteLength(text),
       format: "MARKDOWN",
       parseStatus: "PARSED",
       bundleStorageKey: saved.storageKey,
@@ -125,7 +126,7 @@ async function seedDocumentVersion(
   return bundle;
 }
 
-let projectId = "", baselineId = "";
+let projectId = "", baselineId = "", oldSnapshotId="", newSnapshotId="";
 let prdOldId = "", prdNewId = "", legacyOldId = "", archivedNewId = "", paymentNewId = "", deployOldId = "";
 let rulePrdId = "", ruleDeployId = "", rulePaymentId = "", casePaymentId = "";
 let linkedReviewJobId = "";
@@ -188,6 +189,16 @@ beforeAll(async () => {
   await seedDocumentVersion(archived.id, archivedNewId, 1, legacyText); // 与旧规则同字节 → renamed
   await seedDocumentVersion(payment.id, paymentNewId, 1, "# 支付\n下单后 30 分钟内必须支付。\n");
   await seedDocumentVersion(deploy.id, deployOldId, 1, "# 部署\n仅旧版存在的部署说明。\n"); // 仅旧版 → removed
+
+  async function snapshot(files:Array<[string,string]>,sha:string){
+    const rows=[];
+    for(const [path,id] of files){const v=await env.prisma.documentVersion.findUniqueOrThrow({where:{id}}); rows.push({path,format:v.format,size:v.fileSizeBytes,checksum:v.checksum,storageKey:v.storageKey});}
+    return env.prisma.contextSnapshot.create({data:{projectId,repositoryUrl:'https://github.com/fixture/project',commitSha:sha.repeat(40),subdirectory:'',files:rows,skipped:[],
+      inventory:{policyVersion:'repository-candidates-v1',enumerationStatus:'COMPLETE',enumerationReason:null,entries:rows.map(r=>({path:r.path,fetchStatus:'OK'}))},
+      sources:{create:files.map(([path,documentVersionId])=>({path,documentVersionId,authority:'BUSINESS_APPROVED',confirmedBy:actor.id}))}}});
+  }
+  oldSnapshotId=(await snapshot([['requirements/prd.md',prdOldId],['requirements/legacy.md',legacyOldId],['ops/deploy.md',deployOldId]],'a')).id;
+  newSnapshotId=(await snapshot([['requirements/prd.md',prdNewId],['requirements/archived.md',archivedNewId],['requirements/payment.md',paymentNewId]],'b')).id;
 
   // 规则：prd 来源（保留）、deploy 独占（删除时下线）、payment 来源（新增纳入）。
   const mkRule = async (rid: string, sources: Array<{ documentVersionId: string; sourceSpanIds: string[] }>) => {
@@ -274,29 +285,20 @@ function requestBody() {
   return {
     idempotencyKey: "snap-key-0001",
     baselineId,
-    oldFiles: [
-      { path: "requirements/prd.md", documentVersionId: prdOldId },
-      { path: "requirements/legacy.md", documentVersionId: legacyOldId },
-      { path: "ops/deploy.md", documentVersionId: deployOldId },
-    ],
-    newFiles: [
-      { path: "requirements/prd.md", documentVersionId: prdNewId },
-      { path: "requirements/archived.md", documentVersionId: archivedNewId },
-      { path: "requirements/payment.md", documentVersionId: paymentNewId },
-    ],
+    oldSnapshotId, newSnapshotId,
   };
 }
 
 it("创建快照对比：冻结输入、入队、真实 Python 比较产出四类结局", async () => {
   const res = await app.inject({ method: "POST", url: `/api/projects/${projectId}/snapshot-changes`, headers: H, payload: requestBody() });
-  expect(res.statusCode).toBe(202);
+  expect(res.statusCode, res.body).toBe(202);
   const body = res.json();
   const jobId = body.jobId as string;
   expect(queueCalls).toContain(jobId);
 
   await processAgentJob(env.prisma, config(), jobId);
   const job = await env.prisma.job.findUniqueOrThrow({ where: { id: jobId } });
-  expect(job.status).toBe("SUCCEEDED");
+  expect(job.status,JSON.stringify(job.error)).toBe("SUCCEEDED");
 
   const detail = await app.inject({ method: "GET", url: `/api/snapshot-changes/${body.snapshotChangeId}`, headers: H });
   expect(detail.statusCode).toBe(200);
@@ -304,7 +306,7 @@ it("创建快照对比：冻结输入、入队、真实 Python 比较产出四�
   expect(d.pendingCount).toBe(4);
   const kinds = (d.tasks as Array<{ kind: string }>).map((t) => t.kind).sort();
   expect(kinds).toEqual(["added", "modified", "removed", "renamed"]);
-  expect(d.output.totals).toMatchObject({ oldFiles: 3, newFiles: 3 });
+  expect(d.output.coverage).toMatchObject({ oldFiles: 3, newFiles: 3 });
 });
 
 it("并发重复提交只产生一份逻辑作业（幂等）", async () => {
@@ -341,7 +343,7 @@ it("复核校验：决策类型不匹配与缺理由被拒绝", async () => {
     payload: { fileKey: "modified:requirements/prd.md", decision: "MODIFIED_REVIEWED", changeReviewId: badReview.id },
   });
   // 该复核恰好覆盖 prd 版本对（挂接成功路径），先用错误 key 验证 422 的其他分支：
-  expect([200, 422]).toContain(mismatch.statusCode);
+  expect(mismatch.statusCode).toBe(200);
 });
 
 it("完成全部待办并创建新基线：deploy 独占规则下线、payment 资产纳入、旧基线保留", async () => {
@@ -407,11 +409,10 @@ it("冻结输出防篡改：落库结果被改后读取被拒绝", async () => {
 it("反例（#1 快照完整性）：漏报项目文档被拒绝", async () => {
   const partial = requestBody();
   partial.idempotencyKey = "snap-key-partial";
-  partial.oldFiles = partial.oldFiles.filter((f) => f.path !== "ops/deploy.md"); // 漏掉 deploy
+  (partial as any).oldFiles = []; // 禁止调用方自报清单
   const res = await app.inject({ method: "POST", url: `/api/projects/${projectId}/snapshot-changes`, headers: H, payload: partial });
   expect(res.statusCode).toBe(422);
-  expect(res.json().message).toContain("快照不完整");
-  expect(res.json().message).toContain("部署说明");
+  expect(res.json().code).toBe("VALIDATION_ERROR");
 });
 
 it("反例（#4 联合校验）：与冻结输入不符的报告即使哈希自洽也被拒绝", async () => {
@@ -420,8 +421,8 @@ it("反例（#4 联合校验）：与冻结输入不符的报告即使哈希自�
   const row = await env.prisma.snapshotChange.findUniqueOrThrow({ where: { id: changeId } });
   // 伪造：把 added 的路径换成输入里不存在的路径，并同步修正 outputHash（绕过哈希防线）。
   const forged = JSON.parse(JSON.stringify(row.output));
-  const added = forged.outcomes.find((o: { kind: string }) => o.kind === "added");
-  added.newPath = "requirements/fabricated.md";
+  const added = forged.fileChanges.find((o: { kind: string }) => o.kind === "added");
+  added.new.path = "requirements/fabricated.md";
   const { contentHash } = await import("../../api/src/change-review-service.js");
   await env.prisma.snapshotChange.update({
     where: { id: changeId },
@@ -431,6 +432,7 @@ it("反例（#4 联合校验）：与冻结输入不符的报告即使哈希自�
   expect(detail.statusCode).toBe(409);
   expect(detail.json().code).toBe("CONFLICT");
   expect(detail.json().message).toContain("冻结输入不符");
+  await env.prisma.snapshotChange.update({where:{id:changeId},data:{output:row.output as never,outputHash:row.outputHash}});
 });
 
 it("反例（#5 查询/取消）：SNAPSHOT_DIFF 作业可查询可取消", async () => {

@@ -13,7 +13,8 @@ from .agents.planner import propose_plan, classify_sources
 from .agents.goal import propose_goal
 from .doc_ingestion.service import DocumentParser
 from .doc_ingestion.chunking import ChunkLimit, chunk_bundle, coverage_report
-from .source_changes.multi_file import MultiFileLimit, compare_files
+from .source_changes import compare_snapshots
+from .source_changes.multi_file import MultiFileLimit
 from .contracts import generated as models
 from .contracts.validation import (
     validate_shape,
@@ -47,7 +48,7 @@ async def chunk_document(typed_input, context):
 async def compare_snapshot(typed_input, context):
     """确定性多文件快照对比（R01/R02）：不调用模型。"""
     data = typed_input.model_dump(mode="json", exclude_unset=True)
-    report = compare_files(data)
+    report = compare_snapshots(data["oldSnapshot"], data["newSnapshot"], bundles=data["bundles"])
     snapshot_model = models.SnapshotCompareResponse.model_fields["output"].annotation
     return snapshot_model.model_validate(report)
 

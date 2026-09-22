@@ -46,14 +46,14 @@ describe("mergeChunkExtractions", () => {
     expect(merged.ruleDrafts[0]!.key).toBe("rule-draft-01");
   });
 
-  it("statement 相同但条件不同：不合并且 conflictsWith 双向引用", () => {
+  it("statement 相同但条件不同：保留两条，不凭相似文本虚构冲突", () => {
     const merged = mergeChunkExtractions([
       { chunkId: "c-a", seq: 0, output: output([draft({ condition: "境内交易" })]) },
       { chunkId: "c-b", seq: 1, output: output([draft({ key: "rule-draft-02", condition: "跨境交易", sources: [{ documentVersionId: "dv-1", sourceSpanIds: ["s-9"] }] })]) },
     ]);
     expect(merged.ruleDrafts).toHaveLength(2);
-    expect(merged.ruleDrafts[0]!.conflictsWith).toEqual(["rule-draft-02"]);
-    expect(merged.ruleDrafts[1]!.conflictsWith).toEqual(["rule-draft-01"]);
+    expect(merged.ruleDrafts[0]!.conflictsWith).toEqual([]);
+    expect(merged.ruleDrafts[1]!.conflictsWith).toEqual([]);
     // 两条来源各自保留（不吞并条件不同的规则）。
     expect(merged.ruleDrafts[0]!.sources[0]!.sourceSpanIds).toEqual(["s-1"]);
     expect(merged.ruleDrafts[1]!.sources[0]!.sourceSpanIds).toEqual(["s-9"]);
@@ -78,8 +78,8 @@ describe("mergeChunkExtractions", () => {
     };
     const range = { spanId: "s-1", startLine: 3, endLine: 3, reason: "TABLE_DEGRADED" as const };
     const merged = mergeChunkExtractions([
-      { chunkId: "c-a", seq: 0, output: { ruleDrafts: [], clarifications: [clarification], unparsedRanges: [range] } },
-      { chunkId: "c-b", seq: 1, output: { ruleDrafts: [], clarifications: [{ ...clarification }], unparsedRanges: [{ ...range, spanId: "s-7" }] } },
+      { chunkId: "c-a", seq: 0, output: { ruleDrafts: [draft({})] as any, clarifications: [clarification], unparsedRanges: [range] } },
+      { chunkId: "c-b", seq: 1, output: { ruleDrafts: [draft({})] as any, clarifications: [{ ...clarification }], unparsedRanges: [{ ...range, spanId: "s-7" }] } },
     ]);
     expect(merged.clarifications).toHaveLength(1);
     expect(merged.unparsedRanges).toHaveLength(2);
@@ -126,4 +126,26 @@ describe("chunkCoverage", () => {
     expect(state.complete).toBe(false);
     expect(state.cancelled).toEqual(["c-1"]);
   });
+});
+
+it('数字业务字段、禁止行为和质量分类不同不得被去重丢失',()=>{
+ const variants=[draft({}),draft({classification:'UNKNOWN'}),draft({forbiddenBehaviors:['禁止部分审批']}),draft({businessFields:[{key:'amount',value:'30',unit:'万元'}]})];
+ const merged=mergeChunkExtractions(variants.map((d,i)=>({chunkId:`c-${i}`,seq:i,output:output([d])})));
+ expect(merged.ruleDrafts).toHaveLength(4);
+});
+it('跨块 key 重复时澄清重映射，原有冲突保留',()=>{
+ const first=output([draft({statement:'独立规则'})]);
+ const second=output([draft({statement:'规则甲',conflictsWith:['rule-draft-02']}),draft({key:'rule-draft-02',statement:'规则乙',conflictsWith:['rule-draft-01']})]);
+ second.clarifications=[{kind:'CONFLICT',question:'哪条有效？',ruleDraftKeys:['rule-draft-01','rule-draft-02']}];
+ const merged=mergeChunkExtractions([{chunkId:'a',seq:0,output:first},{chunkId:'b',seq:1,output:second}]);
+ expect(merged.ruleDrafts[1]!.conflictsWith).toEqual(['rule-draft-03']);
+ expect(merged.ruleDrafts[2]!.conflictsWith).toEqual(['rule-draft-02']);
+ expect(merged.clarifications[0]!.ruleDraftKeys).toEqual(['rule-draft-02','rule-draft-03']);
+});
+it('未知状态、额外块、重复块和空清单都不能显示完整',()=>{
+ const m=[{chunkId:'a',seq:0}];
+ expect(chunkCoverage(m,[{chunkId:'a',status:'typo'}]).complete).toBe(false);
+ expect(chunkCoverage(m,[{chunkId:'a',status:'completed'},{chunkId:'b',status:'completed'}]).complete).toBe(false);
+ expect(chunkCoverage(m,[{chunkId:'a',status:'completed'},{chunkId:'a',status:'completed'}]).complete).toBe(false);
+ expect(chunkCoverage([],[]).complete).toBe(false);
 });

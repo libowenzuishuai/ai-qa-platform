@@ -21,60 +21,8 @@ import { contentHash, loadReviewBundle, reviewTasks } from "./change-review-serv
  * 旧基线完整保留。
  */
 
-const FileRef = z.object({
-  path: z.string().min(1).max(1024),
-  documentVersionId: z.string().min(1),
-}).strict();
-
-/**
- * 评审修复（#4）：输出与冻结输入联合校验。
- * Python 返回（或落库后被篡改）的报告必须与冻结清单吻合：
- * - 结局引用的路径必须来自冻结清单（不得凭空出现/偷换）；
- * - added/removed/renamed/modified 的方向性正确；
- * - renamed 的两侧字节校验和必须一致（防止把不同文件说成重命名）；
- * - totals 与冻结清单规模一致；excludedPaths 原样回显。
- */
-export function validateSnapshotOutput(input: unknown, output: unknown) {
-  const i = MultiFileComparisonInput.parse(input);
-  const o = MultiFileChangeReport.parse(output);
-  const fail = (message: string) =>
-    new ApiError("CONFLICT", `快照报告与冻结输入不符：${message}`);
-  if (o.totals.oldFiles !== i.oldFiles.length || o.totals.newFiles !== i.newFiles.length)
-    throw fail("两侧文件总数不一致");
-  const oldByPath = new Map(i.oldFiles.map((f) => [f.path, f]));
-  const newByPath = new Map(i.newFiles.map((f) => [f.path, f]));
-  const sortedExcluded = [...i.excludedPaths].sort();
-  const sortedEchoed = [...o.excludedPaths].sort();
-  if (
-    sortedExcluded.length !== sortedEchoed.length ||
-    sortedExcluded.some((p, idx) => p !== sortedEchoed[idx])
-  )
-    throw fail("排除路径回显不一致");
-  for (const outcome of o.outcomes) {
-    if (outcome.oldPath !== null && !oldByPath.has(outcome.oldPath))
-      throw fail(`旧路径不在冻结清单：${outcome.oldPath}`);
-    if (outcome.newPath !== null && !newByPath.has(outcome.newPath))
-      throw fail(`新路径不在冻结清单：${outcome.newPath}`);
-    if (outcome.kind === "added" && outcome.oldPath !== null)
-      throw fail("added 不得携带旧路径");
-    if (outcome.kind === "removed" && outcome.newPath !== null)
-      throw fail("removed 不得携带新路径");
-    if (outcome.kind === "renamed") {
-      const oldFile = oldByPath.get(outcome.oldPath!);
-      const newFile = newByPath.get(outcome.newPath!);
-      if (!oldFile || !newFile) throw fail("renamed 路径缺失");
-      if (oldFile.path === newFile.path) throw fail("renamed 必须是不同路径");
-      if (oldFile.fileChecksum !== newFile.fileChecksum)
-        throw fail(`renamed 两侧字节校验和不同：${outcome.oldPath} → ${outcome.newPath}`);
-    }
-    if (
-      (outcome.kind === "modified" || outcome.kind === "unchanged") &&
-      (!oldByPath.has(outcome.oldPath!) || !newByPath.has(outcome.newPath!))
-    )
-      throw fail(`${outcome.kind} 要求两侧路径同时存在`);
-  }
-  return o;
-}
+import { freezeSnapshotInput, validateSnapshotOutput, snapshotReportView, assertSnapshotIntegrity } from './snapshot-service.js';
+export { validateSnapshotOutput } from './snapshot-service.js';
 
 export function registerSnapshotChangeRoutes(
   app: FastifyInstance,
@@ -103,7 +51,7 @@ export function registerSnapshotChangeRoutes(
   /** 从输出推导逐文件待办（与 Python FileOutcomeKind 一一对应）。 */
   function snapshotTasks(output: unknown) {
     if (!output) return [] as { key: string; kind: string; oldPath: string | null; newPath: string | null }[];
-    const o = MultiFileChangeReport.parse(output);
+    const o = snapshotReportView(output);
     return o.outcomes
       .filter((x) => x.kind !== "unchanged")
       .map((x) => ({
@@ -147,9 +95,8 @@ export function registerSnapshotChangeRoutes(
       .object({
         idempotencyKey: z.string().min(8).max(200),
         baselineId: z.string().min(1),
-        oldFiles: z.array(FileRef).min(1).max(200),
-        newFiles: z.array(FileRef).min(1).max(200),
-        excludedPaths: z.array(z.string().min(1).max(1024)).max(200).default([]),
+        oldSnapshotId: z.string().min(1),
+        newSnapshotId: z.string().min(1),
       })
       .strict()
       .parse(req.body);
@@ -177,84 +124,15 @@ export function registerSnapshotChangeRoutes(
           where: { id: body.baselineId, projectId },
         });
         if (!baseline) throw new ApiError("VALIDATION_ERROR", "基线不属于当前项目");
-        // 评审修复（#1）：快照完整性 —— 项目内每个有可解析版本的文档必须被
-        // 恰好覆盖一次（旧或新），缺报即拒（不允许静默缩小对比范围）。
-        {
-          const referenced = new Set(
-            [...body.oldFiles, ...body.newFiles].map((f) => f.documentVersionId),
-          );
-          if (referenced.size !== body.oldFiles.length + body.newFiles.length)
-            throw new ApiError("VALIDATION_ERROR", "同一文档版本在清单中重复出现");
-          const parsed = await tx.documentVersion.findMany({
-            where: { parseStatus: { in: ["PARSED", "NEEDS_OCR"] }, document: { projectId } },
-            select: { id: true, document: { select: { id: true, title: true } } },
-          });
-          const byDocument = new Map<string, { title: string; versionIds: string[] }>();
-          for (const row of parsed) {
-            const entry = byDocument.get(row.document.id) ?? {
-              title: row.document.title,
-              versionIds: [],
-            };
-            entry.versionIds.push(row.id);
-            byDocument.set(row.document.id, entry);
-          }
-          const missing: string[] = [];
-          for (const [documentId, entry] of byDocument) {
-            const covered = entry.versionIds.some((v) => referenced.has(v));
-            if (!covered) missing.push(entry.title || documentId);
-          }
-          if (missing.length)
-            throw new ApiError(
-              "VALIDATION_ERROR",
-              `快照不完整：以下项目文档未纳入对比（旧新两侧均未出现）：${missing.join("、")}`,
-            );
-        }
-        const input = { oldFiles: [], newFiles: [] } as {
-          oldFiles: { path: string; bundle: unknown; fileChecksum: string }[];
-          newFiles: { path: string; bundle: unknown; fileChecksum: string }[];
-        };
-        const mode = { mock: false };
-        for (const side of ["oldFiles", "newFiles"] as const) {
-          const seen = new Set<string>();
-          for (const entry of body[side]) {
-            if (seen.has(entry.path))
-              throw new ApiError("VALIDATION_ERROR", `${side} 路径重复：${entry.path}`);
-            seen.add(entry.path);
-            // 装载点复用单文件复核的校验：归属/解析状态/证据校验和/片段一致性。
-            const loaded = await loadReviewBundle(tx, store, projectId, entry.documentVersionId);
-            if (loaded.row.mode === "mock") mode.mock = true;
-            // 真实文件字节 sha256（DocumentVersion.checksum）随冻结输入固定：
-            // 未变化/重命名判定只认字节证据，不认解析产物派生哈希。
-            if (!/^[a-f0-9]{64}$/.test(loaded.row.checksum))
-              throw new ApiError("VALIDATION_ERROR", `文件字节校验和缺失或格式非法：${entry.path}`);
-            input[side].push({ path: entry.path, bundle: loaded.bundle, fileChecksum: loaded.row.checksum });
-          }
-        }
-        // 同一路径新旧必须是同一 Document 的两个版本（与单文件复核一致）。
-        const oldById = new Map(
-          body.oldFiles.map((f) => [f.path, f.documentVersionId]),
-        );
-        for (const f of body.newFiles) {
-          const oldId = oldById.get(f.path);
-          if (!oldId) continue;
-          const [o, n] = await Promise.all([
-            tx.documentVersion.findUnique({ where: { id: oldId }, include: { document: true } }),
-            tx.documentVersion.findUnique({ where: { id: f.documentVersionId }, include: { document: true } }),
-          ]);
-          if (!o || !n || o.documentId !== n.documentId)
-            throw new ApiError("VALIDATION_ERROR", `同路径文件必须是同一资料：${f.path}`);
-        }
-        const frozen = MultiFileComparisonInput.parse({
-          oldFiles: input.oldFiles,
-          newFiles: input.newFiles,
-          excludedPaths: body.excludedPaths,
-        });
+        const loaded = await freezeSnapshotInput(tx, store, projectId, body.oldSnapshotId, body.newSnapshotId);
+        const frozen = loaded.input;
+        const references = (entries: typeof frozen.oldSnapshot.entries) => entries.map(f=>({path:f.path,documentVersionId:f.documentVersionId}));
         const job = await tx.job.create({
           data: {
             projectId,
             kind: "SNAPSHOT_DIFF",
             fingerprint,
-            request: { ...body, bodyHash: contentHash(body), mode: mode.mock ? "mock" : "real" },
+            request: { ...body, bodyHash: contentHash(body), mode: loaded.mode },
           },
         });
         const change = await tx.snapshotChange.create({
@@ -262,9 +140,9 @@ export function registerSnapshotChangeRoutes(
             projectId,
             jobId: job.id,
             baselineId: body.baselineId,
-            oldFiles: body.oldFiles as never,
-            newFiles: body.newFiles as never,
-            excludedPaths: body.excludedPaths as never,
+            oldFiles: references(frozen.oldSnapshot.entries) as never,
+            newFiles: references(frozen.newSnapshot.entries) as never,
+            excludedPaths: [],
             input: frozen as never,
             inputHash: contentHash(frozen),
           },
@@ -275,7 +153,7 @@ export function registerSnapshotChangeRoutes(
             action: "snapshotChange.create",
             entityType: "SnapshotChange",
             entityId: change.id,
-            metadata: { baselineId: body.baselineId, oldCount: body.oldFiles.length, newCount: body.newFiles.length },
+            metadata: { baselineId: body.baselineId, oldCount: frozen.oldSnapshot.entries.length, newCount: frozen.newSnapshot.entries.length },
           },
         });
         return { job, change, existed: false };
@@ -297,10 +175,11 @@ export function registerSnapshotChangeRoutes(
 
   app.get("/api/snapshot-changes/:id", async (req) => {
     const r = await owned(req);
-    if (r.output) validateSnapshotOutput(r.input, r.output); // 读取时联合校验
+    const legacy = !(r.input as Record<string,unknown>).oldSnapshot;
+    if (r.output && !legacy) validateSnapshotOutput(r.input, r.output); // 历史协议只读
     const tasks = snapshotTasks(r.output);
     const resolutions = r.resolutions as Record<string, unknown>;
-    return { ...r, tasks, pendingCount: tasks.filter((t) => !resolutions[t.key]).length };
+    return { ...r, legacy, ...(legacy?{notice:"历史文件清单未核验扫描完整性，仅供查看；请重新选择仓库快照比较"}:{}), tasks, pendingCount: tasks.filter((t) => !resolutions[t.key]).length };
   });
 
   app.post("/api/snapshot-changes/:id/resolve", async (req) => {
@@ -322,6 +201,7 @@ export function registerSnapshotChangeRoutes(
         where: { id: initial.id },
         include: { job: true },
       });
+      assertSnapshotIntegrity(r);
       if (r.job.status !== "SUCCEEDED" || !r.output)
         throw new ApiError("CONFLICT", "对比尚未完成");
       const task = snapshotTasks(r.output).find((t) => t.key === body.fileKey);
@@ -365,6 +245,7 @@ export function registerSnapshotChangeRoutes(
               "CONFLICT",
               `挂接的变更复核仍有 ${pending.length} 项资产待办未决议，请先完成其人工复核`,
             );
+          if (!linkedResolutions.BASELINE) throw new ApiError("CONFLICT", "挂接的变更复核尚未生成经确认的新基线");
         }
       } else if (body.decision === "ADDED_APPROVED") {
         if (task.kind !== "added")
@@ -389,6 +270,8 @@ export function registerSnapshotChangeRoutes(
           throw new ApiError("VALIDATION_ERROR", "仅 renamed 待办可确认重命名");
         // oldDocumentVersionId 由冻结清单决定，此处不可篡改（只确认）。
       } else {
+        if ((body.decision === "REMOVED_WITH_REASON" && task.kind !== "removed") || (body.decision === "UNCERTAIN_MANUAL" && task.kind !== "uncertain"))
+          throw new ApiError("VALIDATION_ERROR", "决策与文件变化类型不匹配");
         // REMOVED_WITH_REASON / UNCERTAIN_MANUAL / EXCLUDED：必填理由。
         if (!body.reason)
           throw new ApiError("VALIDATION_ERROR", "该决策必须填写理由");
@@ -428,6 +311,7 @@ export function registerSnapshotChangeRoutes(
         where: { id: initial.id },
         include: { job: true },
       });
+      assertSnapshotIntegrity(r);
       const resolutions = r.resolutions as Record<string, any>;
       if (resolutions.BASELINE)
         return tx.baseline.findUniqueOrThrow({ where: { id: resolutions.BASELINE.id } });
@@ -440,7 +324,8 @@ export function registerSnapshotChangeRoutes(
       const old = await tx.baseline.findFirstOrThrow({
         where: { id: r.baselineId, projectId: r.projectId },
       });
-      const report = MultiFileChangeReport.parse(r.output);
+      const report = snapshotReportView(r.output);
+      if (report.truncated) throw new ApiError("CONFLICT", "扫描或比较不完整，请先补齐资料并重新比较");
       const files = {
         old: new Map(
           (r.oldFiles as Array<{ path: string; documentVersionId: string }>).map(
@@ -466,6 +351,7 @@ export function registerSnapshotChangeRoutes(
             where: { id: resolution.changeReviewId },
           });
           const reviewResolutions = review.resolutions as Record<string, any>;
+          if (!reviewResolutions.BASELINE) throw new ApiError("CONFLICT", "挂接复核缺少新版基线");
           if (reviewResolutions.BASELINE) {
             const reviewed = await tx.baseline.findUniqueOrThrow({
               where: { id: reviewResolutions.BASELINE.id },

@@ -1,11 +1,11 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { ArtifactStore } from "@ai-qa/artifact-store";
 import {
-  MultiFileComparisonInput,
+  SnapshotDiffInput,
   SnapshotCompareResponse,
 } from "@ai-qa/contracts";
 import { contentHash, loadReviewBundle } from "../../api/src/change-review-service.js";
-import { validateSnapshotOutput } from "../../api/src/routes-snapshot-changes.js";
+import { validateSnapshotOutput, freezeSnapshotInput } from "../../api/src/snapshot-service.js";
 import { callIntelligence } from "./intelligence-client.js";
 import type { WorkerConfig } from "./config.js";
 
@@ -42,22 +42,9 @@ export async function runSnapshotDiff(
     throw Object.assign(new Error("快照输入归属或校验和错误"), {
       code: "VALIDATION_ERROR",
     });
-  const input = MultiFileComparisonInput.parse(change.input);
-  // 排队期间资料被替换/重解析 → 拒绝执行（不能拿旧冻结输入对新资料下结论）。
-  for (const side of ["oldFiles", "newFiles"] as const) {
-    for (const entry of input[side]) {
-      const loaded = await loadReviewBundle(
-        db,
-        store,
-        job.projectId,
-        entry.bundle.documentVersionId,
-      );
-      if (contentHash(loaded.bundle) !== contentHash(entry.bundle))
-        throw Object.assign(new Error("资料在排队期间发生变化，请重新对比"), {
-          code: "CONFLICT",
-        });
-    }
-  }
+  const input = SnapshotDiffInput.parse(change.input);
+  const current = await freezeSnapshotInput(db,store,job.projectId,input.oldSnapshot.snapshotId,input.newSnapshot.snapshotId);
+  if(contentHash(current.input)!==change.inputHash)throw Object.assign(new Error("资料在排队期间发生变化，请重新对比"),{code:"CONFLICT"});
   const remote = SnapshotCompareResponse.parse(
     await callIntelligence(
       { ...config, intelligenceTimeoutMs: 30000 },

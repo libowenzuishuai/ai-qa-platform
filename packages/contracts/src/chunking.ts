@@ -63,7 +63,7 @@ export const ChunkManifest = z.object({
     contextOverlapChars: z.number().int().min(0).max(5_000),
     modelBudgetChars: z.number().int().min(1_000).max(200_000),
   }),
-  chunks: z.array(DocumentChunk).min(1),
+  chunks: z.array(DocumentChunk).min(1).max(1000),
   /** 长度按 Unicode code point 计数（中文/emoji 一致）。 */
   totalCodePoints: z.number().int().min(0),
   createdAt: IsoDateTime,

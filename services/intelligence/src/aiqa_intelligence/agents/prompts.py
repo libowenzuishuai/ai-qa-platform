@@ -107,6 +107,7 @@ def build_rule_extraction_request(input: RuleExtractionInput) -> TextModelReques
             "documentVersionId": b.documentVersionId,
             "format": b.format,
             "parseStatus": b.parseStatus,
+            "parserWarnings": b.warnings,
             "blocks": [blk.model_dump(mode="json", exclude_unset=True) for blk in b.blocks],
             # sourceSpans 展开规则：随文档一起给，模型引用其 span id
             "sourceSpans": [span.model_dump(mode="json", exclude_unset=True) for span in b.spans],

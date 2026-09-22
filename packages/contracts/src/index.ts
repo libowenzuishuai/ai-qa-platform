@@ -26,3 +26,5 @@ export * from "./capability.js";
 export * from "./release.js";
 
 export * from "./snapshot-diff.js";
+
+export * from "./chunk-validation.js";

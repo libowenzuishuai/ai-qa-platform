@@ -257,7 +257,7 @@ it("全部完成后合并：确定性合并结果 + 作业信封可查询", asyn
   const body = merged.json();
   expect(body.counts.ruleDrafts).toBeGreaterThan(0);
   // 每个原始 span 恰好贡献一条草稿（无丢失：drafts 数 = span 数）。
-  expect(body.merged.ruleDrafts.length).toBe(body.merged.ruleDrafts.length);
+  expect(body.merged.ruleDrafts.length).toBe(12);
   expect(body.merged.ruleDrafts.every((d: { key: string }) => /^rule-draft-\d{2,}$/.test(d.key))).toBe(true);
 
   // 块作业信封可查询。
@@ -265,4 +265,39 @@ it("全部完成后合并：确定性合并结果 + 作业信封可查询", asyn
   const envelope = await app.inject({ method: "GET", url: `/api/jobs/${job.id}`, headers: H });
   expect(envelope.statusCode).toBe(200);
   expect(envelope.json().kind).toBe("DOCUMENT_CHUNK");
+});
+
+it('完整块结果进入正式 DRAFT 规则且重复点击不产生重复资产',async()=>{
+ const url=`/api/projects/${projectId}/documents/${documentVersionId}/chunks/drafts`;
+ const a=await app.inject({method:'POST',url,payload:{}}),b=await app.inject({method:'POST',url,payload:{}});
+ expect(a.statusCode,a.body).toBe(202);expect(a.json().jobId).toBe(b.json().jobId);
+ await processAgentJob(env.prisma,config(),a.json().jobId);
+ const job=await env.prisma.job.findUniqueOrThrow({where:{id:a.json().jobId}});
+ expect(job.status,JSON.stringify(job.error)).toBe('SUCCEEDED');
+ const rules=await env.prisma.ruleVersion.findMany({where:{rule:{projectId}}});
+ expect(rules).toHaveLength(12);expect(rules.every(r=>r.reviewStatus==='DRAFT'&&r.generationMode==='mock')).toBe(true);
+ await processAgentJob(env.prisma,config(),a.json().jobId);
+ expect(await env.prisma.ruleVersion.count({where:{rule:{projectId}}})).toBe(12);
+});
+
+it('块输出校验和损坏时合并拒绝',async()=>{
+ const row=await env.prisma.documentChunk.findFirstOrThrow({where:{documentVersionId,status:'completed'}});
+ await env.prisma.documentChunk.update({where:{id:row.id},data:{outputHash:'0'.repeat(64)}});
+ const res=await app.inject({method:'POST',url:`/api/projects/${projectId}/documents/${documentVersionId}/chunks/merge`,payload:{}});
+ expect(res.statusCode).toBe(409);
+ await env.prisma.documentChunk.update({where:{id:row.id},data:{outputHash:row.outputHash}});
+});
+it('已取消作业不得提交块结果，另一执行持有块时不得假成功',async()=>{
+ const row=await env.prisma.documentChunk.findFirstOrThrow({where:{documentVersionId},orderBy:{seq:'asc'}});
+ await env.prisma.documentChunk.update({where:{id:row.id},data:{status:'pending',output:null,outputHash:null}});
+ const created=await app.inject({method:'POST',url:`/api/projects/${projectId}/documents/${documentVersionId}/chunks/${row.chunkId}/extract`,payload:{mode:'mock',idempotencyKey:'race-owner-0001'}});
+ const jobId=created.json().jobId;
+ await env.prisma.documentChunk.update({where:{id:row.id},data:{status:'in_progress',leaseOwnerJobId:'other-job',leaseExpiresAt:new Date(Date.now()+60000)}});
+ await processAgentJob(env.prisma,config(),jobId);
+ expect((await env.prisma.job.findUniqueOrThrow({where:{id:jobId}})).status).toBe('FAILED');
+ expect((await env.prisma.documentChunk.findUniqueOrThrow({where:{id:row.id}})).leaseOwnerJobId).toBe('other-job');
+ const cancelled=await env.prisma.job.create({data:{projectId,kind:'CHUNK_EXTRACT',fingerprint:randomUUID(),request:{chunkRowId:row.id,mode:'mock'}}});
+ expect((await app.inject({method:'POST',url:`/api/jobs/${cancelled.id}/cancel`})).statusCode).toBe(200);
+ await processAgentJob(env.prisma,config(),cancelled.id);
+ expect((await env.prisma.job.findUniqueOrThrow({where:{id:cancelled.id}})).status).toBe('CANCELLED');
 });

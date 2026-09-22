@@ -1,3 +1,4 @@
+import { loadCompletedChunks } from "../../api/src/chunk-results.js";
 import {runChangeReview} from "./change-review-job.js";
 import { runSnapshotDiff } from "./snapshot-diff-job.js";
 import { runDocumentChunk, runChunkExtract } from "./chunk-jobs.js";
@@ -219,9 +220,10 @@ async function runRuleExtraction(
   const request = job.request as {
     documentVersionIds: string[];
     glossaryUpdates?: Array<{ term: string; definition: string }>;
+    completedChunkManifestHash?: string;
     mode: "real" | "mock";
   };
-  const adapter = config.intelligenceBackend === "python" ? null : adapterFor(request.mode);
+  const adapter = config.intelligenceBackend === "python" || request.completedChunkManifestHash ? null : adapterFor(request.mode);
 
   // 加载 bundle（artifact-store）+ 二验 PARSED。
   const bundles = [];
@@ -269,9 +271,12 @@ async function runRuleExtraction(
     images: [],
     promptVersion: config.intelligenceBackend === "python" ? "agents-v2" : REFERENCE_PROMPT_VERSION,
   });
-  const remote = config.intelligenceBackend === "python"
+  const chunks = request.completedChunkManifestHash
+    ? await loadCompletedChunks(prisma,job.projectId,request.documentVersionIds[0]!,request.completedChunkManifestHash) : null;
+  if(chunks && (request.documentVersionIds.length!==1 || chunks.mode!==request.mode))throw Object.assign(new Error('块清单或模式与请求不符'),{code:'VALIDATION_ERROR'});
+  const remote = !chunks && config.intelligenceBackend === "python"
     ? await callIntelligence(config, "rules", job.id, request.mode, input) : null;
-  const output = remote ? RuleExtractionOutput.parse(remote.output) : await referenceRuleExtractionPipeline(
+  const output = chunks ? chunks.merged : remote ? RuleExtractionOutput.parse(remote.output) : await referenceRuleExtractionPipeline(
     input, withInvocationRecording(job.projectId, prisma, adapter!, "RULE_EXTRACTION"),
   );
 

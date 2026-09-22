@@ -3,7 +3,9 @@ import type { PrismaClient } from "@prisma/client";
 import type { Queue } from "bullmq";
 import { z } from "zod";
 import { createHash } from "node:crypto";
-import { ChunkManifest, RuleExtractionOutput } from "@ai-qa/contracts";
+import { ChunkManifest, RuleExtractionOutput, chunkManifestPayload } from "@ai-qa/contracts";
+import { loadCompletedChunks } from "./chunk-results.js";
+import { contentHash } from "./change-review-service.js";
 import { requireAuth, requireProjectAccess } from "./auth.js";
 import { ApiError } from "./errors.js";
 import { chunkCoverage, mergeChunkExtractions } from "./chunk-merge.js";
@@ -55,6 +57,7 @@ export function registerChunkRoutes(
       .update(JSON.stringify({ kind: "DOCUMENT_CHUNK", versionId: doc.id, params: body.strategyParams }))
       .digest("hex");
     const saved = await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Project" WHERE id=${doc.document.projectId} FOR UPDATE`;
       const existing = await tx.job.findUnique({
         where: {
           projectId_kind_fingerprint: {
@@ -87,6 +90,7 @@ export function registerChunkRoutes(
     if (!doc.chunkManifest || !doc.chunkManifestHash)
       return { manifest: null, chunks: [], coverage: { complete: false, note: "尚未分块" } };
     const manifest = ChunkManifest.parse(doc.chunkManifest);
+    if(contentHash(chunkManifestPayload(manifest))!==doc.chunkManifestHash)throw new ApiError("CONFLICT","分块清单校验和不符");
     const rows = await db.documentChunk.findMany({
       where: { documentVersionId: doc.id, manifestHash: doc.chunkManifestHash },
       orderBy: { seq: "asc" },
@@ -121,17 +125,20 @@ export function registerChunkRoutes(
       .strict()
       .parse(req.body);
     const row = await db.documentChunk.findFirst({
-      where: { documentVersionId: doc.id, chunkId: param(req, "chunkId") },
+      where: { documentVersionId: doc.id, manifestHash:doc.chunkManifestHash??"", chunkId: param(req, "chunkId") },
       orderBy: { createdAt: "desc" },
     });
     if (!row) throw new ApiError("NOT_FOUND", "块不存在（请先分块）");
     if (row.status === "completed")
       throw new ApiError("CONFLICT", "已完成的块不会重复调用模型");
+    if (row.status === "in_progress" && row.leaseExpiresAt && row.leaseExpiresAt > new Date())throw new ApiError("CONFLICT","块正在处理中，请等待或取消");
+    if(body.mode === "real" && doc.mode !== "real")throw new ApiError("VALIDATION_ERROR","模拟解析不能用于真实提取");
     // 失败后重试：attempts 变化允许新指纹；同参数重复提交幂等返回。
     const fingerprint = createHash("sha256")
-      .update(JSON.stringify({ kind: "CHUNK_EXTRACT", chunkRowId: row.id, attempts: row.attempts, mode: body.mode }))
+      .update(JSON.stringify({ kind: "CHUNK_EXTRACT", chunkRowId: row.id, idempotencyKey:body.idempotencyKey, mode: body.mode }))
       .digest("hex");
     const saved = await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Project" WHERE id=${doc.document.projectId} FOR UPDATE`;
       const existing = await tx.job.findUnique({
         where: {
           projectId_kind_fingerprint: {
@@ -159,11 +166,25 @@ export function registerChunkRoutes(
     return reply.code(saved.existed ? 200 : 202).send({ jobId: saved.job.id, existed: saved.existed });
   });
 
+  app.post("/api/projects/:id/documents/:versionId/chunks/drafts",async(req,reply)=>{
+    const doc=await ownedDocument(req,"LEAD");
+    if(!doc.chunkManifestHash)throw new ApiError("CONFLICT","请先完成分块提取");
+    const result=await loadCompletedChunks(db,doc.document.projectId,doc.id,doc.chunkManifestHash);
+    const fingerprint=contentHash({documentVersionId:doc.id,completedChunkManifestHash:doc.chunkManifestHash,mode:result.mode});
+    const job=await db.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT id FROM "Project" WHERE id=${doc.document.projectId} FOR UPDATE`;
+      return tx.job.upsert({where:{projectId_kind_fingerprint:{projectId:doc.document.projectId,kind:'RULE_EXTRACTION',fingerprint}},create:{projectId:doc.document.projectId,kind:'RULE_EXTRACTION',fingerprint,request:{documentVersionIds:[doc.id],completedChunkManifestHash:doc.chunkManifestHash,mode:result.mode}},update:{}});
+    });
+    if(job.status==='QUEUED')try{await queue.add('run',{jobId:job.id},{removeOnComplete:true,removeOnFail:200});}catch{/* reconciliation */}
+    return reply.code(202).send({jobId:job.id});
+  });
+
   app.post("/api/projects/:id/documents/:versionId/chunks/merge", async (req) => {
     const doc = await ownedDocument(req, "LEAD");
     if (!doc.chunkManifest || !doc.chunkManifestHash)
       throw new ApiError("CONFLICT", "尚未分块，不能合并");
     const manifest = ChunkManifest.parse(doc.chunkManifest);
+    if(contentHash(chunkManifestPayload(manifest))!==doc.chunkManifestHash)throw new ApiError("CONFLICT","分块清单校验和不符");
     const rows = await db.documentChunk.findMany({
       where: { documentVersionId: doc.id, manifestHash: doc.chunkManifestHash },
     });
@@ -186,6 +207,7 @@ export function registerChunkRoutes(
     const byChunkId = new Map(rows.map((row) => [row.chunkId, row]));
     const results = manifest.chunks.map((chunk) => {
       const row = byChunkId.get(chunk.chunkId)!;
+      if(!row.output||contentHash(row.output)!==row.outputHash)throw new ApiError("CONFLICT","块结果缺失或校验和不符");
       return {
         chunkId: chunk.chunkId,
         seq: chunk.seq,
