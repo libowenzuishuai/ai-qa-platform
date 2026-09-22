@@ -1,0 +1,46 @@
+{
+  "snapshotId": "synthetic-repo-v1",
+  "note": "合成测试数据，非客户 Git 导出",
+  "entries": [
+    {
+      "path": "docs/readme.md",
+      "checksum": "86ec026378421458f3528a1c5e263c3a84e0dd79520b261c5bf12e745899425a",
+      "documentVersionId": "syn-readme-v1",
+      "format": "MARKDOWN",
+      "fetchStatus": "OK",
+      "parseStatus": "PARSED"
+    },
+    {
+      "path": "requirements/prd.md",
+      "checksum": "01ed148fd088bf408ecae95fdac4e4a927533052558766ca1f92018fbe71cd53",
+      "documentVersionId": "syn-prd-v1",
+      "format": "MARKDOWN",
+      "fetchStatus": "OK",
+      "parseStatus": "PARSED"
+    },
+    {
+      "path": "legacy/retired.md",
+      "checksum": "852736a609cadcdf6d1c963774bd85d0f82b321431b673774900e2e9094cd0db",
+      "documentVersionId": "syn-retired-v1",
+      "format": "MARKDOWN",
+      "fetchStatus": "OK",
+      "parseStatus": "PARSED"
+    },
+    {
+      "path": "archive/gone.md",
+      "checksum": "81043bd7811402123ec99c923650a638df79b3dc94cf944bb5eada21c6693f34",
+      "documentVersionId": "syn-gone-v1",
+      "format": "MARKDOWN",
+      "fetchStatus": "OK",
+      "parseStatus": "PARSED"
+    },
+    {
+      "path": "broken/scan-incomplete.pdf",
+      "checksum": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "documentVersionId": "syn-broken-v1",
+      "format": "PDF_TEXT",
+      "fetchStatus": "OK",
+      "parseStatus": "FAILED"
+    }
+  ]
+}
