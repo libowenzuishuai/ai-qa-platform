@@ -54,6 +54,7 @@ const schemas = {
   GoalProposalAgentOutput: c.GoalProposalAgentOutput,
   GoalProposalAgentRequest: c.GoalProposalAgentRequest,
   GoalProposalAgentResponse: c.GoalProposalAgentResponse,
+  SnapshotFileEntry:c.SnapshotFileEntry,RepositorySnapshotManifest:c.RepositorySnapshotManifest,SnapshotDiffInput:c.SnapshotDiffInput,SnapshotFileChange:c.SnapshotFileChange,SnapshotDiffReport:c.SnapshotDiffReport,
 };
 const schema = zodToJsonSchema(z.object(schemas), {
   name: "IntelligenceContracts",

@@ -1,5 +1,7 @@
 # 实施状态
 
+2026-09-22 增量：B 多文件 diff 已评审修复并冻结正式模块契约，见 [多文件契约与接线要求](delivery/b-multi-file-review-and-contract.md)。仅纯模块/共享校验已交付，多文件 API/worker/UI 仍需按正式契约接线；GLM 开发分支不能当作 main 的已支持功能。
+
 2026-09-21 文档更新：新增 [完整 PRD r3](product/v1.0/PRD.md)、[GLM 全部剩余开发任务书](product/v1.0/GLM-COMPLETE-IMPLEMENTATION.md)、[发布矩阵](product/v1.0/release/ACCEPTANCE.md)。本次仅更新规格与交接，未实现 R00–R12 的剩余代码，当前运行能力仍以以下交付记录为准。
 
 当前 main 增量：账号准备、数据插件、持久化工作流、B/C 模块及 B3 评测、P0-4 变更复核闭环。完整验证与仍缺功能见 [最新交付和 PRD 差距](delivery/p04-completion-and-prd-review.md)。尚未达到通用商业版 1.0 的全部发布条件。

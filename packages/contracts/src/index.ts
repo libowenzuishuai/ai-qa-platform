@@ -24,3 +24,5 @@ export * from "./source-changes.js";
 export * from "./chunking.js";
 export * from "./capability.js";
 export * from "./release.js";
+
+export * from "./snapshot-diff.js";
