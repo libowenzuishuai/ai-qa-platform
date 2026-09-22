@@ -12,7 +12,7 @@
 | R05 工程检查 | ADAPTERS_DONE | NOT_RUN | runner 适配器注册表：NODE_TEST/VITEST/JEST/PLAYWRIGHT/LINT/TYPECHECK/BUILD/PYTHON_TEST（固定命令数组、锁文件固定工具不用 npx、冲突/缺锁/缺工具显式拒绝、exit code 与 JUnit 矛盾拒绝、零测试显式 FAIL、Playwright 需操作员预置浏览器镜像） | tools/self-hosted-runner/runner.py + tests | 19/19（含真实容器：vitest/jest/eslint/tsc 真锁文件 npm ci）+ 真实 Playwright 浏览器调用通过 | 剩余：Node HTTP 单服务+独立 PostgreSQL 部署模板（受支持配置核验/就绪超时/清理追踪） |
 | R06 GitHub CI | TODO | NOT_RUN | 待实现 | — | — | 需 GitHub App 配置 |
 | R07 组合框架 | API_DONE | NOT_RUN | 能力目录/模板 CRUD+DAG 校验+发布 API（悬空/环/重复/64上限/并行≤2 拒绝） | apps/api/src/routes-release.ts | release-routes.test 10/10 | 模板真实运行编排待接 worker |
-| R08 规划/探索 | API_DONE | NOT_RUN | GoalProposal（未知工具拒绝+CAS 审核）/Memory（项目隔离+失效 CAS）/Diagnosis（跨项目引用拒绝）API | apps/api/src/routes-release.ts | release-routes.test 10/10 | Python 端生成器与探索执行待接 |
+| R08 规划/探索 | API+AGENT_DONE | NOT_RUN | GoalProposal（未知工具拒绝+CAS 审核）/Memory（项目隔离+失效 CAS）/Diagnosis（跨项目引用拒绝）API；Python 目标规划 agent（目录外工具拒绝/无资料必须 MISSING_DATA blocker/环境缺失禁用需环境能力/空目录拒绝/promptVersion 固定）+ /v1/goals/propose wire | routes-release.ts, agents/goal.py, contracts | release-routes 10/10，Python 311/311（新增 6） | 剩余：TS propose 端点把 agent 输出落 GoalProposal 行（接 worker job）、有界只读探索执行 |
 | R09 报告/决策 | API_DONE | NOT_RUN | ReleaseDecision（不改 Run verdict+快照如实记录 FAIL）/JSON+Markdown 导出（RESTRICTED_RAW 不内嵌地址）/全量统计 | apps/api/src/routes-release.ts | release-routes.test 10/10 | 证据保留策略任务待实现 |
 | R10 前端 | IN_PROGRESS | — | 随各 R 包同步 | — | — | 现有 SSR 页面可复用 |
 | R11 试点 | EXTERNAL_PENDING | EXTERNAL_PENDING | 代码可做，发布门缺外部条件 | — | — | 缺完整 PRD、第二项目、账号 |

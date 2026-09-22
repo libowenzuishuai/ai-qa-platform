@@ -90,3 +90,43 @@ export const SourceClassificationInput = z.object({
 export const SourceClassificationOutput = z.object({
   files:z.array(z.object({path:z.string().min(1),category:z.enum(['BUSINESS_CANDIDATE','API_CONTRACT','RUNTIME_CLUE','TEST_CLUE','UNCLASSIFIED']),reason:z.string().min(1).max(500)})).max(50),
 });
+
+// ---------- R08：目标规划 agent（Python 生成建议；批准与范围固定在服务端） ----------
+
+export const GoalProposalAgentInput = z.object({
+  /** 用户描述的验收目标（不可信数据，不是指令）。 */
+  goal: z.string().min(1).max(4000),
+  /** 服务端能力目录快照：模型只能从中建议，不得发明工具。 */
+  capabilities: z.array(z.object({
+    key: z.string().min(1).max(200),
+    name: z.string().min(1).max(200),
+    description: z.string().max(2000).optional(),
+    effects: z.array(z.enum(['READ', 'WRITE', 'CREATE', 'DELETE'])).min(1),
+    requiresEnvironment: z.boolean().default(false),
+    budgetCategory: z.enum(['none', 'model', 'browser', 'compute']).default('none'),
+  })).max(200),
+  hasDocuments: z.boolean(),
+  environmentConfigured: z.boolean(),
+  promptVersion: z.literal('goal-v1'),
+}).strict();
+export type GoalProposalAgentInput = z.infer<typeof GoalProposalAgentInput>;
+
+export const GoalProposalBlockerKind = z.enum(['MISSING_DATA', 'MISSING_ACCOUNT', 'MISSING_ENV', 'MISSING_SCOPE', 'INSUFFICIENT_INFO']);
+
+export const GoalProposalAgentOutput = z.object({
+  suggestedTools: z.array(z.object({
+    capabilityKey: z.string().min(1).max(200),
+    reason: z.string().min(1).max(1000),
+  })).max(20),
+  suggestedBudget: z.object({
+    maxWallClockMs: z.number().int().min(60_000).max(86_400_000).optional(),
+    maxModelCalls: z.number().int().min(1).max(1000).optional(),
+    maxToolCalls: z.number().int().min(1).max(5000).optional(),
+  }).default({}),
+  blockers: z.array(z.object({
+    kind: GoalProposalBlockerKind,
+    description: z.string().min(1).max(2000),
+  })).max(10).default([]),
+  rationale: z.string().min(1).max(4000),
+}).strict();
+export type GoalProposalAgentOutput = z.infer<typeof GoalProposalAgentOutput>;

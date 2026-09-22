@@ -296,6 +296,7 @@ class TextModelRequest(BaseModel):
         'VISION_DESCRIBE',
         'PLAN_PROPOSAL',
         'SOURCE_CLASSIFICATION',
+        'GOAL_PROPOSAL',
     ]
     system: str
     user: str
@@ -353,6 +354,72 @@ class Totals(BaseModel):
     removed: int = Field(..., ge=0)
     renamed: int = Field(..., ge=0)
     uncertain: int = Field(..., ge=0)
+
+
+class Capability(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    key: str = Field(..., max_length=200, min_length=1)
+    name: str = Field(..., max_length=200, min_length=1)
+    description: str | None = Field(None, max_length=2000)
+    effects: list[Literal['READ', 'WRITE', 'CREATE', 'DELETE']] = Field(
+        ..., min_length=1
+    )
+    requiresEnvironment: bool | None = False
+    budgetCategory: Literal['none', 'model', 'browser', 'compute'] | None = 'none'
+
+
+class GoalProposalAgentInput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    goal: str = Field(..., max_length=4000, min_length=1)
+    capabilities: list[Capability] = Field(..., max_length=200)
+    hasDocuments: bool
+    environmentConfigured: bool
+    promptVersion: Literal['goal-v1']
+
+
+class SuggestedTool(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    capabilityKey: str = Field(..., max_length=200, min_length=1)
+    reason: str = Field(..., max_length=1000, min_length=1)
+
+
+class SuggestedBudget(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    maxWallClockMs: int | None = Field(None, ge=60000, le=86400000)
+    maxModelCalls: int | None = Field(None, ge=1, le=1000)
+    maxToolCalls: int | None = Field(None, ge=1, le=5000)
+
+
+class Blocker(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: Literal[
+        'MISSING_DATA',
+        'MISSING_ACCOUNT',
+        'MISSING_ENV',
+        'MISSING_SCOPE',
+        'INSUFFICIENT_INFO',
+    ]
+    description: str = Field(..., max_length=2000, min_length=1)
+
+
+class GoalProposalAgentOutput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    suggestedTools: list[SuggestedTool] = Field(..., max_length=20)
+    suggestedBudget: SuggestedBudget | None = Field({}, validate_default=True)
+    blockers: list[Blocker] | None = Field([], max_length=10, validate_default=True)
+    rationale: str = Field(..., max_length=4000, min_length=1)
 
 
 class Locator10(BaseModel):
@@ -971,6 +1038,7 @@ class InvocationRecord(BaseModel):
         'VISION_DESCRIBE',
         'PLAN_PROPOSAL',
         'SOURCE_CLASSIFICATION',
+        'GOAL_PROPOSAL',
     ]
     promptVersion: str = Field(..., min_length=1)
     response: ModelResponse
@@ -1153,6 +1221,19 @@ class OldFile(BaseModel):
     )
     path: str = Field(..., max_length=1024, min_length=1)
     bundle: ParsedDocumentBundle
+
+
+class GoalProposalAgentRequest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    timeoutMs: int = Field(..., ge=1000, le=600000)
+    input: GoalProposalAgentInput
 
 
 class ItemsModel(BaseModel):
@@ -1621,6 +1702,19 @@ class SnapshotCompareResponse(BaseModel):
     output: MultiFileChangeReport
 
 
+class GoalProposalAgentResponse(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    invocations: list[InvocationRecord]
+    output: GoalProposalAgentOutput
+
+
 class IntelligenceContracts(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -1715,6 +1809,18 @@ class IntelligenceContracts(BaseModel):
     )
     SnapshotCompareResponse_1: SnapshotCompareResponse = Field(
         ..., alias='SnapshotCompareResponse'
+    )
+    GoalProposalAgentInput_1: GoalProposalAgentInput = Field(
+        ..., alias='GoalProposalAgentInput'
+    )
+    GoalProposalAgentOutput_1: GoalProposalAgentOutput = Field(
+        ..., alias='GoalProposalAgentOutput'
+    )
+    GoalProposalAgentRequest_1: GoalProposalAgentRequest = Field(
+        ..., alias='GoalProposalAgentRequest'
+    )
+    GoalProposalAgentResponse_1: GoalProposalAgentResponse = Field(
+        ..., alias='GoalProposalAgentResponse'
     )
 
 

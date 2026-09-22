@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from .agents.change_review import analyze as analyze_change_review
 from .agents.service import AgentPipelines
 from .agents.planner import propose_plan, classify_sources
+from .agents.goal import propose_goal
 from .doc_ingestion.service import DocumentParser
 from .doc_ingestion.chunking import ChunkLimit, chunk_bundle, coverage_report
 from .source_changes.multi_file import MultiFileLimit, compare_files
@@ -133,6 +134,7 @@ def create_app(
             "change_review": "ChangeReviewAnalysis",
             "chunk": "Chunking",
             "snapshot": "SnapshotCompare",
+            "goal": "GoalProposalAgent",
         }
         name = names[operation]
         validate_shape(name + "Request", wire)
@@ -189,6 +191,7 @@ def create_app(
             "change_review": analyze_change_review,
             "chunk": chunk_document,
             "snapshot": compare_snapshot,
+            "goal": propose_goal,
         }
         try:
             output = await asyncio.wait_for(
@@ -237,6 +240,10 @@ def create_app(
     @app.post("/v1/snapshots/compare")
     async def snapshot(request: Request):
         return await invoke(request, "snapshot")
+
+    @app.post("/v1/goals/propose")
+    async def goal(request: Request):
+        return await invoke(request, "goal")
 
     @app.post("/v1/rules/extract")
     async def rules(request: Request):

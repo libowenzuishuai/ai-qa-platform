@@ -2147,7 +2147,8 @@
             "CASE_GENERATION",
             "VISION_DESCRIBE",
             "PLAN_PROPOSAL",
-            "SOURCE_CLASSIFICATION"
+            "SOURCE_CLASSIFICATION",
+            "GOAL_PROPOSAL"
           ]
         },
         "system": {
@@ -3468,6 +3469,237 @@
       ],
       "additionalProperties": false
     },
+    "GoalProposalAgentInput": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "effects": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "READ",
+                    "WRITE",
+                    "CREATE",
+                    "DELETE"
+                  ]
+                },
+                "minItems": 1
+              },
+              "requiresEnvironment": {
+                "type": "boolean",
+                "default": false
+              },
+              "budgetCategory": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "model",
+                  "browser",
+                  "compute"
+                ],
+                "default": "none"
+              }
+            },
+            "required": [
+              "key",
+              "name",
+              "effects"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 200
+        },
+        "hasDocuments": {
+          "type": "boolean"
+        },
+        "environmentConfigured": {
+          "type": "boolean"
+        },
+        "promptVersion": {
+          "type": "string",
+          "const": "goal-v1"
+        }
+      },
+      "required": [
+        "goal",
+        "capabilities",
+        "hasDocuments",
+        "environmentConfigured",
+        "promptVersion"
+      ],
+      "additionalProperties": false
+    },
+    "GoalProposalAgentOutput": {
+      "type": "object",
+      "properties": {
+        "suggestedTools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "capabilityKey": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              }
+            },
+            "required": [
+              "capabilityKey",
+              "reason"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 20
+        },
+        "suggestedBudget": {
+          "type": "object",
+          "properties": {
+            "maxWallClockMs": {
+              "type": "integer",
+              "minimum": 60000,
+              "maximum": 86400000
+            },
+            "maxModelCalls": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "maxToolCalls": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5000
+            }
+          },
+          "additionalProperties": false,
+          "default": {}
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "MISSING_DATA",
+                  "MISSING_ACCOUNT",
+                  "MISSING_ENV",
+                  "MISSING_SCOPE",
+                  "INSUFFICIENT_INFO"
+                ]
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "kind",
+              "description"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 10,
+          "default": []
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        }
+      },
+      "required": [
+        "suggestedTools",
+        "rationale"
+      ],
+      "additionalProperties": false
+    },
+    "GoalProposalAgentRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "mode": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+        },
+        "timeoutMs": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+        },
+        "input": {
+          "$ref": "#/definitions/GoalProposalAgentInput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "timeoutMs",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "GoalProposalAgentResponse": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "mode": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+        },
+        "invocations": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+        },
+        "output": {
+          "$ref": "#/definitions/GoalProposalAgentOutput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "invocations",
+        "output"
+      ],
+      "additionalProperties": false
+    },
     "IntelligenceContracts": {
       "type": "object",
       "properties": {
@@ -3599,6 +3831,18 @@
         },
         "SnapshotCompareResponse": {
           "$ref": "#/definitions/SnapshotCompareResponse"
+        },
+        "GoalProposalAgentInput": {
+          "$ref": "#/definitions/GoalProposalAgentInput"
+        },
+        "GoalProposalAgentOutput": {
+          "$ref": "#/definitions/GoalProposalAgentOutput"
+        },
+        "GoalProposalAgentRequest": {
+          "$ref": "#/definitions/GoalProposalAgentRequest"
+        },
+        "GoalProposalAgentResponse": {
+          "$ref": "#/definitions/GoalProposalAgentResponse"
         }
       },
       "required": [
@@ -3644,7 +3888,11 @@
         "MultiFileComparisonInput",
         "MultiFileChangeReport",
         "SnapshotCompareRequest",
-        "SnapshotCompareResponse"
+        "SnapshotCompareResponse",
+        "GoalProposalAgentInput",
+        "GoalProposalAgentOutput",
+        "GoalProposalAgentRequest",
+        "GoalProposalAgentResponse"
       ],
       "additionalProperties": false
     }

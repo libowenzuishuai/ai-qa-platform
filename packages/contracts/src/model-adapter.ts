@@ -24,7 +24,7 @@ export const ModelCapabilities = z.object({
 });
 export type ModelCapabilities = z.infer<typeof ModelCapabilities>;
 
-export const ModelPurpose = z.enum(["RULE_EXTRACTION", "CASE_GENERATION", "VISION_DESCRIBE", "PLAN_PROPOSAL", "SOURCE_CLASSIFICATION"]);
+export const ModelPurpose = z.enum(["RULE_EXTRACTION", "CASE_GENERATION", "VISION_DESCRIBE", "PLAN_PROPOSAL", "SOURCE_CLASSIFICATION", "GOAL_PROPOSAL"]);
 export type ModelPurpose = z.infer<typeof ModelPurpose>;
 
 /** 完整 JSON Schema 随请求传入（提示词总则 §5）。超时是契约，不是实现细节。 */

@@ -49,6 +49,11 @@ const schemas = {
   MultiFileChangeReport: c.MultiFileChangeReport,
   SnapshotCompareRequest: c.SnapshotCompareRequest,
   SnapshotCompareResponse: c.SnapshotCompareResponse,
+  // R08：目标规划 agent
+  GoalProposalAgentInput: c.GoalProposalAgentInput,
+  GoalProposalAgentOutput: c.GoalProposalAgentOutput,
+  GoalProposalAgentRequest: c.GoalProposalAgentRequest,
+  GoalProposalAgentResponse: c.GoalProposalAgentResponse,
 };
 const schema = zodToJsonSchema(z.object(schemas), {
   name: "IntelligenceContracts",

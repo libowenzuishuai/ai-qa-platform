@@ -1,5 +1,5 @@
 import {ChangeReviewAnalysisInput,ChangeReviewAnalysisOutput} from "./source-changes.js";
-import { PlanProposalInput, PlanProposalOutput, SourceClassificationInput, SourceClassificationOutput } from "./product.js";
+import { PlanProposalInput, PlanProposalOutput, SourceClassificationInput, SourceClassificationOutput, GoalProposalAgentInput, GoalProposalAgentOutput } from "./product.js";
 import { z } from "zod";
 import { EntityId } from "./common.js";
 import { DocumentFormat, ParsedDocumentBundle } from "./document.js";
@@ -48,6 +48,9 @@ export const PlanProposalResponse = responseBase.extend({ output: PlanProposalOu
 
 export const SourceClassificationRequest = requestBase.extend({ input: SourceClassificationInput });
 export const SourceClassificationResponse = responseBase.extend({ output: SourceClassificationOutput });
+
+export const GoalProposalAgentRequest = requestBase.extend({ input: GoalProposalAgentInput });
+export const GoalProposalAgentResponse = responseBase.extend({ output: GoalProposalAgentOutput });
 
 export const ChangeReviewAnalysisRequest=requestBase.extend({input:ChangeReviewAnalysisInput});
 export const ChangeReviewAnalysisResponse=responseBase.extend({output:ChangeReviewAnalysisOutput});
