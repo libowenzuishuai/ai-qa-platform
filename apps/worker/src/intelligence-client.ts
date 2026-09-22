@@ -2,6 +2,7 @@ import {
   ChangeReviewAnalysisRequest, ChangeReviewAnalysisResponse, DocumentParseRequest, DocumentParseResponse, RuleExtractionRequest, RuleExtractionResponse,
   CaseGenerationRequest, CaseGenerationResponse, PlanProposalRequest, PlanProposalResponse, SourceClassificationRequest, SourceClassificationResponse, ApiErrorBody,
   SnapshotCompareRequest, SnapshotCompareResponse,
+  ChunkingRequest, ChunkingResponse,
 } from '@ai-qa/contracts';
 import type { WorkerConfig } from './config.js';
 
@@ -13,6 +14,7 @@ const operations = {
   rules: { path: '/v1/rules/extract', request: RuleExtractionRequest, response: RuleExtractionResponse },
   cases: { path: '/v1/cases/generate', request: CaseGenerationRequest, response: CaseGenerationResponse },
   snapshot: { path: '/v1/snapshots/compare', request: SnapshotCompareRequest, response: SnapshotCompareResponse },
+  chunk: { path: '/v1/documents/chunk', request: ChunkingRequest, response: ChunkingResponse },
 } as const;
 function failure(code: string, message: string) { return Object.assign(new Error(message), { code }); }
 

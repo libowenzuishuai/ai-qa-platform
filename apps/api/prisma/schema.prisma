@@ -156,6 +156,9 @@ model DocumentVersion {
   fileSizeBytes    Int?
   bundleStorageKey String?
   bundleChecksum   String?
+  // R03：持久化分块清单（ChunkManifest JSON + 哈希；策略/输入随清单固定）。
+  chunkManifest     Json?
+  chunkManifestHash String?
   parseWarnings    Json            @default("[]")
   mode             String          @default("unknown")
   coverageSummary  Json            @default("{}")
@@ -953,6 +956,33 @@ model ChangeReview {
 }
 
 // ============ R02: 快照对比（多文件变更闭环） ============
+
+// ============ R03：持久化块处理（租约/幂等/恢复） ============
+
+model DocumentChunk {
+  id               String    @id @default(cuid())
+  documentVersionId String
+  /** 清单哈希（策略+输入固定）：同一文档同一策略只允许一批块。 */
+  manifestHash     String
+  /** 清单内的块 ID（c-…）。 */
+  chunkId          String
+  seq              Int
+  // pending / in_progress / completed / failed / cancelled
+  status           String    @default("pending")
+  attempts         Int       @default(0)
+  /** 处理租约到期时间（过期由对账显式恢复为 pending）。 */
+  leaseExpiresAt   DateTime?
+  /** 该块的 RuleExtractionOutput（含 drafts/clarifications/unparsedRanges）。 */
+  output           Json?
+  outputHash       String?
+  /** 在途未知调用的费用记录（InvocationRecord 摘要，如实保存）。 */
+  invocations      Json      @default("[]")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([documentVersionId, manifestHash, chunkId])
+  @@index([documentVersionId, manifestHash])
+}
 
 model SnapshotChange {
   id            String   @id @default(cuid())

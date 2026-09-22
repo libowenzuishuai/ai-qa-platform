@@ -1,5 +1,6 @@
 import {runChangeReview} from "./change-review-job.js";
 import { runSnapshotDiff } from "./snapshot-diff-job.js";
+import { runDocumentChunk, runChunkExtract } from "./chunk-jobs.js";
 import { runLoginCheck } from './login-check-job.js';
 import { runDataJob } from './data-plugin-job.js';
 import { processProductJob } from "./product-jobs.js";
@@ -167,6 +168,10 @@ export async function processAgentJob(
       await runChangeReview(prisma,store,job,config,commitJob);
     } else if(job.kind === "SNAPSHOT_DIFF") {
       await runSnapshotDiff(prisma,store,job,config,commitJob);
+    } else if(job.kind === "DOCUMENT_CHUNK") {
+      await runDocumentChunk(prisma,store,job,config,commitJob);
+    } else if(job.kind === "CHUNK_EXTRACT") {
+      await runChunkExtract(prisma,store,job,config,commitJob);
     } else if(job.kind === "LOGIN_CHECK") {
       await runLoginCheck(prisma,store,job,commitJob,controller.signal);
     } else if(["DATA_PREPARE","DATA_CLEANUP","DATA_INSPECT"].includes(job.kind)){
