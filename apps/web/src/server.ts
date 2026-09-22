@@ -30,6 +30,8 @@ const PORT = Number(process.env.WEB_PORT ?? 7100);
 const HOST = process.env.WEB_HOST ?? "127.0.0.1";
 
 const app = Fastify({ logger: { level: process.env.WEB_LOG_LEVEL ?? "warn" } });
+// 容器健康检查端点：不鉴权、不触库，只证明进程在服务。
+app.get("/healthz", async () => ({ ok: true }));
 await app.register(cookie);
 await app.register(formbody);
 registerWorkbenchRoutes(app);

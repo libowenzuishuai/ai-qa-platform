@@ -8,7 +8,7 @@
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "build": "tsc -p tsconfig.build.json",
-    "start:dist": "node dist/server.js",
+    "start:dist": "node dist/worker/src/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -24,12 +24,12 @@
     "bullmq": "^5.34.0",
     "fastify": "^5.2.0",
     "playwright": "^1.63.0",
-    "zod": "^3.25.0"
+    "zod": "^3.25.0",
+    "tsx": "^4.19.0"
   },
   "devDependencies": {
     "@fastify/cookie": "^11.1.2",
     "@types/node": "^22.10.0",
-    "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   }

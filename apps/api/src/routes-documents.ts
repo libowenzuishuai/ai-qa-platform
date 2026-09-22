@@ -21,7 +21,11 @@ export function registerDocumentRoutes(app: FastifyInstance, prisma: PrismaClien
     try {
       form = await new Request("http://upload.local", { method: "POST", headers: { "content-type": req.headers["content-type"]! }, body: new Uint8Array(req.body) }).formData();
     } catch { throw new ApiError("VALIDATION_ERROR", "上传表单格式错误"); }
-    for (const key of new Set(form.keys())) if (form.getAll(key).length !== 1) throw new ApiError("VALIDATION_ERROR", "上传字段不能重复");
+    // FormData 的 keys() 在不同 lib 环境下类型声明不一致（DOM/undici），显式窄化。
+    const fieldNames: string[] = Array.from(
+      (form as unknown as { keys(): Iterable<string> }).keys(),
+    );
+    for (const key of new Set(fieldNames)) if (form.getAll(key).length !== 1) throw new ApiError("VALIDATION_ERROR", "上传字段不能重复");
     const file = form.get("file");
     if (!file || typeof file === "string") throw new ApiError("VALIDATION_ERROR", "缺少 file 文件");
     let metadata: unknown;

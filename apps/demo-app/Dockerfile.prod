@@ -1,0 +1,23 @@
+# demo-app 独立生产镜像：纯 JS 产物，不含仓库其余内容（不含评测答案）。
+# 构建上下文必须是仓库根目录：
+#   docker build -f apps/demo-app/Dockerfile.prod .
+FROM node:22-bookworm-slim AS build
+WORKDIR /repo
+RUN corepack enable
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY apps/demo-app ./apps/demo-app
+RUN pnpm install --frozen-lockfile --filter @ai-qa/demo-app...
+RUN pnpm --filter @ai-qa/demo-app build
+
+FROM node:22-bookworm-slim AS runtime
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=build /repo/node_modules ./node_modules
+COPY --from=build /repo/apps/demo-app/node_modules ./apps/demo-app/node_modules
+COPY --from=build /repo/apps/demo-app/package.json ./apps/demo-app/package.json
+COPY --from=build /repo/apps/demo-app/dist ./apps/demo-app/dist
+WORKDIR /app/apps/demo-app
+EXPOSE 7400
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=5 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.DEMO_PORT||7400)+'/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+CMD ["node", "--import", "tsx", "dist/server.js"]

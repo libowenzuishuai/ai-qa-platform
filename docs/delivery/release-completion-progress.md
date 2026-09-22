@@ -8,7 +8,7 @@
 | R01 多文件diff | DONE | NOT_RUN | Python compare_files（同路径配对→唯一哈希重命名→增删/不确定→片段比较→对账→稳定排序）+ 契约 + 可复现目录夹具 | source_changes/multi_file.py, contracts source-changes.ts, fixtures/multi-file-diff/ | Python 13/13 新增，contracts 199/199（新增 6） | 重命名只认同字节唯一哈希；名称相似不当证据；改名字节变→诚实增删 |
 | R02 多文件影响 | BACKEND_DONE | NOT_RUN | SnapshotChange 表+作业+API：服务端装载冻结（浏览器只传版本清单）、/v1/snapshots/compare 真实 Python 比较、逐文件复核（modified 挂接单文件复核/removed+uncertain 必须理由/renamed 确认不改 oldVersionId）、新基线合并（删除独占规则下线+新增已批准资产纳入+旧基线保留）、幂等+防篡改 | prisma SnapshotChange, worker snapshot-diff-job.ts, routes-snapshot-changes.ts, Python app.py | worker 集成 5/5（真实 DB/HTTP/Python），全 worker 85/85，Python 305/305 | 剩余：复核 UI（R10）、SIGKILL 恢复专项（复用既有 durable 机制，随 R12 回归） |
 | R03 长文档 | IN_PROGRESS | NOT_RUN | 确定性分块器（chunk-v1）+ 跨语言共享测试向量 + /v1/documents/chunk wire 端点（零模型调用） | services/intelligence/doc_ingestion/chunking.py, contracts chunking wire, fixtures/chunking/shared-vector.json | Python 292/292（新增 11），contracts 193/193（新增 4） | 剩余：chunk 状态持久化/租约/幂等 + 分层合并 + worker 接线 |
-| R04 可安装 | TODO | NOT_RUN | 待实现 | — | — | 需真实容器构建验证 |
+| R04 可安装 | CORE_DONE | PARTIAL | 生产 Dockerfile×4 + 独立 compose（migrate/seed 单次容器、健康检查、无默认凭据、demo 独立 profile、worker 镜像不含评测答案）；空库安装→登录→业务→备份→恢复→升级路径全部真实执行（见 docs/delivery/r04-install-verification.md） | apps/*/Dockerfile*, deploy/compose.production.yaml | 实际构建+运行验证通过（5 容器 healthy） | 待跑门：worker 镜像（playwright 基础镜像拉取中）、registry 推送、带真实 Run 的升级复核（R12） |
 | R05 工程检查 | TODO | NOT_RUN | 待实现 | — | — | 已有 runner 基础 |
 | R06 GitHub CI | TODO | NOT_RUN | 待实现 | — | — | 需 GitHub App 配置 |
 | R07 组合框架 | API_DONE | NOT_RUN | 能力目录/模板 CRUD+DAG 校验+发布 API（悬空/环/重复/64上限/并行≤2 拒绝） | apps/api/src/routes-release.ts | release-routes.test 10/10 | 模板真实运行编排待接 worker |

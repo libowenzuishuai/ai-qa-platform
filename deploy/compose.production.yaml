@@ -1,0 +1,167 @@
+# R04 生产编排：独立 compose project、无默认凭据、迁移单次容器、
+# 全服务健康检查、数据库/证据持久卷、demo 单独 profile。
+#
+# 使用（在仓库根目录）：
+#   cp deploy/.env.production.example deploy/.env.production  # 填入真实值
+#   docker compose -p aiqa-prod -f deploy/compose.production.yaml --env-file deploy/.env.production up -migrate
+#   docker compose -p aiqa-prod -f deploy/compose.production.yaml --env-file deploy/.env.production up -d
+#
+# 端口可整段改写（动态端口），卷名跟随 compose project 隔离。
+
+name: aiqa-prod
+
+x-api-env: &api-env
+  DATABASE_URL: postgresql://${POSTGRES_USER:?need POSTGRES_USER}:${POSTGRES_PASSWORD:?need POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?need POSTGRES_DB}?schema=public
+  SESSION_SECRET: ${SESSION_SECRET:?need SESSION_SECRET}
+  REDIS_URL: redis://redis:6379/0
+  AIQA_INTELLIGENCE_BACKEND: python
+  AIQA_INTELLIGENCE_URL: http://intelligence:7500
+  AIQA_INTELLIGENCE_TOKEN: ${AIQA_INTELLIGENCE_TOKEN:?need AIQA_INTELLIGENCE_TOKEN}
+  API_HOST: 0.0.0.0
+  API_PORT: "7300"
+  SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:?need SEED_ADMIN_USERNAME}
+  SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?need SEED_ADMIN_PASSWORD}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?need POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?need POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?need POSTGRES_DB}
+    volumes:
+      - pgdata-prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  # 迁移单次容器：跑完即退（compose up -migrate）。
+  migrate:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    command: ["./node_modules/.bin/prisma", "migrate", "deploy"]
+    environment: *api-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # 初始管理员种子单次容器：幂等（已存在即跳过）。
+  seed:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    command: ["node", "--import", "tsx", "prisma/seed.ts"]
+    environment: *api-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    environment: *api-env
+    volumes:
+      - artifacts-prod:/data/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${API_BIND:-127.0.0.1}:${API_PORT_PUBLISHED:-7300}:7300"
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ..
+      dockerfile: apps/worker/Dockerfile
+    environment:
+      <<: *api-env
+      WORKER_HOST: 0.0.0.0
+      WORKER_PORT: "7200"
+      AIQA_ARTIFACT_DIR: /data/artifacts
+      AIQA_INTELLIGENCE_TIMEOUT_MS: ${AIQA_INTELLIGENCE_TIMEOUT_MS:-120000}
+    volumes:
+      - artifacts-prod:/data/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      intelligence:
+        condition: service_healthy
+    ports:
+      - "${WORKER_BIND:-127.0.0.1}:${WORKER_PORT_PUBLISHED:-7200}:7200"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    environment:
+      WEB_HOST: 0.0.0.0
+      WEB_PORT: "7100"
+      API_BASE_URL: http://api:7300
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT_PUBLISHED:-7100}:7100"
+    restart: unless-stopped
+
+  intelligence:
+    build:
+      context: ../services/intelligence
+    environment:
+      AIQA_INTELLIGENCE_TOKEN: ${AIQA_INTELLIGENCE_TOKEN:?need AIQA_INTELLIGENCE_TOKEN}
+      AIQA_ARTIFACT_DIR: /data/artifacts
+      AIQA_TEXT_PROVIDER: ${AIQA_TEXT_PROVIDER:-moonshot}
+      AIQA_TEXT_BASE_URL: ${AIQA_TEXT_BASE_URL:-}
+      AIQA_TEXT_MODEL: ${AIQA_TEXT_MODEL:-}
+      AIQA_TEXT_API_KEY: ${AIQA_TEXT_API_KEY:-}
+      AIQA_VISION_PROVIDER: ${AIQA_VISION_PROVIDER:-moonshot}
+      AIQA_VISION_BASE_URL: ${AIQA_VISION_BASE_URL:-}
+      AIQA_VISION_MODEL: ${AIQA_VISION_MODEL:-}
+      AIQA_VISION_API_KEY: ${AIQA_VISION_API_KEY:-}
+    volumes:
+      - artifacts-prod:/data/artifacts:ro
+    restart: unless-stopped
+
+  # demo 独立 profile：默认不启动，不进入生产拓扑。
+  demo-app:
+    profiles: ["demo"]
+    build:
+      context: ..
+      dockerfile: apps/demo-app/Dockerfile.prod
+    environment:
+      DEMO_HOST: 0.0.0.0
+      DEMO_PORT: "7400"
+      DEMO_DB_PATH: /data/demo-app.sqlite
+      # demo profile 未配置令牌时留空：容器以禁用固件模式启动（不参与生产验收）。
+      DEMO_FIXTURE_TOKEN: ${DEMO_FIXTURE_TOKEN:-}
+      DEMO_BUG_MODES: ${DEMO_BUG_MODES:-}
+    volumes:
+      - demo-data-prod:/data
+    ports:
+      - "${DEMO_BIND:-127.0.0.1}:${DEMO_PORT_PUBLISHED:-7400}:7400"
+
+volumes:
+  pgdata-prod:
+  artifacts-prod:
+  demo-data-prod:
