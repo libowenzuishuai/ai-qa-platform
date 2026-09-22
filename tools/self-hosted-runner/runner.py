@@ -84,6 +84,78 @@ def parse_junit(content):
     return cases
 
 
+# ============ R05：注册适配器（命令为固定数组，不接受自由 shell） ============
+
+def _node_binary(manifest,binary,package):
+    """工具必须由项目锁文件固定（npm ci 安装），绝不 npx 现场下载。"""
+    try:
+        package_json=json.loads((manifest/'package.json').read_text('utf8'))
+    except (OSError, ValueError):
+        raise ValueError('package.json 缺失或不可解析，无法注册 Node 适配器')
+    declared={**package_json.get('dependencies',{}),**package_json.get('devDependencies',{})}
+    if package not in declared:
+        raise ValueError(f'{package} 未在 package.json 声明；适配器只运行锁文件固定的工具，不用 npx 下载')
+    return binary
+
+NODE_ADAPTERS={
+    'NODE_TEST':lambda manifest:['node','--test','--test-reporter=junit','--test-reporter-destination=/work/report.xml'],
+    'NODE_VITEST':lambda manifest:['node_modules/.bin/'+_node_binary(manifest,'vitest','vitest'),'run','--reporter=junit','--outputFile=/work/report.xml'],
+    'NODE_JEST':lambda manifest:['node_modules/.bin/'+_node_binary(manifest,'jest','jest'),'--reporters=default','--reporters=jest-junit'],
+    'NODE_PLAYWRIGHT':lambda manifest:['node_modules/.bin/'+_node_binary(manifest,'playwright','@playwright/test'),'test','--reporter=junit'],
+    'NODE_LINT':lambda manifest:['node_modules/.bin/'+_node_binary(manifest,'eslint','eslint'),'.'],
+    'NODE_TYPECHECK':lambda manifest:['node_modules/.bin/'+_node_binary(manifest,'tsc','typescript'),'--noEmit'],
+    'NODE_BUILD':lambda manifest:['npm','run','build'],
+}
+PY_ADAPTERS={'PYTHON_TEST'}
+
+# 命令型适配器：无 JUnit 产物，结论就是退出码本身（单条合成结果）。
+COMMAND_ONLY={
+    'NODE_BUILD':'npm run build（工程构建，不代表业务验收）',
+    'NODE_LINT':'eslint .（代码检查，不代表业务验收）',
+    'NODE_TYPECHECK':'tsc --noEmit（类型检查，不代表业务验收）',
+}
+
+KIND_ENV={
+    'NODE_JEST':{'JEST_JUNIT_OUTPUT_DIR':'/work','JEST_JUNIT_OUTPUT_NAME':'report.xml'},
+    'NODE_PLAYWRIGHT':{'PLAYWRIGHT_JUNIT_OUTPUT_NAME':'/work/report.xml'},
+}
+
+def adapter_for(spec,manifest):
+    kind=spec['kind']
+    if kind in NODE_ADAPTERS:
+        if (manifest/'pnpm-lock.yaml').is_file():
+            if (manifest/'package-lock.json').is_file():
+                raise ValueError('同时存在 package-lock.json 与 pnpm-lock.yaml（冲突锁文件），请先统一包管理器')
+            raise ValueError('仅支持 package-lock.json（npm ci）；pnpm-lock.yaml 项目暂不支持')
+        return NODE_ADAPTERS[kind](manifest),KIND_ENV.get(kind,{})
+    if kind in PY_ADAPTERS:
+        return None,{}
+    raise ValueError(f'未知作业类型：{kind}（受支持：{", ".join(sorted([*NODE_ADAPTERS,*PY_ADAPTERS]))}）')
+
+def image_for(spec):
+    if spec['kind']=='PYTHON_TEST':
+        return os.getenv('AIQA_RUNNER_PYTHON_IMAGE','python:3.13-slim')
+    if spec['kind']=='NODE_PLAYWRIGHT':
+        image=os.getenv('AIQA_RUNNER_PLAYWRIGHT_IMAGE')
+        if not image:
+            raise ValueError('Playwright 适配器需要操作员预置带浏览器的镜像（AIQA_RUNNER_PLAYWRIGHT_IMAGE）；不从任务下载镜像')
+        return image
+    return os.getenv('AIQA_RUNNER_NODE_IMAGE','node:22-alpine')
+
+def validate_report_consistency(kind,exit_code,cases):
+    """exit code 与 JUnit 报告矛盾、零测试都显式暴露，不产生误导性结果。"""
+    if kind in COMMAND_ONLY:
+        return [{'name':COMMAND_ONLY[kind],'status':'PASS' if exit_code==0 else 'FAIL'}]
+    failures=[c for c in cases if c['status']=='FAIL']
+    if exit_code==0 and failures:
+        raise ValueError('Exit code 为 0 但报告包含失败用例（矛盾报告，拒绝采信）')
+    if exit_code!=0 and cases and not failures:
+        raise ValueError('Exit code 非 0 但报告全部通过（矛盾报告，拒绝采信）')
+    if not cases:
+        return [{'name':'（工程检查）零测试：未发现任何测试用例','status':'FAIL'}]
+    return cases
+
+
 def docker(args, **kwargs):
     return subprocess.run(['docker', *args], check=True, capture_output=True, **kwargs)
 
@@ -97,14 +169,17 @@ def execute(spec, continue_work=lambda: True, source_directory=None):
     result = {'commitSha': spec['commitSha'], 'exitCode': -1, 'cases': [], 'output': ''}
     def remaining():
         return max(1, spec['timeoutSeconds']-(time.monotonic()-started))
-    def run_phase(image, command, network='none'):
+    def run_phase(image, command, network='none', env=None):
         if time.monotonic()-started >= spec['timeoutSeconds'] or not continue_work():
             raise TimeoutError('Task cancelled, lease lost or budget exhausted before command')
         name = 'aiqa-' + uuid.uuid4().hex
         containers.append(name)
+        env_flags=[]
+        for key,value in (env or {}).items():
+            env_flags += ['-e',f'{key}={value}']
         docker(['create','--name',name,'--network',network,'--read-only','--cap-drop=ALL','--security-opt=no-new-privileges',
                 '--log-opt','max-size=2m','--log-opt','max-file=1','--pids-limit=128','--memory=512m','--cpus=1','--tmpfs','/tmp:rw,nosuid,size=128m',
-                '-v',volume+':/work','-w','/work/'+spec.get('subdirectory',''),'-e','HOME=/tmp',image,*command],timeout=remaining())
+                '-v',volume+':/work','-w','/work/'+spec.get('subdirectory',''),'-e','HOME=/tmp',*env_flags,image,*command],timeout=remaining())
         docker(['start',name],timeout=remaining())
         while True:
             state=json.loads(docker(['inspect','--format','{{json .State}}',name],timeout=5).stdout)
@@ -129,32 +204,29 @@ def execute(spec, continue_work=lambda: True, source_directory=None):
                 archive=request('https://codeload.github.com/'+repo+'/tar.gz/'+spec['commitSha'],maximum=MAX_ARCHIVE)
                 extract_archive(archive,source)
             # Existing images are operator configuration; never download an arbitrary image from a task.
-            image=os.getenv('AIQA_RUNNER_PYTHON_IMAGE','python:3.13-slim') if spec['kind']=='PYTHON_TEST' else os.getenv('AIQA_RUNNER_NODE_IMAGE','node:22-alpine')
+            image=image_for(spec)
             docker(['image','inspect',image],timeout=10)
             docker(['volume','create',volume],timeout=10)
             seed='aiqa-seed-'+identity;containers.append(seed)
             docker(['create','--name',seed,'--network','none','--cap-drop=ALL','-v',volume+':/work',image,'true'],timeout=10)
             docker(['cp',str(source)+'/.',seed+':/work'],timeout=remaining())
+            manifest=source/spec.get('subdirectory','')
+            command,kind_env=adapter_for(spec,manifest)
             if spec.get('installDependencies'):
-                manifest=source/spec.get('subdirectory','')
                 if spec['kind']=='PYTHON_TEST':
                     if not (manifest/'requirements.txt').is_file():
                         raise ValueError('requirements.txt is required for dependency installation')
-                    command=['python','-m','pip','install','--no-cache-dir','--target','/work/.deps','-r','requirements.txt','pytest']
+                    install=['python','-m','pip','install','--no-cache-dir','--target','/work/.deps','-r','requirements.txt','pytest']
                 else:
                     if not (manifest/'package-lock.json').is_file():
                         raise ValueError('package-lock.json is required')
-                    command=['npm','ci','--ignore-scripts','--cache','/tmp/npm']
-                _, code=run_phase(image,command,'bridge')
+                    install=['npm','ci','--ignore-scripts','--cache','/tmp/npm']
+                _, code=run_phase(image,install,'bridge')
                 if code:
                     raise RuntimeError('Dependency installation failed')
-            if spec['kind']=='NODE_TEST':
-                command=['node','--test','--test-reporter=junit','--test-reporter-destination=/work/report.xml']
-            elif spec['kind']=='PYTHON_TEST':
+            if command is None:
                 command=['python','-c',"import sys;sys.path.insert(0,'/work/.deps');import pytest;raise SystemExit(pytest.main(['--junitxml=/work/report.xml','-q']))"]
-            else:
-                command=['npm','run','build']
-            name,code=run_phase(image,command)
+            name,code=run_phase(image,command,env=kind_env)
             # Docker CLI output is bounded on disk, then read at a bounded size.
             log_path=Path(temporary)/'output.log'
             with log_path.open('wb') as log:
@@ -162,13 +234,13 @@ def execute(spec, continue_work=lambda: True, source_directory=None):
             with log_path.open('rb') as log:
                 result['output']=log.read(200000).decode('utf8','replace')[:200000]
             result['exitCode']=code
-            if spec['kind']=='NODE_BUILD':
-                result['cases']=[{'name':'npm run build（工程构建，不代表业务验收）','status':'PASS' if code==0 else 'FAIL'}]
+            if spec['kind'] in COMMAND_ONLY:
+                result['cases']=[{'name':COMMAND_ONLY[spec['kind']],'status':'PASS' if code==0 else 'FAIL'}]
             else:
                 report=Path(temporary)/'report.xml'
                 docker(['cp',name+':/work/report.xml',str(report)],timeout=10)
                 with report.open('rb') as source_report:
-                    result['cases']=parse_junit(source_report.read(2*1024*1024+1))
+                    result['cases']=validate_report_consistency(spec['kind'],code,parse_junit(source_report.read(2*1024*1024+1)))
     except Exception as error:
         result['platformError']=str(error)[:2000]
     finally:

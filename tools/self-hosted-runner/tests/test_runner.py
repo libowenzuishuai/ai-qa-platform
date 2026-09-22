@@ -2,6 +2,7 @@ import importlib.util
 import io
 import json
 import os
+import subprocess
 from pathlib import Path
 import tarfile
 import pytest
@@ -25,21 +26,97 @@ def test_junit_failure_skip_and_empty_are_preserved():
     with pytest.raises(ValueError):runner.parse_junit(b'<!DOCTYPE test [<!ENTITY x SYSTEM "file:///etc/passwd">]><testsuite/>')
 
 
+# ============ R05：适配器注册与反例 ============
+
+def _manifest(tmp_path,**package_json):
+    (tmp_path/'package.json').write_text(json.dumps(package_json))
+    return tmp_path
+
+def test_adapter_registry_commands_are_fixed_arrays(tmp_path):
+    (tmp_path/'package-lock.json').write_text('{}')
+    manifest=_manifest(tmp_path,name='x',devDependencies={'vitest':'^3','jest':'^29','eslint':'^9','typescript':'^5'})
+    assert runner.adapter_for({'kind':'NODE_VITEST'},manifest)[0][0].endswith('/vitest')
+    assert runner.adapter_for({'kind':'NODE_LINT'},manifest)[0][0].endswith('/eslint')
+    assert runner.adapter_for({'kind':'NODE_TYPECHECK'},manifest)[0][0].endswith('/tsc')
+    with pytest.raises(ValueError,match='未知作业类型'):
+        runner.adapter_for({'kind':'FREE_SHELL'},manifest)
+
+def test_lockfile_conflicts_and_missing_tool_rejected(tmp_path):
+    manifest=_manifest(tmp_path,name='x',devDependencies={'vitest':'^3'})
+    (tmp_path/'pnpm-lock.yaml').write_text('')
+    with pytest.raises(ValueError,match='仅支持 package-lock'):
+        runner.adapter_for({'kind':'NODE_VITEST'},manifest)
+    (tmp_path/'package-lock.json').write_text('{}')
+    with pytest.raises(ValueError,match='冲突锁文件'):
+        runner.adapter_for({'kind':'NODE_VITEST'},manifest)
+
+    only_pnpm=Path(str(tmp_path)+'-b');only_pnpm.mkdir()
+    _manifest(only_pnpm,name='x',devDependencies={'vitest':'^3'})
+    (only_pnpm/'pnpm-lock.yaml').write_text('')
+    with pytest.raises(ValueError,match='package-lock'):
+        runner.adapter_for({'kind':'NODE_VITEST'},only_pnpm)
+
+    undeclared=Path(str(tmp_path)+'-c');undeclared.mkdir()
+    _manifest(undeclared,name='x',devDependencies={})
+    with pytest.raises(ValueError,match='未在 package.json 声明'):
+        runner.adapter_for({'kind':'NODE_JEST'},undeclared)
+
+def test_playwright_requires_operator_image(monkeypatch):
+    monkeypatch.delenv('AIQA_RUNNER_PLAYWRIGHT_IMAGE',raising=False)
+    with pytest.raises(ValueError,match='预置带浏览器'):
+        runner.image_for({'kind':'NODE_PLAYWRIGHT'})
+    monkeypatch.setenv('AIQA_RUNNER_PLAYWRIGHT_IMAGE','mcr.local/playwright:v1')
+    assert runner.image_for({'kind':'NODE_PLAYWRIGHT'})=='mcr.local/playwright:v1'
+
+def test_report_consistency_contradictions_and_zero_tests():
+    with pytest.raises(ValueError,match='矛盾'):
+        runner.validate_report_consistency('NODE_TEST',0,[{'name':'a','status':'FAIL'}])
+    with pytest.raises(ValueError,match='矛盾'):
+        runner.validate_report_consistency('NODE_TEST',1,[{'name':'a','status':'PASS'}])
+    zero=runner.validate_report_consistency('NODE_TEST',0,[])
+    assert zero[0]['status']=='FAIL' and '零测试' in zero[0]['name']
+    lint=runner.validate_report_consistency('NODE_LINT',1,[])
+    assert lint[0]['status']=='FAIL' and '不代表业务验收' in lint[0]['name']
+
+
 @pytest.mark.skipif(os.getenv('AIQA_TEST_DOCKER')!='1',reason='Explicit local Docker opt-in')
-@pytest.mark.parametrize('kind,broken',[('NODE_TEST',False),('NODE_TEST',True),('PYTHON_TEST',False),('PYTHON_TEST',True),('NODE_BUILD',False)])
+@pytest.mark.parametrize('kind,broken',[('NODE_TEST',False),('NODE_TEST',True),('PYTHON_TEST',False),('PYTHON_TEST',True),('NODE_BUILD',False),('NODE_VITEST',False),('NODE_VITEST',True),('NODE_JEST',False),('NODE_LINT',False),('NODE_LINT',True),('NODE_TYPECHECK',False),('NODE_TYPECHECK',True)])
 def test_real_isolated_process_and_report(tmp_path,kind,broken):
+    expected=5 if broken else 4
     if kind=='NODE_TEST':
-        (tmp_path/'main.test.js').write_text("const {test}=require('node:test');const assert=require('node:assert');test('business calculation',()=>assert.equal(2+2,"+('5' if broken else '4')+"));")
+        (tmp_path/'main.test.js').write_text(f"const {{test}}=require('node:test');const assert=require('node:assert');test('business calculation',()=>assert.equal(2+2,{expected}));")
     elif kind=='PYTHON_TEST':
-        (tmp_path/'test_main.py').write_text('def test_business_calculation():\n    assert 2+2 == '+('5' if broken else '4')+'\n')
+        (tmp_path/'test_main.py').write_text(f'def test_business_calculation():\n    assert 2+2 == {expected}\n')
+    elif kind=='NODE_VITEST':
+        _node_project(tmp_path,{'devDependencies':{'vitest':'3.2.7'}},f'import {{ test, expect }} from "vitest";\ntest("business calculation", () => {{ expect(2 + 2).toBe({expected}); }});\n')
+    elif kind=='NODE_JEST':
+        _node_project(tmp_path,{'devDependencies':{'jest':'29.7.0','jest-junit':'16.0.0'}},f"test('business calculation',()=>{{expect(2+2).toBe({expected});}});")
+    elif kind=='NODE_LINT':
+        _node_project(tmp_path,{'devDependencies':{'eslint':'9.14.0'}},None)
+        (tmp_path/'eslint.config.mjs').write_text('export default [\n  { rules: { "no-extra-semi": "error", "no-var": "error" } },\n];\n')
+        (tmp_path/'good.js').write_text('const answer = 42;\nexport { answer };\n')
+        if broken:(tmp_path/'bad.js').write_text('var x = 1;;\n')
+    elif kind=='NODE_TYPECHECK':
+        _node_project(tmp_path,{'devDependencies':{'typescript':'5.6.3'}},None)
+        (tmp_path/'tsconfig.json').write_text('{"compilerOptions":{"strict":true,"noEmit":true,"module":"esnext","moduleResolution":"bundler"}}')
+        (tmp_path/'good.ts').write_text('const answer: number = 42;\nexport { answer };\n')
+        if broken:(tmp_path/'bad.ts').write_text('const answer: number = "not a number";\nexport { answer };\n')
     else:
         (tmp_path/'package.json').write_text(json.dumps({'scripts':{'build':"node -e \"require('fs').writeFileSync('built.txt','built')\""}}))
-    request={'repositoryUrl':'https://github.com/test/test','commitSha':'a'*40,'subdirectory':'','kind':kind,'timeoutSeconds':60,'installDependencies':False}
+    request={'repositoryUrl':'https://github.com/test/test','commitSha':'a'*40,'subdirectory':'','kind':kind,'timeoutSeconds':240,'installDependencies':kind in {'NODE_VITEST','NODE_JEST','NODE_LINT','NODE_TYPECHECK'}}
     result=runner.execute(request,source_directory=tmp_path)
     assert not result.get('platformError'),result
     assert result['cases'],result
     assert any(c['status']=='FAIL' for c in result['cases'])==broken,result
     assert (result['exitCode']!=0)==broken,result
+
+
+def _node_project(tmp_path,package_json_extras,test_body):
+    """最小 npm 项目：package.json + 真实 package-lock.json（--package-lock-only 生成）。"""
+    package={'name':'aiqa-adapter-fixture','private':True,**package_json_extras}
+    (tmp_path/'package.json').write_text(json.dumps(package))
+    subprocess.run(['npm','install','--package-lock-only','--ignore-scripts'],cwd=tmp_path,capture_output=True,timeout=300,check=True)
+    if test_body is not None:(tmp_path/'calc.test.js').write_text(test_body)
 
 
 @pytest.mark.skipif(os.getenv('AIQA_TEST_DOCKER')!='1',reason='Explicit local Docker opt-in')
