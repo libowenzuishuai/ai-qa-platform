@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "pilot-v1",
+  "kind": "synthetic",
+  "projectId": "replace-with-platform-project",
+  "baselineId": "replace-with-approved-baseline",
+  "authorizedBy": "synthetic-example-only",
+  "authorizationScope": "仅用于解释 manifest 结构，不授权任何真实业务操作",
+  "approvalRecord": "example-not-a-business-approval",
+  "documents": [
+    {
+      "path": "prd.md",
+      "title": "合成申请审批示例",
+      "format": "MARKDOWN",
+      "sha256": "85cea99d1f00afd9be87236537983c35b05cda2769a61e1fa8aa4b3d233ac0fd"
+    }
+  ],
+  "builds": [
+    {
+      "name": "healthy",
+      "environmentId": "replace-healthy-environment",
+      "buildId": "replace-healthy-build",
+      "commitSha": "0000000000000000000000000000000000000000",
+      "caseVersionIds": [
+        "replace-approved-case"
+      ]
+    },
+    {
+      "name": "defect",
+      "environmentId": "replace-defect-environment",
+      "buildId": "replace-defect-build",
+      "commitSha": "1111111111111111111111111111111111111111",
+      "caseVersionIds": [
+        "replace-approved-case"
+      ]
+    },
+    {
+      "name": "repaired",
+      "environmentId": "replace-repaired-environment",
+      "buildId": "replace-repaired-build",
+      "commitSha": "2222222222222222222222222222222222222222",
+      "caseVersionIds": [
+        "replace-approved-case"
+      ]
+    }
+  ],
+  "dimensions": {
+    "normal": {
+      "status": "BLOCKED",
+      "reason": "示例尚未接入真实批准用例和证据"
+    },
+    "boundary": {
+      "status": "BLOCKED",
+      "reason": "示例尚未接入真实批准用例和证据"
+    },
+    "permission": {
+      "status": "BLOCKED",
+      "reason": "示例尚未接入真实批准用例和证据"
+    },
+    "multiRole": {
+      "status": "BLOCKED",
+      "reason": "示例尚未接入真实批准用例和证据"
+    },
+    "state": {
+      "status": "BLOCKED",
+      "reason": "示例尚未接入真实批准用例和证据"
+    },
+    "persistence": {
+      "status": "BLOCKED",
+      "reason": "示例尚未接入真实批准用例和证据"
+    }
+  },
+  "defectCaseVersionIds": [
+    "replace-approved-case"
+  ]
+}

@@ -59,12 +59,16 @@ export function registerReviewRoutes(app: FastifyInstance, prisma: PrismaClient)
     requireAuth(req);
     const { id: projectId } = z.object({ id: z.string() }).parse(req.params);
     await requireProjectAccess(prisma, req, projectId, "VIEWER");
-    const [rules, clarifications, cases, jobs] = await Promise.all([
-      prisma.ruleVersion.findMany({ where: { rule: { projectId } }, orderBy: { createdAt: "desc" }, take: 200 }),
-      prisma.clarification.findMany({ where: { projectId }, orderBy: { createdAt: "desc" }, take: 200 }),
-      prisma.testCaseVersion.findMany({ where: { projectId }, orderBy: { createdAt: "desc" }, take: 200 }),
-      prisma.job.findMany({ where: { projectId }, orderBy: { createdAt: "desc" }, take: 100 }),
+    const page=z.coerce.number().int().min(1).max(100000).default(1).parse((req.query as {page?:unknown}).page),pageSize=30;
+    const paging={orderBy:[{createdAt:'desc' as const},{id:'asc' as const}],skip:(page-1)*pageSize,take:pageSize};
+    const [rules,clarifications,cases,jobs,ruleCount,clarificationCount,caseCount,jobCount]=await Promise.all([
+      prisma.ruleVersion.findMany({where:{rule:{projectId}},...paging}),
+      prisma.clarification.findMany({where:{projectId},...paging}),
+      prisma.testCaseVersion.findMany({where:{projectId},...paging}),
+      prisma.job.findMany({where:{projectId},...paging}),
+      prisma.ruleVersion.count({where:{rule:{projectId}}}),prisma.clarification.count({where:{projectId}}),
+      prisma.testCaseVersion.count({where:{projectId}}),prisma.job.count({where:{projectId}}),
     ]);
-    return { rules, clarifications, cases, jobs, limits: { assets: 200, jobs: 100 } };
+    return {rules,clarifications,cases,jobs,page,pageSize,totals:{rules:ruleCount,clarifications:clarificationCount,cases:caseCount,jobs:jobCount},totalPages:Math.max(1,Math.ceil(Math.max(ruleCount,clarificationCount,caseCount,jobCount)/pageSize))};
   });
 }

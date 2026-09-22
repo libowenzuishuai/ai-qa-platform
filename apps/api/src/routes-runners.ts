@@ -1,3 +1,4 @@
+import {contentHash} from './change-review-service.js';
 import {GitHubApp,githubConfig,installationForRepository,privateSourceArchive} from './github-app.js';
 import { reconcileCodeChecks } from '@ai-qa/run-events';
 export { reconcileCodeChecks } from '@ai-qa/run-events';
@@ -34,14 +35,22 @@ export function registerRunnerRoutes(app:FastifyInstance,prisma:PrismaClient,sto
   });
   app.get('/api/projects/:id/code-checks',async req=>{
     const projectId=id(req);await requireProjectAccess(prisma,req,projectId);await reconcileCodeChecks(prisma);
-    const checks=await prisma.codeCheck.findMany({where:{projectId},orderBy:{createdAt:'desc'},take:100});
-    return {checks:checks.map(({leaseToken,result,...row})=>({...row,summary: result ? {caseCount: (result as any).cases?.length ?? 0, platformError: Boolean((result as any).platformError)} : null})),runners:await prisma.executionRunner.findMany({where:{projectId},select:{id:true,name:true,capabilities:true,revokedAt:true}})};
+    const q=z.object({page:z.coerce.number().int().min(1).max(100000).default(1),kind:CodeCheckRequest.shape.kind.optional()}).strict().parse(req.query);
+    const checks=await prisma.codeCheck.findMany({where:{projectId,request:q.kind?{path:['kind'],equals:q.kind}:undefined},orderBy:[{createdAt:'desc'},{id:'asc'}],skip:(q.page-1)*30,take:30});
+    return {page:q.page,pageSize:30,total:await prisma.codeCheck.count({where:{projectId,request:q.kind?{path:['kind'],equals:q.kind}:undefined}}),checks:checks.map(({leaseToken,result,...row})=>({...row,summary: result ? {caseCount: (result as any).cases?.length ?? 0, platformError: Boolean((result as any).platformError),deployment:(result as any).deployment??null,resources:(result as any).resources??[]} : null})),runners:await prisma.executionRunner.findMany({where:{projectId},select:{id:true,name:true,capabilities:true,revokedAt:true}})};
   });
   app.post('/api/projects/:id/code-checks',async req=>{
     const projectId=id(req);await requireProjectAccess(prisma,req,projectId,'LEAD');
     const body=CodeCheckRequest.parse(req.body);
+    if(body.deployment&&body.kind!=='NODE_HTTP')throw new ApiError('VALIDATION_ERROR','部署配置仅适用于 Node HTTP 部署检查');
+    const connection=await installationForRepository(prisma,projectId,body.repositoryUrl);
+    if(connection?.status==='REVOKED')throw new ApiError('FORBIDDEN','仓库授权已撤销，请重新连接');
     if(!await prisma.executionRunner.findFirst({where:{projectId,revokedAt:null,capabilities:{has:body.kind}}}))throw new ApiError('DEPENDENCY_UNAVAILABLE','请先注册支持此测试类型的运行器');
-    return prisma.codeCheck.create({data:{projectId,request:body,createdBy:requireAuth(req).userId}});
+    return prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT id FROM "Project" WHERE id=${projectId} FOR UPDATE`;
+      if(body.idempotencyKey){const old=await tx.codeCheck.findUnique({where:{projectId_idempotencyKey:{projectId,idempotencyKey:body.idempotencyKey}}});if(old){if(contentHash(old.request)!==contentHash(body))throw new ApiError('IDEMPOTENCY_CONFLICT','同一幂等键的检查参数不同');return old;}}
+      return tx.codeCheck.create({data:{projectId,idempotencyKey:body.idempotencyKey,request:body,createdBy:requireAuth(req).userId}});
+    });
   });
   app.post('/api/code-checks/:id/cancel',async req=>{
     const row=await prisma.codeCheck.findUnique({where:{id:id(req)}});if(!row)throw new ApiError('NOT_FOUND','检查不存在');
@@ -84,7 +93,11 @@ export function registerRunnerRoutes(app:FastifyInstance,prisma:PrismaClient,sto
       if(!claimed.count)throw new ApiError('CONFLICT','租约失效或任务已经结束');
       const task=await tx.codeCheck.findUniqueOrThrow({where:{id:id(req)}});const request=CodeCheckRequest.parse(task.request);
       if(body.result.commitSha!==request.commitSha)throw new ApiError('VALIDATION_ERROR','结果提交版本不匹配');
-      const result=body.result;const cancelled=task.status==='CANCEL_REQUESTED';
+      const result=body.result;
+      if(result.resources?.some(r=>r.status==='RESIDUAL'))result.platformError='Cleanup incomplete; operator inspection required';
+      if(result.deployment&&(request.kind!=='NODE_HTTP'||result.deployment.commitSha!==request.commitSha))throw new ApiError('VALIDATION_ERROR','部署产物版本与任务不匹配');
+      if(request.kind==='NODE_HTTP'&&!result.platformError&&result.exitCode===0&&(!result.deployment||result.deployment.healthStatus!==200||!result.resources?.length||result.resources.some(r=>r.status!=='CLEANED')||!result.resources.some(r=>r.kind==='container'&&r.name===result.deployment?.instanceId)||(request.deployment?.postgres===true&&!result.deployment.postgresReady)))throw new ApiError('VALIDATION_ERROR','部署通过缺少实例、产物、健康或清理证据');
+      const cancelled=task.status==='CANCEL_REQUESTED';
       const verdict=cancelled||result.platformError?'INCOMPLETE':result.cases.some(c=>c.status==='FAIL')?'FAIL':result.exitCode===0&&result.cases.length>0&&result.cases.every(c=>c.status==='PASS')?'PASS':'INCOMPLETE';
       const stored=store.put({runId:`code-${task.id}`,attemptId:r.id,filename:'result.json',data:Buffer.from(JSON.stringify(result))});
       const artifact=await tx.artifact.create({data:{projectId:r.projectId,type:'CODE_TEST_RESULT',sensitivity:'RESTRICTED_RAW',storageKey:stored.storageKey,checksum:stored.checksum}});

@@ -15,12 +15,14 @@ export function registerWorkbenchRoutes(app: FastifyInstance) {
     if (!sid) return reply.redirect("/login");
     const { id } = req.params as { id: string };
     try {
+      const page=Math.max(1,Math.min(100000,Number((req.query as any).page)||1));
       const [project, documents, review] = await Promise.all([
         api<{ name: string }>(`/api/projects/${encodeURIComponent(id)}`, { sid }),
         api<{ documents: any[] }>(`/api/projects/${encodeURIComponent(id)}/documents`, { sid }),
-        api<{ rules: any[]; clarifications: any[]; cases: any[]; jobs: any[] }>(`/api/projects/${encodeURIComponent(id)}/review`, { sid }),
+        api<{ rules: any[]; clarifications: any[]; cases: any[]; jobs: any[];page:number;pageSize:number;totalPages:number;totals:Record<string,number> }>(`/api/projects/${encodeURIComponent(id)}/review?page=${page}`, { sid }),
       ]);
       const base = `/projects/${encodeURIComponent(id)}/review`;
+      const pager=`<nav aria-label="审阅翻页"><p>规则 ${review.data.totals.rules} · 澄清 ${review.data.totals.clarifications} · 用例 ${review.data.totals.cases} · 作业 ${review.data.totals.jobs}。每类每页 ${review.data.pageSize} 条，第 ${page} / ${review.data.totalPages} 页。</p>${page>1?`<a href="${base}?page=${page-1}">上一页</a>`:""} ${page<review.data.totalPages?`<a href="${base}?page=${page+1}">下一页</a>`:""}</nav>`;
       const documentRows = documents.data.documents.flatMap(d => d.versions.map((v: any) => `<tr><td><input type="checkbox" name="documentVersionIds" value="${esc(v.id)}" ${v.parseStatus !== "PARSED" ? "disabled" : ""}></td><td><a href="/document-versions/${esc(v.id)}">${esc(d.title)} · v${v.version}</a></td><td>${esc(v.parseStatus)}<br>${esc(mode(v.mode))}</td><td>${(v.parseWarnings ?? []).map(esc).join("<br>")}</td></tr>`)).join("");
       const rules = review.data.rules.map(r => `<article class="card"><h3>${esc(r.statement)}</h3><p>${esc(r.classification)} · ${esc(r.reviewStatus)} · ${esc(mode(r.generationMode))}</p><p>动作：${esc(r.action)}；条件：${esc(r.condition)}；预期：${esc(r.expectation)}</p><p>禁止：${esc((r.forbiddenBehaviors ?? []).join("；"))}</p><p>来源：${(r.sources ?? []).map((s: any) => `<a href="/document-versions/${esc(s.documentVersionId)}">查看原文（${s.sourceSpanIds.length} 个片段）</a>`).join(" · ")}</p>
       ${["DRAFT", "NEEDS_REVIEW"].includes(r.reviewStatus) ? `<form method="post" action="${base}/rules/${esc(r.id)}/approve"><button>批准规则</button></form><form method="post" action="${base}/rules/${esc(r.id)}/reject"><button class="danger">驳回规则</button></form>` : ""}</article>`).join("");
@@ -31,9 +33,9 @@ export function registerWorkbenchRoutes(app: FastifyInstance) {
       return reply.type("text/html").send(layout("资料与测试审阅", `<h1>${esc(project.data.name)} · 资料与测试审阅</h1><p><a href="/projects/${esc(id)}">返回运行页面</a> · <a href="${base}">刷新状态</a></p>
       <p><a class="button" href="/projects/${esc(id)}/changes">比较需求变更与复核影响</a></p><section class="card"><h2>1. 上传业务资料</h2><form id="upload" method="post" action="${base}/documents" enctype="multipart/form-data"><label>标题</label><input type="text" name="title" required maxlength="200"><label>格式</label><select name="declaredFormat">${["MARKDOWN", "TXT", "DOCX", "PDF_TEXT", "PDF_SCANNED", "PNG", "JPEG"].map(x => `<option>${x}</option>`).join("")}</select><label>文件（最大 20 MB）</label><input type="file" name="file" required><input type="hidden" name="fileSizeBytes"><label>解析模式（图片使用视觉模型）</label><select name="mode"><option value="real">真实解析</option><option value="mock">模拟视觉（需登记响应）</option></select><label>追加到已有文档（可选）</label><select name="documentId"><option value="">新建文档</option>${documents.data.documents.map(d => `<option value="${esc(d.id)}">${esc(d.title)}</option>`).join("")}</select><button>上传并解析</button></form></section>
       <section class="card"><h2>2. 选择已解析资料，提取规则</h2><form method="post" action="${base}/extract"><table><tr><th>选择</th><th>资料</th><th>状态</th><th>解析提示</th></tr>${documentRows || "<tr><td colspan=4>暂无资料</td></tr>"}</table>${choices}<button>提取规则草稿</button></form></section>
-      <h2>3. 回答澄清，再审阅规则</h2>${clarifications || "<p>暂无澄清</p>"}${rules || "<p>暂无规则</p>"}
+      ${pager}<h2>3. 回答澄清，再审阅规则</h2>${clarifications || "<p>暂无澄清</p>"}${rules || "<p>暂无规则</p>"}
       <section class="card"><h2>4. 从批准规则生成用例</h2><form method="post" action="${base}/generate">${generation || "<p>暂无批准规则</p>"}${choices}<button>生成用例草稿</button></form></section>
-      <h2>5. 用例审阅</h2>${cases || "<p>暂无用例</p>"}<h2>最近作业</h2><p class="muted">本页最多显示各类资产 200 条、最近作业 100 条。</p><table><tr><th>类型</th><th>状态</th><th>模式</th><th>失败原因</th></tr>${jobs}</table>
+      <h2>5. 用例审阅</h2>${cases || "<p>暂无用例</p>"}<h2>最近作业</h2>${pager}<table><tr><th>类型</th><th>状态</th><th>模式</th><th>失败原因</th></tr>${jobs}</table>
       <script>document.getElementById('upload').addEventListener('submit',function(e){const f=this.elements.file.files[0];if(!f||f.size>20*1024*1024||f.size===0){e.preventDefault();alert('请选择 1 字节至 20 MB 的文件');return;}this.elements.fileSizeBytes.value=f.size;});</script>`));
     } catch (error) { return fail(reply, error); }
   });

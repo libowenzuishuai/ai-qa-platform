@@ -67,13 +67,23 @@ export const ApiRequestTemplate = z.object({
   timeoutMs: z.number().int().min(100).max(30000).default(10000),
 }).strict();
 
+export const NodeHttpDeployment=z.object({
+  entrypoint:z.string().regex(/^[A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:mjs|cjs|js)$/).refine(s=>!s.split('/').includes('..')).default('server.js'),
+  build:z.enum(['NONE','NPM_BUILD']).default('NONE'),
+  port:z.number().int().min(1024).max(65535).default(3000),
+  healthPath:z.string().regex(/^\/(?!\/)[A-Za-z0-9_./-]*$/).default('/health'),
+  postgres:z.boolean().default(false),
+  readinessSeconds:z.number().int().min(2).max(120).default(30),
+}).strict();
 export const CodeCheckRequest = z.object({
+  idempotencyKey:z.string().min(8).max(120).optional(),
   repositoryUrl: GitConnectionRequest.shape.url,
   commitSha: z.string().regex(/^[a-f0-9]{40}$/),
   subdirectory: GitConnectionRequest.shape.subdirectory,
-  kind: z.enum(['NODE_TEST','PYTHON_TEST','NODE_BUILD','NODE_VITEST','NODE_JEST','NODE_PLAYWRIGHT','NODE_LINT','NODE_TYPECHECK']),
+  kind: z.enum(['NODE_TEST','PYTHON_TEST','NODE_BUILD','NODE_VITEST','NODE_JEST','NODE_PLAYWRIGHT','NODE_LINT','NODE_TYPECHECK','NODE_HTTP']),
   timeoutSeconds: z.number().int().min(10).max(600).default(120),
   installDependencies: z.boolean().default(false),
+  deployment: NodeHttpDeployment.optional(),
 }).strict();
 export const RunnerResult = z.object({
   commitSha: z.string().regex(/^[a-f0-9]{40}$/),
@@ -81,6 +91,8 @@ export const RunnerResult = z.object({
   cases: z.array(z.object({name:z.string().min(1).max(500),status:z.enum(['PASS','FAIL','SKIP']),detail:z.string().max(2000).optional()})).max(10000),
   output: z.string().max(200000),
   platformError: z.string().max(2000).optional(),
+  deployment:z.object({instanceId:z.string().max(100),commitSha:z.string().regex(/^[a-f0-9]{40}$/),artifactSha256:z.string().regex(/^[a-f0-9]{64}$/),healthStatus:z.number().int(),postgresReady:z.boolean(),ephemeral:z.literal(true)}).strict().optional(),
+  resources:z.array(z.object({kind:z.enum(['container','volume','network']),name:z.string().max(120),status:z.enum(['CLEANED','RESIDUAL'])}).strict()).max(100).optional(),
 }).strict();
 
 export const SourceClassificationInput = z.object({

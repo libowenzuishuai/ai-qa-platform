@@ -1,0 +1,4 @@
+FROM ubuntu/squid:latest
+COPY registry-proxy.conf /etc/squid/aiqa.conf
+USER proxy
+ENTRYPOINT ["squid", "-N", "-f", "/etc/squid/aiqa.conf"]

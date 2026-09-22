@@ -32,20 +32,30 @@ export function registerProductRoutes(app: FastifyInstance, prisma: PrismaClient
   }
   app.get('/api/projects/:id/workspace', async req => {
     const projectId = param(req); await requireProjectAccess(prisma, req, projectId);
+    const page=z.coerce.number().int().min(1).max(100000).default(1).parse((req.query as any).page),pageSize=30;
+    const paging={orderBy:[{createdAt:'desc' as const},{id:'asc' as const}],skip:(page-1)*pageSize,take:pageSize};
     const [project, environments, cases, baselines, observations, proposals, missions, snapshots, defects, executions] = await Promise.all([
       prisma.project.findUniqueOrThrow({where:{id:projectId}}),
       prisma.environment.findMany({where:{projectId}}),
-      prisma.testCaseVersion.findMany({where:{projectId},orderBy:{createdAt:'desc'},take:200,include:{plans:{select:{id:true,environmentId:true,environmentRevision:true,version:true}}}}),
+      prisma.testCaseVersion.findMany({where:{projectId},...paging,include:{plans:{select:{id:true,environmentId:true,environmentRevision:true,version:true}}}}),
       prisma.baseline.findMany({where:{projectId},orderBy:{createdAt:'desc'}}),
-      prisma.artifact.findMany({where:{projectId,type:'OBSERVATION_BUNDLE'},orderBy:{createdAt:'desc'},take:30}),
-      prisma.planProposal.findMany({where:{projectId},orderBy:{createdAt:'desc'},take:50}),
-      prisma.mission.findMany({where:{projectId},orderBy:{createdAt:'desc'},take:100}),
-      prisma.contextSnapshot.findMany({where:{projectId},orderBy:{createdAt:'desc'},take:20}),
-      prisma.defect.findMany({where:{projectId},include:{occurrences:true},orderBy:{updatedAt:'desc'},take:100}),
-      prisma.run.findMany({where:{projectId},orderBy:{createdAt:'desc'},take:100}),
+      prisma.artifact.findMany({where:{projectId,type:'OBSERVATION_BUNDLE'},...paging}),
+      prisma.planProposal.findMany({where:{projectId},...paging}),
+      prisma.mission.findMany({where:{projectId},...paging}),
+      prisma.contextSnapshot.findMany({where:{projectId},...paging}),
+      prisma.defect.findMany({where:{projectId},include:{occurrences:{orderBy:{createdAt:'desc'},take:3},_count:{select:{occurrences:true}}},...paging}),
+      prisma.run.findMany({where:{projectId},...paging}),
     ]);
     const [documents,parsed]=await Promise.all([prisma.document.count({where:{projectId}}),prisma.document.count({where:{projectId,versions:{some:{parseStatus:"PARSED"}}}})]);
-    return {sourceCounts:{documents,parsed},secretPrefix:projectSecretPrefix(projectId),project,environments,cases,baselines,observations,proposals,missions,snapshots,defects,executions};
+    const [caseTotal,observationTotal,proposalTotal,missionTotal,snapshotTotal,defectTotal,executionTotal,openDefects,activeRuns,draftRows,finishedRuns]=await Promise.all([
+      prisma.testCaseVersion.count({where:{projectId}}),prisma.artifact.count({where:{projectId,type:'OBSERVATION_BUNDLE'}}),prisma.planProposal.count({where:{projectId}}),prisma.mission.count({where:{projectId}}),prisma.contextSnapshot.count({where:{projectId}}),prisma.defect.count({where:{projectId}}),prisma.run.count({where:{projectId}}),
+      prisma.defect.count({where:{projectId,status:{notIn:['VERIFIED','REJECTED']}}}),prisma.run.count({where:{projectId,lifecycle:{in:['QUEUED','PREPARING','RUNNING','FINALIZING','CANCEL_REQUESTED']}}}),
+      prisma.$queryRaw<Array<{drafts:bigint;approved:bigint;total:bigint;bound:bigint}>>`WITH latest AS (SELECT DISTINCT ON ("caseId") id,"approvalStatus" FROM "TestCaseVersion" WHERE "projectId"=${projectId} ORDER BY "caseId",version DESC) SELECT count(*) AS total, count(*) FILTER (WHERE "approvalStatus"='DRAFT') AS drafts, count(*) FILTER (WHERE "approvalStatus"='APPROVED') AS approved, count(*) FILTER (WHERE "approvalStatus"='APPROVED' AND EXISTS (SELECT 1 FROM "TestPlanVersion" p JOIN "Environment" e ON e.id=p."environmentId" AND e.revision=p."environmentRevision" WHERE p."caseVersionId"=latest.id AND e."projectId"=${projectId})) AS bound FROM latest`,
+      prisma.run.count({where:{projectId,lifecycle:'FINISHED'}}),
+    ]);
+    const totals={cases:caseTotal,observations:observationTotal,proposals:proposalTotal,missions:missionTotal,snapshots:snapshotTotal,defects:defectTotal,executions:executionTotal};
+    const members=await prisma.projectMembership.findMany({where:{projectId},select:{userId:true,user:{select:{displayName:true}}}});
+    return {page,pageSize,totals,totalPages:Math.max(1,Math.ceil(Math.max(...Object.values(totals))/pageSize)),metrics:{openDefects,activeRuns,drafts:Number(draftRows[0]?.drafts??0),approved:Number(draftRows[0]?.approved??0),latestCases:Number(draftRows[0]?.total??0),bound:Number(draftRows[0]?.bound??0),finishedRuns},members,sourceCounts:{documents,parsed},secretPrefix:projectSecretPrefix(projectId),project,environments,cases,baselines,observations,proposals,missions,snapshots,defects,executions};
   });
   app.post('/api/projects/:id/api-templates',async req=>{
     const projectId=param(req);await requireProjectAccess(prisma,req,projectId,'ADMIN');

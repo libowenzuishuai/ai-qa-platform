@@ -12,7 +12,17 @@ export function registerDefectRoutes(app: FastifyInstance, prisma: PrismaClient,
   app.get('/api/projects/:id/defects', async req => {
     const { id } = z.object({ id: z.string() }).parse(req.params);
     await requireProjectAccess(prisma,req,id);
-    return { defects: await prisma.defect.findMany({ where:{projectId:id},include:{occurrences:{orderBy:{createdAt:'desc'}}},orderBy:{updatedAt:'desc'},take:100 }) };
+    const q=z.object({page:z.coerce.number().int().min(1).max(100000).default(1),status:z.enum(['CANDIDATE','CONFIRMED','FIX_PENDING','READY_FOR_RETEST','VERIFIED','REJECTED','REOPENED']).optional(),severity:z.enum(['P0','P1','P2','P3']).optional(),assignedTo:z.string().optional()}).strict().parse(req.query);
+    const where={projectId:id,status:q.status,severity:q.severity,assignedTo:q.assignedTo};
+    const [defects,total,members]=await Promise.all([prisma.defect.findMany({where,include:{occurrences:{orderBy:{createdAt:'desc'},take:3},_count:{select:{occurrences:true}}},orderBy:[{updatedAt:'desc'},{id:'asc'}],skip:(q.page-1)*30,take:30}),prisma.defect.count({where}),prisma.projectMembership.findMany({where:{projectId:id},select:{userId:true,user:{select:{displayName:true}}}})]);
+    return {defects,total,page:q.page,pageSize:30,members};
+  });
+  app.get('/api/defects/:id',async req=>{
+    const {id}=z.object({id:z.string()}).parse(req.params),defect=await prisma.defect.findUnique({where:{id}});if(!defect)throw new ApiError('NOT_FOUND','缺陷不存在');
+    await requireProjectAccess(prisma,req,defect.projectId);
+    const {page}=z.object({page:z.coerce.number().int().min(1).max(100000).default(1)}).strict().parse(req.query);
+    const [occurrences,total,members,runs]=await Promise.all([prisma.defectOccurrence.findMany({where:{defectId:id},orderBy:[{createdAt:'desc'},{id:'asc'}],skip:(page-1)*30,take:30}),prisma.defectOccurrence.count({where:{defectId:id}}),prisma.projectMembership.findMany({where:{projectId:defect.projectId},select:{userId:true,user:{select:{displayName:true}}}}),prisma.run.findMany({where:{projectId:defect.projectId,lifecycle:'FINISHED'},orderBy:{createdAt:'desc'},take:100,select:{id:true,buildId:true,createdAt:true,acceptanceStatus:true}})]);
+    return {...defect,occurrences,total,page,pageSize:30,members,runs};
   });
   app.post('/api/runs/:id/findings',async req=>{
     const {id}=z.object({id:z.string()}).parse(req.params);
@@ -23,11 +33,15 @@ export function registerDefectRoutes(app: FastifyInstance, prisma: PrismaClient,
     const {id}=z.object({id:z.string()}).parse(req.params);
     const defect=await prisma.defect.findUnique({where:{id}});if(!defect)throw new ApiError('NOT_FOUND','缺陷不存在');
     await requireProjectAccess(prisma,req,defect.projectId,'LEAD');
-    const body=z.object({status:z.enum(['CONFIRMED','FIX_PENDING','READY_FOR_RETEST','REJECTED']),assignedTo:z.string().optional(),reason:z.string().min(1).max(2000)}).strict().parse(req.body);
+    const body=z.object({status:z.enum(['CONFIRMED','FIX_PENDING','READY_FOR_RETEST','REJECTED']),assignedTo:z.string().nullable().optional(),severity:z.enum(['P0','P1','P2','P3']).optional(),severityBasis:z.string().min(5).max(2000).optional(),expectedUpdatedAt:z.string().datetime().optional(),reason:z.string().min(1).max(2000)}).strict().parse(req.body);
+    if(body.severity&&!body.severityBasis)throw new ApiError('VALIDATION_ERROR','修改严重度必须说明业务影响依据');
     if(body.assignedTo&&!await prisma.projectMembership.findUnique({where:{projectId_userId:{projectId:defect.projectId,userId:body.assignedTo}}}))throw new ApiError('VALIDATION_ERROR','负责人必须是项目成员');
     return prisma.$transaction(async tx=>{
-      const saved=await tx.defect.update({where:{id},data:{status:body.status,assignedTo:body.assignedTo}});
-      await tx.auditEvent.create({data:{actorId:requireAuth(req).userId,action:'defect.update',entityType:'Defect',entityId:id,metadata:{reason:body.reason,before:defect.status,after:body.status}}});return saved;
+      await tx.$queryRaw`SELECT id FROM "Defect" WHERE id=${id} FOR UPDATE`;
+      const current=await tx.defect.findUniqueOrThrow({where:{id}});
+      if(body.expectedUpdatedAt&&current.updatedAt.toISOString()!==body.expectedUpdatedAt)throw new ApiError('CONFLICT','缺陷已被其他人更新，请刷新后核对');
+      const saved=await tx.defect.update({where:{id},data:{status:body.status,assignedTo:body.assignedTo,severity:body.severity,severityBasis:body.severityBasis}});
+      await tx.auditEvent.create({data:{actorId:requireAuth(req).userId,action:'defect.update',entityType:'Defect',entityId:id,metadata:{reason:body.reason,before:{status:current.status,severity:current.severity,assignedTo:current.assignedTo},after:{status:saved.status,severity:saved.severity,assignedTo:saved.assignedTo,severityBasis:saved.severityBasis}}}});return saved;
     });
   });
   app.post('/api/runs/:id/retest',async req=>{

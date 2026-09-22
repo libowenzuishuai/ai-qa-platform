@@ -141,3 +141,46 @@ def test_cancelled_command_releases_its_containers_and_volume(tmp_path,monkeypat
     for kind,name in created:
         probe=runner.subprocess.run(['docker',kind,'inspect',name],capture_output=True)
         assert probe.returncode!=0, (kind,name)
+
+
+def test_deployment_rejects_shell_paths_and_unsupported_configuration(tmp_path):
+    for entry in ['../server.js','/tmp/server.js','server.js;touch /tmp/x','-e']:
+        with pytest.raises(ValueError):runner.validate_node_http({'deployment':{'entrypoint':entry}},tmp_path)
+    with pytest.raises(ValueError,match='missing'):
+        runner.validate_node_http({},tmp_path)
+    (tmp_path/'server.js').write_text('')
+    for cfg in [{'port':80},{'port':True},{'healthPath':'//outside'},{'postgres':'yes'},{'shell':'evil'}]:
+        with pytest.raises(ValueError):runner.validate_node_http({'deployment':cfg},tmp_path)
+
+
+@pytest.mark.skipif(os.getenv('AIQA_TEST_DOCKER')!='1',reason='Explicit local Docker opt-in')
+@pytest.mark.parametrize('database',[False,True])
+def test_node_http_deployment_build_health_identity_and_cleanup(tmp_path,database):
+    # Synthetic Node service; the database case checks an actual TCP connection to
+    # its task-only PostgreSQL. It is not presented as a real business pilot.
+    (tmp_path/'package.json').write_text(json.dumps({'scripts':{'build':'node build.cjs'}}))
+    server="""const http=require('http'),net=require('net');
+const respond=r=>{if(!process.env.DATABASE_URL){r.end('ready');return;}const c=net.connect(5432,'task-db',()=>{c.end();r.end('ready-db')});c.on('error',()=>{r.statusCode=503;r.end('db unavailable')});};
+http.createServer((q,r)=>{if(q.url!=='/health'){r.statusCode=404;r.end();return;}respond(r)}).listen(Number(process.env.PORT),'0.0.0.0');"""
+    (tmp_path/'build.cjs').write_text("require('fs').writeFileSync('server.js',"+json.dumps(server)+");")
+    request={'repositoryUrl':'https://github.com/fixture/node-http','commitSha':'d'*40,'kind':'NODE_HTTP','timeoutSeconds':60,'deployment':{'build':'NPM_BUILD','postgres':database}}
+    result=runner.execute(request,source_directory=tmp_path)
+    assert not result.get('platformError'),result
+    assert result['deployment']['healthStatus']==200 and result['deployment']['postgresReady']==database
+    assert result['deployment']['artifactSha256']==runner.hashlib.sha256(server.encode()).hexdigest()
+    assert result['deployment']['commitSha']=='d'*40
+    assert all(r['status']=='CLEANED' for r in result['resources']),result
+    for resource in result['resources']:
+        assert subprocess.run(['docker',resource['kind'],'inspect',resource['name']],capture_output=True).returncode!=0
+
+
+@pytest.mark.skipif(os.getenv('AIQA_TEST_DOCKER')!='1',reason='Explicit local Docker opt-in')
+def test_node_http_timeout_and_cancellation_keep_no_resources(tmp_path):
+    (tmp_path/'server.js').write_text("require('http').createServer((q,r)=>{r.statusCode=503;r.end('not ready')}).listen(Number(process.env.PORT),'0.0.0.0')")
+    request={'repositoryUrl':'https://github.com/fixture/node-http','commitSha':'e'*40,'kind':'NODE_HTTP','timeoutSeconds':15,'deployment':{'readinessSeconds':2}}
+    result=runner.execute(request,source_directory=tmp_path)
+    assert 'timeout' in result['platformError'].lower(),result
+    assert all(r['status']=='CLEANED' for r in result['resources']),result
+    result=runner.execute(request,continue_work=lambda:False,source_directory=tmp_path)
+    assert 'cancelled' in result['platformError'].lower(),result
+    assert all(r['status']=='CLEANED' for r in result['resources']),result

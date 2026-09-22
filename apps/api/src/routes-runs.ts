@@ -57,12 +57,12 @@ export function registerRunRoutes(
   });
 
   app.get("/api/runs", async (req) => {
-    const { projectId } = z.object({ projectId: z.string() }).parse(req.query);
+    const { projectId,page,lifecycle } = z.object({ projectId: z.string(),page:z.coerce.number().int().min(1).max(100000).default(1),lifecycle:z.enum(['QUEUED','PREPARING','RUNNING','CANCEL_REQUESTED','FINISHED','CANCELLED','ERROR']).optional() }).parse(req.query);
     await requireProjectAccess(prisma, req, projectId, "VIEWER");
     const runs = await prisma.run.findMany({
-      where: { projectId },
-      orderBy: { createdAt: "desc" },
-      take: 50,
+      where: { projectId,lifecycle },
+      orderBy: [{ createdAt: "desc" },{id:"asc"}],
+      take: 30,skip:(page-1)*30,
       select: {
         id: true, lifecycle: true, acceptanceStatus: true, mode: true, buildId: true,
         createdAt: true, updatedAt: true, selectedCaseVersionIds: true,
@@ -72,7 +72,7 @@ export function registerRunRoutes(
       const report = await buildRunReport(prisma, store, run.id);
       return { ...run, acceptanceStatus: report.run.acceptanceStatus };
     }));
-    return { runs: verifiedRuns };
+    return { runs: verifiedRuns,total:await prisma.run.count({where:{projectId,lifecycle}}),page,pageSize:30 };
   });
 
   app.get("/api/runs/:id", async (req) => {

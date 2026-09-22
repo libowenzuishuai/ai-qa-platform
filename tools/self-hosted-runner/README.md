@@ -30,3 +30,21 @@
 若 Python 的 HTTPS 请求报可信证书缺失，为运行器配置正确的系统/组织 CA，例如本机 macOS 可用 `SSL_CERT_FILE=/etc/ssl/cert.pem`（先确认文件存在）。不得关闭证书校验。初次失败和后续复验分别记录，不把环境错误视为业务失败。
 
 下载和执行期间持续续租；心跳拒绝或失败停止后续业务命令。结果提交失败不重新执行业务命令，平台按租约和预算对账。清理失败会产生 `platformError`，需要管理员检查本任务资源；不自动扩大删除范围。
+
+## 1.0：框架适配与隔离部署
+
+支持 Node 内置测试、Vitest、Jest、Playwright、ESLint、TypeScript、npm build 和 pytest。框架工具必须已在项目锁文件中固定；报告矛盾、零测试及格式错误均不会成为 PASS。
+
+Node HTTP 部署检查新增 `NODE_HTTP`：选择固定 JavaScript 入口、是否执行已声明的 npm build、端口、健康路径及可选独立 PostgreSQL。它创建临时实例，记录提交版本、实际入口文件 SHA-256、HTTP 200 和资源清理台账。任务结束销毁实例；业务验收仍使用项目已登记的测试网址。本模板不宣称支持任意语言、多服务编排或持久托管。
+
+运行器需 Docker 28+（隔离网关支持），本地准备 Node 镜像及可选 `postgres:16-alpine`。管理员可用 `AIQA_RUNNER_POSTGRES_IMAGE` 指定兼容镜像；数据库容器以 UID 70 运行，镜像应与之兼容。任务使用新建数据库、随机临时口令，无宿主端口、平台账号或既有业务库。
+
+启用依赖安装前，管理员构建固定注册表代理：
+
+```sh
+docker build -t aiqa-registry-proxy:1 -f tools/self-hosted-runner/Dockerfile.registry-proxy tools/self-hosted-runner
+```
+
+生产使用审核过的镜像 digest，通过 `AIQA_RUNNER_REGISTRY_PROXY_IMAGE` 配置。安装容器只连接任务内部的 isolated 网络，经代理访问 npm/PyPI 官方 HTTPS 注册表；代理拒绝其他目的地址，npm 生命周期脚本禁用。实际测试、构建和 HTTP 服务不接公网。未准备镜像会明确报错，不自动退回不受限网络。支持范围依据 [Docker isolated 网关说明](https://docs.docker.com/engine/network/port-publishing/#gateway-modes)。
+
+实测命令同上：本轮 23 项通过，包含真实 Docker 的八类适配、Node HTTP、构建、独立数据库、健康超时、取消和清理。全部为合成工程夹具，不代替真实项目验收。

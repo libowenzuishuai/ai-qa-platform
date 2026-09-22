@@ -71,6 +71,6 @@ export async function privateSourceArchive(provider:GitHubApp,integration:{insta
  const archive=await provider.transport(location,{redirect:'error',signal:AbortSignal.timeout(30000),headers:{authorization:'Bearer '+token,'user-agent':'aiqa-github-app'}});
  if(!archive.ok)throw new ApiError('DEPENDENCY_UNAVAILABLE','私库归档下载失败');
  const reader=archive.body?.getReader();if(!reader)throw new ApiError('DEPENDENCY_UNAVAILABLE','归档为空');
- let bytes=0;const chunks:Uint8Array[]=[];try{for(;;){const r=await reader.read();if(r.done)break;bytes+=r.value.length;if(bytes>32*1024*1024)throw new ApiError('VALIDATION_ERROR','源码归档超过 32 MiB 支持范围');chunks.push(r.value);}}finally{await reader.cancel();}
+ let bytes=0;const chunks:Uint8Array[]=[];try{for(;;){const r=await reader.read();if(r.done)break;bytes+=r.value.length;if(bytes>25*1024*1024)throw new ApiError('VALIDATION_ERROR','源码归档超过 25 MiB 支持范围');chunks.push(r.value);}}finally{await reader.cancel();}
  return Buffer.concat(chunks);
 }

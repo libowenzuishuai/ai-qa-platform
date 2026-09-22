@@ -238,7 +238,10 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
     let cursor:string|undefined;
     do {
       const batch=await prisma.run.findMany({where:{projectId},select:{id:true},orderBy:{id:'asc'},take:50,...(cursor?{cursor:{id:cursor},skip:1}:{})});
-      for(const run of batch){const report=await buildRunReport(prisma,store,run.id);const status=report.metrics.acceptanceStatus;acceptance[status]=(acceptance[status]??0)+1;}
+      for(let offset=0;offset<batch.length;offset+=4){
+        const reports=await Promise.all(batch.slice(offset,offset+4).map(run=>buildRunReport(prisma,store,run.id)));
+        for(const report of reports){const status=report.metrics.acceptanceStatus;acceptance[status]=(acceptance[status]??0)+1;}
+      }
       cursor=batch.length===50?batch.at(-1)!.id:undefined;
     }while(cursor);
     const defects: Record<string, number> = {};
@@ -518,15 +521,12 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
   });
 
   app.get('/api/projects/:id/goal-proposals', async req => {
-    const projectId = param(req, 'id');
-    await requireProjectAccess(prisma, req, projectId);
-    return {
-      proposals: await prisma.goalProposal.findMany({
-        where: { projectId },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      }),
-    };
+    const projectId=param(req,'id');await requireProjectAccess(prisma,req,projectId);
+    const page=z.coerce.number().int().min(1).max(100000).default(1).parse((req.query as any).page);
+    return {page,pageSize:50,total:await prisma.goalProposal.count({where:{projectId}}),proposals:await prisma.goalProposal.findMany({where:{projectId},orderBy:[{createdAt:'desc'},{id:'asc'}],take:50,skip:(page-1)*50})};
+  });
+  app.get('/api/goal-proposals/:id',async req=>{
+    const proposal=await prisma.goalProposal.findUnique({where:{id:param(req,'id')}});if(!proposal)throw new ApiError('NOT_FOUND','规划不存在');await requireProjectAccess(prisma,req,proposal.projectId);return proposal;
   });
 
   app.post('/api/goal-proposals/:id/review', async req => {
@@ -712,12 +712,14 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
     const query = z.object({
       runId: z.string().optional(),
       category: DiagnosisCategory.optional(),
+      page:z.coerce.number().int().min(1).max(100000).default(1),
     }).strict().parse(req.query);
     return {
+      page:query.page,pageSize:50,total:await prisma.diagnosisEntry.count({where:{projectId,runId:query.runId,category:query.category}}),
       diagnoses: await prisma.diagnosisEntry.findMany({
         where: { projectId, runId: query.runId, category: query.category },
-        orderBy: { createdAt: 'desc' },
-        take: 100,
+        orderBy: [{ createdAt: 'desc' },{id:'asc'}],
+        take:50,skip:(query.page-1)*50,
       }),
     };
   });

@@ -101,23 +101,30 @@ export async function buildRunReport(
     where: { id: { in: run.selectedCaseVersionIds } },
   });
 
+  const unpinned=run.selectedCaseVersionIds.filter(id=>!pins.some(p=>p.caseVersionId===id));
+  const [plans,records]=await Promise.all([
+    prisma.testPlanVersion.findMany({where:{OR:[{id:{in:pins.map(p=>p.planVersionId)}},{caseVersionId:{in:unpinned}}]},orderBy:{version:'desc'}}),
+    prisma.assertionResultRecord.findMany({where:{attemptId:{in:run.attempts.map(a=>a.id)}}}),
+  ]);
+  const evidenceRows=await prisma.artifact.findMany({where:{OR:[{id:{in:[...new Set(records.flatMap(r=>r.evidenceIds))]}},{attemptId:{in:run.attempts.map(a=>a.id)},type:'TRACE'}]}});
+  const evidenceById=new Map(evidenceRows.map(a=>[a.id,a]));
+  const verified=new Map<string,{exists:boolean;integrityOk:boolean}>();
+  const checkEvidence=(artifact:typeof evidenceRows[number]|undefined)=>{
+    if(!artifact)return {exists:false,integrityOk:false};
+    const cached=verified.get(artifact.id);if(cached)return cached;
+    const exists=store.exists(artifact.storageKey)&&(!artifact.expiresAt||artifact.expiresAt>new Date());
+    const checked={exists,integrityOk:exists&&store.verify(artifact.storageKey,artifact.checksum)};verified.set(artifact.id,checked);return checked;
+  };
   const cases: CaseReportView[] = [];
   for (const caseVersionId of run.selectedCaseVersionIds) {
     const attempt = run.attempts.find((a) => a.caseVersionId === caseVersionId);
     const pin = pins.find((p) => p.caseVersionId === caseVersionId);
-    const planVersion = pin
-      ? await prisma.testPlanVersion.findUnique({ where: { id: pin.planVersionId } })
-      : await prisma.testPlanVersion.findFirst({
-          where: { caseVersionId },
-          orderBy: { version: "desc" },
-        });
+    const planVersion=pin?plans.find(p=>p.id===pin.planVersionId):plans.find(p=>p.caseVersionId===caseVersionId);
 
     const downgradeReasons: string[] = [];
     let verdict = (attempt?.verdict ?? "NOT_RUN") as CaseReportView["verdict"];
 
-    const assertionRecords = attempt
-      ? await prisma.assertionResultRecord.findMany({ where: { attemptId: attempt.id } })
-      : [];
+    const assertionRecords=attempt?records.filter(r=>r.attemptId===attempt.id):[];
 
     const rawAssertions = (planVersion?.plan as { assertions?: unknown } | null)?.assertions;
     const planAssertions: PlanAssertionShape[] = Array.isArray(rawAssertions)
@@ -140,19 +147,8 @@ export async function buildRunReport(
       const required = planAssertion ? planAssertion.required !== false : true;
       const evidence: AssertionView["evidence"] = [];
       for (const artifactId of record.evidenceIds) {
-        const artifact = await prisma.artifact.findUnique({ where: { id: artifactId } });
-        const exists = artifact ? store.exists(artifact.storageKey) && (!artifact.expiresAt || artifact.expiresAt > new Date()) : false;
-        let integrityOk = false;
-        if (artifact && exists) {
-          try {
-            const content = store.read(artifact.storageKey);
-            integrityOk = Boolean(
-              artifact.checksum && createHash("sha256").update(content).digest("hex") === artifact.checksum,
-            );
-          } catch {
-            integrityOk = false;
-          }
-        }
+        const artifact=evidenceById.get(artifactId);
+        const {exists,integrityOk}=checkEvidence(artifact);
         const belongsToAttempt = artifact?.attemptId === attempt?.id && artifact?.projectId === run.projectId;
         evidence.push({
           artifactId,
@@ -205,20 +201,7 @@ export async function buildRunReport(
       verdict = "REVIEW";
     }
 
-    const traces = attempt
-      ? (
-          await prisma.artifact.findMany({
-            where: { attemptId: attempt.id, type: "TRACE" },
-            select: { id: true, type: true, sensitivity: true, storageKey: true, expiresAt: true },
-          })
-        ).map((t) => ({
-          artifactId: t.id,
-          type: t.type,
-          sensitivity: t.sensitivity,
-          url: `/api/artifacts/${t.id}`,
-          exists: store.exists(t.storageKey) && (!t.expiresAt || t.expiresAt > new Date()),
-        }))
-      : [];
+    const traces=attempt?evidenceRows.filter(t=>t.attemptId===attempt.id&&t.projectId===run.projectId&&t.type==='TRACE').map(t=>({artifactId:t.id,type:t.type,sensitivity:t.sensitivity,url:`/api/artifacts/${t.id}`,exists:checkEvidence(t).exists})):[];
 
     cases.push({
       caseVersionId,

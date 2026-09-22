@@ -1,0 +1,21 @@
+import {beforeAll,afterAll,it,expect} from 'vitest';
+import Fastify from 'fastify';
+import {randomUUID} from 'node:crypto';
+import {createTestEnv,type TestEnv} from './helpers/db.js';
+import {registerRunnerRoutes} from '../src/routes-runners.js';
+import {sendApiError} from '../src/errors.js';
+const app=Fastify();let env:TestEnv,projectId='',headers:Record<string,string>;
+const sha='a'.repeat(40),spec={repositoryUrl:'https://github.com/example/project',commitSha:sha,kind:'NODE_HTTP',deployment:{entrypoint:'server.cjs',postgres:true},idempotencyKey:'deploy-once'};
+beforeAll(async()=>{env=await createTestEnv('deployment');const actor=await env.prisma.user.create({data:{username:randomUUID(),displayName:'部署验收',passwordHash:'unused',platformRole:'LEAD'}});projectId=(await env.prisma.project.create({data:{name:'部署验收',memberships:{create:{userId:actor.id,role:'ADMIN'}}}})).id;app.addHook('onRequest',async q=>{q.auth={userId:actor.id,username:actor.username,displayName:actor.displayName,platformRole:'LEAD'};});app.setErrorHandler((e,q,r)=>sendApiError(q,r,e));registerRunnerRoutes(app,env.prisma,env.store);const runner=await app.inject({method:'POST',url:`/api/projects/${projectId}/runners`,payload:{name:'task runner',capabilities:['NODE_HTTP']}});headers={authorization:'Bearer '+runner.json().token};},30000);
+afterAll(async()=>{await app.close();await env?.cleanup();});
+const create=(body:any=spec)=>app.inject({method:'POST',url:`/api/projects/${projectId}/code-checks`,payload:body});
+it('并发部署提交复用同一任务；参数漂移和不适用的配置拒绝',async()=>{const responses=await Promise.all([create(),create()]);for(const r of responses)expect(r.statusCode,r.body).toBe(200);expect(responses[0]!.json().id).toBe(responses[1]!.json().id);expect((await create({...spec,commitSha:'b'.repeat(40)})).statusCode).toBe(409);expect((await create({...spec,kind:'NODE_TEST'})).statusCode).toBe(422);});
+it('健康、提交版本、资源清理证据必须闭合；残留不能通过',async()=>{
+ const task=(await app.inject({method:'POST',url:'/api/runner/claim',payload:{},headers})).json().task;
+ const result:any={commitSha:sha,exitCode:0,cases:[{name:'HTTP health',status:'PASS'}],output:''};
+ const submit=()=>app.inject({method:'POST',url:`/api/runner/tasks/${task.id}/result`,headers,payload:{leaseToken:task.leaseToken,result}});
+ expect((await submit()).statusCode).toBe(422);
+ result.deployment={instanceId:'aiqa-task',commitSha:'b'.repeat(40),artifactSha256:'c'.repeat(64),healthStatus:200,postgresReady:true,ephemeral:true};result.resources=[{kind:'container',name:'aiqa-task',status:'CLEANED'}];
+ expect((await submit()).statusCode).toBe(422);result.deployment.commitSha=sha;result.deployment.postgresReady=false;expect((await submit()).statusCode).toBe(422);result.deployment.postgresReady=true;result.resources[0].status='RESIDUAL';
+ const response=await submit();expect(response.statusCode,response.body).toBe(200);expect(response.json().verdict).toBe('INCOMPLETE');const row=await env.prisma.codeCheck.findUniqueOrThrow({where:{id:task.id}});expect(row.status).toBe('ERROR');expect((row.result as any).platformError).toMatch(/Cleanup/);
+});

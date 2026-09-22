@@ -1,3 +1,5 @@
+import {registerDeploymentPages} from './deployment-pages.js';
+import {registerDefectPages} from './defect-pages.js';
 import {registerAgentPages} from './agent-pages.js';
 import {registerTemplateEditor} from './template-editor.js';
 import {registerIntegrationPages} from './integrations.js';
@@ -24,6 +26,8 @@ import {
   type RunDetailData,
 } from "./pages.js";
 
+const escapeHtml=(v:unknown)=>String(v??" ").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;", "'":"&#39;"}[c]!));
+
 /**
  * 最小运行页面（阶段 1 提示词 H）：
  * SSR 只调用平台 API；SSE 由 web 服务端代理（同源 EventSource），
@@ -44,6 +48,8 @@ registerPreparationPages(app);
 registerChangeReviewPages(app);
 registerDeliveryPages(app);
 registerAgentPages(app);
+registerDefectPages(app);
+registerDeploymentPages(app);
 registerTemplateEditor(app);
 registerIntegrationPages(app);
 
@@ -124,7 +130,7 @@ app.get("/projects/:id", async (req, reply) => {
       `/api/projects/${id}/case-versions`,
       { sid: s },
     );
-    const runs = await api<{ runs: Array<{ id: string; lifecycle: string; acceptanceStatus: string; createdAt: string }> }>(
+    const runs = await api<{ total:number;page:number;pageSize:number;runs: Array<{ id: string; lifecycle: string; acceptanceStatus: string; createdAt: string }> }>(
       `/api/projects/${id}/run-summaries`,
       { sid: s },
     );
@@ -196,12 +202,14 @@ app.post("/projects/:id/start", async (req, reply) => {
 app.get("/runs", async (req, reply) => {
   try {
     const s = await requireSid(req);
-    const projectId = (req.query as { projectId?: string }).projectId;
+    const query=req.query as {projectId?:string;page?:string};
+    const projectId=query.projectId;
+    const page=Math.max(1,Math.min(100000,Number(query.page)||1));
     const projects = await api<{ projects: Array<{ id: string; name: string }> }>("/api/projects", { sid: s });
     const first = projectId ?? projects.data.projects[0]?.id;
     if (!first) return html(reply, errorPage("暂无项目"));
-    const runs = await api<{ runs: Array<{ id: string; lifecycle: string; acceptanceStatus: string; createdAt: string }> }>(
-      `/api/runs?projectId=${first}`,
+    const runs = await api<{ total:number;page:number;pageSize:number;runs: Array<{ id: string; lifecycle: string; acceptanceStatus: string; createdAt: string }> }>(
+      `/api/runs?projectId=${encodeURIComponent(first)}&page=${page}`,
       { sid: s },
     );
     const rows = runs.data.runs
@@ -216,7 +224,7 @@ app.get("/runs", async (req, reply) => {
       .join("");
     return html(
       reply,
-      launcherRuns(`运行列表（项目 ${first.slice(0, 8)}…）`, rows),
+      launcherRuns(`运行列表 · ${escapeHtml(projects.data.projects.find(p=>p.id===first)?.name??"项目")}`, rows, `<p>共 ${runs.data.total} 次运行 · 第 ${runs.data.page} 页 ${page>1?`<a href="/runs?projectId=${encodeURIComponent(first)}&page=${page-1}">上一页</a>`:""} ${page*runs.data.pageSize<runs.data.total?`<a href="/runs?projectId=${encodeURIComponent(first)}&page=${page+1}">下一页</a>`:""}</p>`),
     );
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) return reply.redirect("/login");
@@ -224,10 +232,10 @@ app.get("/runs", async (req, reply) => {
   }
 });
 
-function launcherRuns(title: string, rows: string): string {
+function launcherRuns(title: string, rows: string, pager=""): string {
   return layout(
     title,
-    `<h1>${title}</h1><table><thead><tr><th>运行</th><th>生命周期</th><th>严格验收</th><th>创建时间</th><th></th></tr></thead><tbody>${rows || "<tr><td colspan=5>暂无</td></tr>"}</tbody></table>`,
+    `<h1>${title}</h1>${pager}<table><thead><tr><th>运行</th><th>生命周期</th><th>严格验收</th><th>创建时间</th><th></th></tr></thead><tbody>${rows || "<tr><td colspan=5>暂无</td></tr>"}</tbody></table>`,
   );
 }
 

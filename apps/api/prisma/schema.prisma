@@ -494,6 +494,7 @@ model Defect {
   status              String             @default("CANDIDATE")
   assignedTo          String?
   severity            String             @default("P2")
+  severityBasis       String?
   title               String
   description         String?
   createdAt           DateTime           @default(now())
@@ -502,6 +503,7 @@ model Defect {
   occurrences         DefectOccurrence[]
 
   @@unique([projectId, fingerprint])
+  @@index([projectId, status, updatedAt])
 }
 
 model DefectOccurrence {
@@ -701,6 +703,7 @@ model ExecutionRunner {
 }
 
 model CodeCheck {
+  idempotencyKey String?
   project        Project          @relation(fields: [projectId], references: [id], onDelete: Restrict)
   runner         ExecutionRunner? @relation(fields: [runnerId], references: [id], onDelete: Restrict)
   id             String           @id @default(cuid())
@@ -719,6 +722,7 @@ model CodeCheck {
   updatedAt      DateTime         @updatedAt
 
   @@index([projectId, status])
+  @@unique([projectId,idempotencyKey])
 }
 
 // ============ P0-1: 账号与准备中心 ============

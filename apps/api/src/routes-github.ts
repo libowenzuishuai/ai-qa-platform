@@ -30,6 +30,8 @@ export function registerGithubRoutes(app:FastifyInstance,db:PrismaClient,provide
   const identity=await providerFactory().authorizedRepository(body.code,state.repository);
   return db.$transaction(async tx=>{
    await tx.$queryRaw`SELECT id FROM "Project" WHERE id=${state.projectId} FOR UPDATE`;
+   const previous=await tx.githubIntegration.findUnique({where:{projectId_repositoryId:{projectId:state.projectId,repositoryId:identity.repositoryId}}});
+   if(previous)await cancelGithubWork(tx,previous,'GitHub 连接已重新授权',true);
    const integration=await tx.githubIntegration.upsert({where:{projectId_repositoryId:{projectId:state.projectId,repositoryId:identity.repositoryId}},create:{projectId:state.projectId,...identity,configuredBy:actor.userId},update:{...identity,status:'ACTIVE',revision:{increment:1},configuredBy:actor.userId,ci:{enabled:false}}});
    await tx.auditEvent.create({data:{actorId:actor.userId,action:'github.connect',entityType:'GithubIntegration',entityId:integration.id,metadata:{repository:identity.repository,projectId:state.projectId}}});return {projectId:state.projectId,integration};
   });

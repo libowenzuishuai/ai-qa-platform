@@ -1,3 +1,4 @@
+import {registerDefectRoutes} from '../../api/src/routes-defects.js';
 import {registerRunnerRoutes} from '../../api/src/routes-runners.js';
 import {registerGithubRoutes} from '../../api/src/routes-github.js';
 import {registerReleaseRoutes} from '../../api/src/routes-release.js';
@@ -539,6 +540,7 @@ beforeAll(async () => {
   registerReleaseRoutes(app,env.prisma,env.store,queue);
   registerGithubRoutes(app,env.prisma);
   registerRunnerRoutes(app,env.prisma,env.store);
+  registerDefectRoutes(app,env.prisma,env.store,queue);
   registerChangeReviewRoutes(app,env.prisma,env.store,queue);
   registerSnapshotChangeRoutes(app,env.prisma,env.store,queue);
   registerChunkRoutes(app,env.prisma,queue);
@@ -1530,7 +1532,7 @@ it('交付中心、模板和多文件页面真实浏览器可用，桌面与手�
   mkdirSync(root+'data/pilot-evidence',{recursive:true});
   for(const width of [1440,390]){
    await page.setViewportSize({width,height:1000});
-   for(const route of ['delivery','templates','snapshot-changes','evidence-retention','agent','integrations','templates/editor']){
+   for(const route of ['delivery','templates','snapshot-changes','evidence-retention','agent','integrations','templates/editor','defects','deployments']){
     const response=await page.goto(`${webUrl}/projects/${project.id}/${route}`);expect(response?.status()).toBe(200);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
     await page.screenshot({path:root+`data/pilot-evidence/delivery-${route.replaceAll('/','-')}-${width}.png`,fullPage:true});
@@ -1559,5 +1561,21 @@ it('浏览器组合→保存→发布→运行真实工程模板；错误保留�
   await advanceWorkflow(env.prisma,wf,env.store);await advanceWorkflow(env.prisma,wf,env.store);expect((await env.prisma.workflowRun.findUniqueOrThrow({where:{id:wf}})).status).toBe('COMPLETED');
   await page.goto(`${webUrl}/projects/${project.id}/agent`);await page.getByLabel('人工提示').fill('UI 真实保存的项目提示');await page.getByRole('button',{name:'保存提示'}).click();await page.waitForLoadState('domcontentloaded');expect(await env.prisma.projectMemory.count({where:{projectId:project.id,content:'UI 真实保存的项目提示'}})).toBe(1);
   await page.screenshot({path:root+'data/pilot-evidence/agent-live-1440.png',fullPage:true});
+ }finally{await browser.close();}
+},30000);
+
+it('部署表单错误保留输入、真实创建与取消；缺陷表单负责人和影响依据保存',async()=>{
+ await request('POST',`/api/projects/${project.id}/runners`,{name:'UI deployment runner',capabilities:['NODE_HTTP']});
+ const defect=await env.prisma.defect.create({data:{projectId:project.id,fingerprint:'ui-triage',title:'表单验收发现',description:'合成 UI 测试记录'}});
+ const browser=await chromium.launch({headless:true});
+ try{
+  const context=await browser.newContext();await context.addCookies([{name:'web_sid',value:'p0-test',url:webUrl}]);const page=await context.newPage();
+  await page.goto(`${webUrl}/projects/${project.id}/deployments`);
+  await page.getByLabel('GitHub 仓库',{exact:true}).fill('https://github.com/example/fixture');await page.getByLabel('固定提交版本',{exact:true}).fill('a'.repeat(40));await page.getByLabel('启动文件',{exact:true}).fill('../outside.js');
+  await page.getByRole('button',{name:'创建隔离部署检查'}).click();await page.waitForSelector('[role=alert]');expect(await page.getByLabel('GitHub 仓库',{exact:true}).inputValue()).toBe('https://github.com/example/fixture');
+  await page.getByLabel('启动文件',{exact:true}).fill('server.js');await page.getByRole('button',{name:'创建隔离部署检查'}).click();await page.waitForURL(`**/projects/${project.id}/deployments`);
+  await page.getByRole('button',{name:'取消检查',exact:true}).click();await page.waitForURL(`**/projects/${project.id}/deployments`);await page.getByText('已取消 ·', {exact:false}).waitFor();const cancelled=await env.prisma.codeCheck.findFirst({where:{projectId:project.id,request:{path:['repositoryUrl'],equals:'https://github.com/example/fixture'}}});expect(cancelled?.status).toBe('CANCELLED');
+  await page.goto(`${webUrl}/defects/${defect.id}`);await page.getByLabel('负责人',{exact:true}).selectOption(actor.id);await page.getByLabel('严重度',{exact:true}).selectOption('P1');await page.getByLabel('严重度依据',{exact:true}).fill('申请提交被阻断，影响所有申请人');await page.getByLabel('本次处理说明',{exact:true}).fill('已在合成页面复现');await page.getByRole('button',{name:'保存处理记录'}).click();await page.waitForURL(`**/defects/${defect.id}`);
+  const saved=await env.prisma.defect.findUniqueOrThrow({where:{id:defect.id}});expect(saved.assignedTo).toBe(actor.id);expect(saved.severity).toBe('P1');expect(saved.severityBasis).toContain('所有申请人');
  }finally{await browser.close();}
 },30000);

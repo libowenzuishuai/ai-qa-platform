@@ -2,7 +2,7 @@
   "name": "ai-qa-platform",
   "private": true,
   "version": "0.1.0",
-  "description": "AI 测试人员平台 —— 需求驱动的独立测试验收系统（开发阶段 0 基线）",
+  "description": "AI 质量验收平台：需求驱动的业务测试、工程检查与证据化发布评审",
   "packageManager": "pnpm@10.34.5",
   "engines": {
     "node": ">=22"

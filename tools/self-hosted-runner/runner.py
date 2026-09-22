@@ -123,6 +123,9 @@ KIND_ENV={
 
 def adapter_for(spec,manifest):
     kind=spec['kind']
+    if kind=='NODE_HTTP':
+        validate_node_http(spec,manifest)
+        return None,{}
     if kind in NODE_ADAPTERS:
         if (manifest/'pnpm-lock.yaml').is_file():
             if (manifest/'package-lock.json').is_file():
@@ -161,10 +164,86 @@ def docker(args, **kwargs):
     return subprocess.run(['docker', *args], check=True, capture_output=True, **kwargs)
 
 
+def validate_node_http(spec, manifest):
+    cfg = {'entrypoint':'server.js','build':'NONE','port':3000,'healthPath':'/health','postgres':False,'readinessSeconds':30, **spec.get('deployment',{})}
+    if set(cfg)-{'entrypoint','build','port','healthPath','postgres','readinessSeconds'}:
+        raise ValueError('Unsupported deployment option')
+    if not isinstance(cfg['entrypoint'],str) or not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:mjs|cjs|js)',cfg['entrypoint']) or '..' in Path(cfg['entrypoint']).parts:
+        raise ValueError('Unsupported Node entrypoint')
+    if cfg['build'] not in {'NONE','NPM_BUILD'} or type(cfg['port']) is not int or not 1024<=cfg['port']<=65535 or type(cfg['readinessSeconds']) is not int or not 2<=cfg['readinessSeconds']<=120 or type(cfg['postgres']) is not bool:
+        raise ValueError('Unsupported deployment configuration')
+    if not isinstance(cfg['healthPath'],str) or not re.fullmatch(r'/(?!/)[A-Za-z0-9_./-]*',cfg['healthPath']):
+        raise ValueError('Invalid deployment health path')
+    if cfg['build']=='NPM_BUILD':
+        package=json.loads((manifest/'package.json').read_text('utf8'))
+        if not package.get('scripts',{}).get('build'):
+            raise ValueError('NPM_BUILD requires an explicit build script')
+    elif not (manifest/cfg['entrypoint']).is_file():
+        raise ValueError('Unsupported project: Node entrypoint missing')
+    return cfg
+
+
+def deploy_node_http(spec, manifest, volume, image, containers, networks, run_phase, remaining, continue_work):
+    if not continue_work():raise TimeoutError('Task cancelled before deployment')
+    cfg=validate_node_http(spec,manifest)
+    if cfg['build']=='NPM_BUILD':
+        _, code=run_phase(image,['npm','run','build'])
+        if code:raise ValueError('Node deployment build failed')
+    network='none';database_ready=False;database_env=[]
+    if cfg['postgres']:
+        network='aiqa-net-'+uuid.uuid4().hex;networks.append(network)
+        # isolated gateway mode requires Docker 28+. An ordinary internal bridge still
+        # exposes host gateway services; never silently fall back to it.
+        docker(['network','create','--internal','--opt','com.docker.network.bridge.gateway_mode_ipv4=isolated',network],timeout=remaining())
+        info=json.loads(docker(['network','inspect',network],timeout=5).stdout)[0]
+        if not info.get('Internal') or info.get('Options',{}).get('com.docker.network.bridge.gateway_mode_ipv4')!='isolated':
+            raise ValueError('Docker isolated gateway mode is required')
+        pg_image=os.getenv('AIQA_RUNNER_POSTGRES_IMAGE','postgres:16-alpine')
+        docker(['image','inspect',pg_image],timeout=10)
+        pg='aiqa-pg-'+uuid.uuid4().hex;containers.append(pg);password=uuid.uuid4().hex
+        docker(['create','--name',pg,'--network',network,'--network-alias','task-db','--read-only','--user','70:70','--cap-drop=ALL','--security-opt=no-new-privileges',
+                '--pids-limit=128','--memory=512m','--cpus=1','--log-opt','max-size=1m','--tmpfs','/tmp:rw,nosuid,size=32m',
+                '--tmpfs','/var/lib/postgresql/data:rw,nosuid,uid=70,gid=70,size=256m','--tmpfs','/var/run/postgresql:rw,nosuid,uid=70,gid=70,size=16m',
+                '-e','POSTGRES_USER=aiqa','-e','POSTGRES_DB=aiqa','-e','POSTGRES_PASSWORD='+password,pg_image],timeout=remaining())
+        docker(['start',pg],timeout=remaining());deadline=time.monotonic()+min(cfg['readinessSeconds'],remaining())
+        while time.monotonic()<deadline:
+            if not continue_work():raise TimeoutError('Task cancelled during database readiness')
+            ready=subprocess.run(['docker','exec',pg,'pg_isready','-U','aiqa','-d','aiqa'],capture_output=True,timeout=min(5,remaining()))
+            if ready.returncode==0:database_ready=True;break
+            time.sleep(.25)
+        if not database_ready:raise TimeoutError('Task database readiness timeout')
+        database_env=['-e','DATABASE_URL=postgresql://aiqa:'+password+'@task-db:5432/aiqa']
+    name='aiqa-http-'+uuid.uuid4().hex;containers.append(name)
+    docker(['create','--name',name,'--network',network,'--read-only','--user','1000:1000','--cap-drop=ALL','--security-opt=no-new-privileges',
+            '--pids-limit=128','--memory=512m','--cpus=1','--tmpfs','/tmp:rw,nosuid,size=64m','--log-opt','max-size=1m',
+            '-v',volume+':/work:ro','-w','/work/'+spec.get('subdirectory',''),'-e','HOME=/tmp','-e','PORT='+str(cfg['port']),'-e','HOST=0.0.0.0',
+            '-e','AIQA_BUILD_COMMIT='+spec['commitSha'],*database_env,image,'node',cfg['entrypoint']],timeout=remaining())
+    docker(['start',name],timeout=remaining())
+    # Hash the actual read-only deployed artifact, not a caller-supplied build marker.
+    inspect_js="const fs=require('fs'),p=require('path'),c=require('crypto');const x=fs.realpathSync(process.argv[1]);if(!x.startsWith('/work/')||!fs.statSync(x).isFile()||fs.statSync(x).size>10485760)process.exit(2);console.log(c.createHash('sha256').update(fs.readFileSync(x)).digest('hex'))"
+    deadline=time.monotonic()+min(cfg['readinessSeconds'],remaining());health_status=0;artifact_hash=None
+    probe="const http=require('http');const r=http.get(process.argv[1],{timeout:1000},s=>{let n=0;s.on('data',b=>{n+=b.length;if(n>65536)r.destroy()});s.on('end',()=>{console.log(s.statusCode);process.exit(s.statusCode===200?0:1)})});r.on('timeout',()=>r.destroy());r.on('error',()=>process.exit(1))"
+    while time.monotonic()<deadline:
+        if not continue_work():raise TimeoutError('Task cancelled during HTTP readiness')
+        state=json.loads(docker(['inspect','--format','{{json .State}}',name],timeout=5).stdout)
+        if not state['Running']:raise ValueError('Node service exited before readiness')
+        check=subprocess.run(['docker','exec',name,'node','-e',probe,'http://127.0.0.1:'+str(cfg['port'])+cfg['healthPath']],capture_output=True,timeout=min(3,remaining()))
+        if check.returncode==0 and check.stdout.strip()==b'200':health_status=200;break
+        time.sleep(.25)
+    if health_status!=200:raise TimeoutError('Node HTTP readiness timeout')
+    artifact_hash=docker(['exec',name,'node','-e',inspect_js,cfg['entrypoint']],timeout=remaining()).stdout.decode().strip()
+    if not re.fullmatch('[a-f0-9]{64}',artifact_hash):raise ValueError('Deployment artifact identity could not be verified')
+    if not continue_work():raise TimeoutError('Task cancelled before deployment report')
+    return {'exitCode':0,'cases':[{'name':'Node HTTP 固定提交部署与健康检查（不代表业务验收）','status':'PASS'}],
+            'output':'Task-isolated Node service reached HTTP 200; artifact hash recorded. All task resources are released after this check.',
+            'deployment':{'instanceId':name,'commitSha':spec['commitSha'],'artifactSha256':artifact_hash,'healthStatus':health_status,'postgresReady':database_ready,'ephemeral':True}}
+
+
 def execute(spec, continue_work=lambda: True, source_directory=None, source_archive=None):
     identity = uuid.uuid4().hex
     volume = 'aiqa-work-' + identity
     containers = []
+    networks = []
     started = time.monotonic()
     stopped = threading.Event()
     result = {'commitSha': spec['commitSha'], 'exitCode': -1, 'cases': [], 'output': ''}
@@ -224,9 +303,24 @@ def execute(spec, continue_work=lambda: True, source_directory=None, source_arch
                     if not (manifest/'package-lock.json').is_file():
                         raise ValueError('package-lock.json is required')
                     install=['npm','ci','--ignore-scripts','--cache','/tmp/npm']
-                _, code=run_phase(image,install,'bridge')
+                proxy_image=os.getenv('AIQA_RUNNER_INSTALL_PROXY_IMAGE','aiqa-registry-proxy:1')
+                docker(['image','inspect',proxy_image],timeout=10)
+                install_network='aiqa-install-'+uuid.uuid4().hex;networks.append(install_network)
+                docker(['network','create','--internal','--opt','com.docker.network.bridge.gateway_mode_ipv4=isolated',install_network],timeout=remaining())
+                net=json.loads(docker(['network','inspect',install_network],timeout=5).stdout)[0]
+                if not net.get('Internal') or net.get('Options',{}).get('com.docker.network.bridge.gateway_mode_ipv4')!='isolated':
+                    raise ValueError('Install network must use internal isolated gateway mode')
+                proxy='aiqa-proxy-'+uuid.uuid4().hex;containers.append(proxy)
+                docker(['create','--name',proxy,'--network','bridge','--read-only','--cap-drop=ALL','--security-opt=no-new-privileges','--pids-limit=64','--memory=128m','--cpus=0.5','--tmpfs','/tmp:rw,nosuid,size=32m','--log-opt','max-size=1m',proxy_image],timeout=remaining())
+                docker(['network','connect','--alias','registry-proxy',install_network,proxy],timeout=remaining())
+                docker(['start',proxy],timeout=remaining())
+                install_proxy='http://registry-proxy:3128'
+                _, code=run_phase(image,install,install_network,{'HTTP_PROXY':install_proxy,'HTTPS_PROXY':install_proxy,'npm_config_proxy':install_proxy,'npm_config_https_proxy':install_proxy})
                 if code:
                     raise RuntimeError('Dependency installation failed')
+            if spec['kind']=='NODE_HTTP':
+                result.update(deploy_node_http(spec,manifest,volume,image,containers,networks,run_phase,remaining,continue_work))
+                return result
             if command is None:
                 command=['python','-c',"import sys;sys.path.insert(0,'/work/.deps');import pytest;raise SystemExit(pytest.main(['--junitxml=/work/report.xml','-q']))"]
             name,code=run_phase(image,command,env=kind_env)
@@ -245,15 +339,21 @@ def execute(spec, continue_work=lambda: True, source_directory=None, source_arch
                 with report.open('rb') as source_report:
                     result['cases']=validate_report_consistency(spec['kind'],code,parse_junit(source_report.read(2*1024*1024+1)))
     except Exception as error:
-        result['platformError']=str(error)[:2000]
+        result['platformError']=('Container operation failed (exit '+str(error.returncode)+')') if isinstance(error,subprocess.CalledProcessError) else ('Container operation timed out' if isinstance(error,subprocess.TimeoutExpired) else str(error)[:2000])
     finally:
         stopped.set()
         cleanup_failed=False
-        for command in ([['docker','rm','-f',name] for name in containers]+[['docker','volume','rm',volume]]):
+        result['resources']=[]
+        resources=[('container',name) for name in containers]+[('volume',volume)]+[('network',name) for name in networks]
+        for kind,name in resources:
+            command=['docker','rm','-f',name] if kind=='container' else ['docker',kind,'rm',name]
+            cleaned_ok=False
             try:
                 cleaned=subprocess.run(command,capture_output=True,timeout=10)
-                if cleaned.returncode and b'no such' not in cleaned.stderr.lower():cleanup_failed=True
-            except (OSError,subprocess.TimeoutExpired):cleanup_failed=True
+                cleaned_ok=cleaned.returncode==0 or b'no such' in cleaned.stderr.lower()
+            except (OSError,subprocess.TimeoutExpired):pass
+            result['resources'].append({'kind':kind,'name':name,'status':'CLEANED' if cleaned_ok else 'RESIDUAL'})
+            if not cleaned_ok:cleanup_failed=True
         if cleanup_failed:result['platformError']='Cleanup incomplete; operator inspection required'
     return result
 

@@ -3,7 +3,7 @@
 #
 # 使用（在仓库根目录）：
 #   cp deploy/.env.production.example deploy/.env.production  # 填入真实值
-#   docker compose -p aiqa-prod -f deploy/compose.production.yaml --env-file deploy/.env.production up -migrate
+#   docker compose -p aiqa-prod -f deploy/compose.production.yaml --env-file deploy/.env.production run --rm migrate
 #   docker compose -p aiqa-prod -f deploy/compose.production.yaml --env-file deploy/.env.production up -d
 #
 # 端口可整段改写（动态端口），卷名跟随 compose project 隔离。
@@ -17,6 +17,7 @@ x-api-env: &api-env
   AIQA_INTELLIGENCE_BACKEND: python
   AIQA_INTELLIGENCE_URL: http://intelligence:7500
   AIQA_INTELLIGENCE_TOKEN: ${AIQA_INTELLIGENCE_TOKEN:?need AIQA_INTELLIGENCE_TOKEN}
+  AIQA_ARTIFACT_DIR: /data/artifacts
   API_HOST: 0.0.0.0
   API_PORT: "7300"
   SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:?need SEED_ADMIN_USERNAME}
@@ -47,7 +48,7 @@ services:
       retries: 12
     restart: unless-stopped
 
-  # 迁移单次容器：跑完即退（compose up -migrate）。
+  # 迁移单次容器：跑完即退（compose run --rm migrate）。
   migrate:
     build:
       context: ..
