@@ -1,10 +1,22 @@
 {
-  "snapshotId": "synthetic-repo-v2",
-  "note": "合成测试数据，非客户 Git 导出",
+  "snapshotId": "new",
+  "repositoryId": "synthetic-repo",
+  "commitSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "scope": {
+    "root": "",
+    "include": [
+      "**/*"
+    ],
+    "exclude": [],
+    "policyVersion": "fixture-v1"
+  },
+  "enumerationStatus": "COMPLETE",
+  "enumerationReason": null,
   "entries": [
     {
       "path": "docs/readme.md",
       "checksum": "86ec026378421458f3528a1c5e263c3a84e0dd79520b261c5bf12e745899425a",
+      "sizeBytes": 12,
       "documentVersionId": "syn-readme-v2",
       "format": "MARKDOWN",
       "fetchStatus": "OK",
@@ -13,6 +25,7 @@
     {
       "path": "requirements/prd.md",
       "checksum": "2071d56dafa8b6e96905c18248e4df5d5b66d01485e074551955a32310d25ae2",
+      "sizeBytes": 16,
       "documentVersionId": "syn-prd-v2",
       "format": "MARKDOWN",
       "fetchStatus": "OK",
@@ -21,6 +34,7 @@
     {
       "path": "policies/policy.md",
       "checksum": "852736a609cadcdf6d1c963774bd85d0f82b321431b673774900e2e9094cd0db",
+      "sizeBytes": 11,
       "documentVersionId": "syn-policy-v2",
       "format": "MARKDOWN",
       "fetchStatus": "OK",
@@ -29,6 +43,7 @@
     {
       "path": "docs/new.md",
       "checksum": "7f69a6b9f6f7780445be84520ad28b20a5f0aaf9c197bb7b4ffcaccd6d4899b9",
+      "sizeBytes": 9,
       "documentVersionId": "syn-new-v2",
       "format": "MARKDOWN",
       "fetchStatus": "OK",

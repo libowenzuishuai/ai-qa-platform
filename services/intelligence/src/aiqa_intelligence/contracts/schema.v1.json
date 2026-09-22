@@ -2845,6 +2845,357 @@
       ],
       "additionalProperties": false
     },
+    "SnapshotFileEntry": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "checksum": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sizeBytes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "documentVersionId": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "format": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ParsedDocumentBundle/properties/format"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fetchStatus": {
+          "type": "string",
+          "enum": [
+            "OK",
+            "NOT_FETCHED",
+            "FETCH_FAILED"
+          ]
+        },
+        "parseStatus": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ParsedDocumentBundle/properties/parseStatus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "checksum",
+        "sizeBytes",
+        "documentVersionId",
+        "format",
+        "fetchStatus",
+        "parseStatus"
+      ],
+      "additionalProperties": false
+    },
+    "RepositorySnapshotManifest": {
+      "type": "object",
+      "properties": {
+        "snapshotId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "repositoryId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "commitSha": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "scope": {
+          "type": "object",
+          "properties": {
+            "root": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": ""
+                },
+                {
+                  "$ref": "#/definitions/SnapshotFileEntry/properties/path"
+                }
+              ]
+            },
+            "include": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/SnapshotFileEntry/properties/path"
+              },
+              "minItems": 1,
+              "maxItems": 100
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/SnapshotFileEntry/properties/path"
+              },
+              "maxItems": 100
+            },
+            "policyVersion": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          "required": [
+            "root",
+            "include",
+            "exclude",
+            "policyVersion"
+          ],
+          "additionalProperties": false
+        },
+        "enumerationStatus": {
+          "type": "string",
+          "enum": [
+            "COMPLETE",
+            "PARTIAL",
+            "FAILED"
+          ]
+        },
+        "enumerationReason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SnapshotFileEntry"
+          },
+          "maxItems": 200
+        }
+      },
+      "required": [
+        "snapshotId",
+        "repositoryId",
+        "commitSha",
+        "scope",
+        "enumerationStatus",
+        "enumerationReason",
+        "entries"
+      ],
+      "additionalProperties": false
+    },
+    "SnapshotDiffInput": {
+      "type": "object",
+      "properties": {
+        "oldSnapshot": {
+          "$ref": "#/definitions/RepositorySnapshotManifest"
+        },
+        "newSnapshot": {
+          "$ref": "#/definitions/RepositorySnapshotManifest"
+        },
+        "bundles": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ParsedDocumentBundle"
+          }
+        }
+      },
+      "required": [
+        "oldSnapshot",
+        "newSnapshot",
+        "bundles"
+      ],
+      "additionalProperties": false
+    },
+    "SnapshotFileChange": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "unchanged",
+            "added",
+            "removed",
+            "modified",
+            "renamed",
+            "uncertain"
+          ]
+        },
+        "old": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SnapshotFileEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "new": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SnapshotFileEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "SNAPSHOT_INCOMPLETE",
+                "FETCH_UNAVAILABLE",
+                "PARSE_UNAVAILABLE",
+                "SOURCE_QUALITY_UNCERTAIN",
+                "FORMAT_CHANGED",
+                "PARSE_CHANGED",
+                "AMBIGUOUS_RENAME"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "spanReport": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SourceChangeReport"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "kind",
+        "old",
+        "new",
+        "reasonCode",
+        "reason",
+        "spanReport"
+      ],
+      "additionalProperties": false
+    },
+    "SnapshotDiffReport": {
+      "type": "object",
+      "properties": {
+        "oldSnapshotId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "newSnapshotId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "fileChanges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SnapshotFileChange"
+          },
+          "maxItems": 400
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "requiresHumanReview": {
+          "type": "boolean",
+          "const": true
+        },
+        "coverage": {
+          "type": "object",
+          "properties": {
+            "oldFiles": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 200
+            },
+            "newFiles": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 200
+            },
+            "oldCovered": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 200
+            },
+            "newCovered": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 200
+            }
+          },
+          "required": [
+            "oldFiles",
+            "newFiles",
+            "oldCovered",
+            "newCovered"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "oldSnapshotId",
+        "newSnapshotId",
+        "fileChanges",
+        "complete",
+        "requiresHumanReview",
+        "coverage"
+      ],
+      "additionalProperties": false
+    },
     "IntelligenceContracts": {
       "type": "object",
       "properties": {
@@ -2946,6 +3297,21 @@
         },
         "ChangeReviewAnalysisResponse": {
           "$ref": "#/definitions/ChangeReviewAnalysisResponse"
+        },
+        "SnapshotFileEntry": {
+          "$ref": "#/definitions/SnapshotFileEntry"
+        },
+        "RepositorySnapshotManifest": {
+          "$ref": "#/definitions/RepositorySnapshotManifest"
+        },
+        "SnapshotDiffInput": {
+          "$ref": "#/definitions/SnapshotDiffInput"
+        },
+        "SnapshotFileChange": {
+          "$ref": "#/definitions/SnapshotFileChange"
+        },
+        "SnapshotDiffReport": {
+          "$ref": "#/definitions/SnapshotDiffReport"
         }
       },
       "required": [
@@ -2981,7 +3347,12 @@
         "ChangeReviewAnalysisInput",
         "ChangeReviewAnalysisOutput",
         "ChangeReviewAnalysisRequest",
-        "ChangeReviewAnalysisResponse"
+        "ChangeReviewAnalysisResponse",
+        "SnapshotFileEntry",
+        "RepositorySnapshotManifest",
+        "SnapshotDiffInput",
+        "SnapshotFileChange",
+        "SnapshotDiffReport"
       ],
       "additionalProperties": false
     }

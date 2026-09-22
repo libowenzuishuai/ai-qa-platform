@@ -21,3 +21,5 @@ export * from "./data-plugins.js";
 export * from "./workflow.js";
 
 export * from "./source-changes.js";
+
+export * from "./snapshot-diff.js";

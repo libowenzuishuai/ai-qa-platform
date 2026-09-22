@@ -1,3 +1,5 @@
+> 2026-09-22：此提案已由 [正式契约与评审](b-multi-file-review-and-contract.md) 取代。以下保留首版历史，字段及重命名语义不作为接线依据。
+
 # B 多文件来源 diff 提案（待 A 冻结共享契约）
 
 日期：2026-09-22 · 分支：`v1/multi-file-source-diff` · 提交方：B  

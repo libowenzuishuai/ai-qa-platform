@@ -1,148 +1,97 @@
 import json
+from copy import deepcopy
+from hashlib import sha256
 from pathlib import Path
+from aiqa_intelligence.source_changes import compare_snapshots
 
-from aiqa_intelligence.doc_ingestion.runner import parse_bytes
-from aiqa_intelligence.source_changes import compare_bundles, compare_snapshots
-
-_FIX = Path(__file__).resolve().parent / "fixtures" / "multi_file"
+_FIX = Path(__file__).resolve().parent / "fixtures/multi_file"
 
 
-def _load(name: str) -> dict:
+def _load(name):
     return json.loads((_FIX / name).read_text(encoding="utf-8"))
 
 
-def _md(text: str, doc_id: str) -> dict:
-    return parse_bytes(text.encode(), doc_id, "MARKDOWN")
+def _fixture():
+    return _load("snapshot-v1.json"), _load("snapshot-v2.json"), _load("bundles.json")
 
 
-def _bundles_for_synthetic_pair() -> dict[str, dict]:
-    return {
-        "syn-readme-v1": _md("# Readme v1\n", "syn-readme-v1"),
-        "syn-readme-v2": _md("# Readme v1\n", "syn-readme-v2"),
-        "syn-prd-v1": _md("Amount > 500000\n", "syn-prd-v1"),
-        "syn-prd-v2": _md("Amount > 600000\n", "syn-prd-v2"),
-        "syn-retired-v1": _md("Old policy\n", "syn-retired-v1"),
-        "syn-policy-v2": _md("Old policy\n", "syn-policy-v2"),
-        "syn-new-v2": _md("New file\n", "syn-new-v2"),
-        "syn-gone-v1": _md("Gone file\n", "syn-gone-v1"),
+def test_synthetic_fixture_covers_all_changes_and_failed_not_removed():
+    a, b, bundles = _fixture()
+    out = compare_snapshots(a, b, bundles=bundles)
+    assert {c["kind"] for c in out["fileChanges"]} == {
+        "unchanged",
+        "added",
+        "removed",
+        "modified",
+        "renamed",
+        "uncertain",
     }
-
-
-def test_synthetic_fixture_covers_add_modify_unchanged_rename_and_failed_not_removed():
-    old, new = _load("snapshot-v1.json"), _load("snapshot-v2.json")
-    report = compare_snapshots(old, new, bundles=_bundles_for_synthetic_pair())
-    kinds = {c["kind"] for c in report["fileChanges"]}
-    assert "unchanged" in kinds
-    assert "added" in kinds
-    assert "modified" in kinds
-    removed = next(
-        c for c in report["fileChanges"] if c["kind"] == "removed" and c["path"] == "archive/gone.md"
-    )
-    assert removed["oldDocumentVersionId"] == "syn-gone-v1"
-    uncertain = [c for c in report["fileChanges"] if c["kind"] == "uncertain"]
-    rename = next(
-        c
-        for c in uncertain
-        if c.get("oldPath") == "legacy/retired.md"
-        and c.get("newPath") == "policies/policy.md"
-    )
-    assert "重命名" in rename["reason"]
     broken = next(
-        c for c in uncertain if c.get("oldPath") == "broken/scan-incomplete.pdf"
+        c
+        for c in out["fileChanges"]
+        if c["old"] and c["old"]["path"] == "broken/scan-incomplete.pdf"
     )
-    assert "不能认定为删除" in broken["reason"]
-    assert not any(
-        c["kind"] == "removed" and c.get("path") == "broken/scan-incomplete.pdf"
-        for c in report["fileChanges"]
+    assert broken["kind"] == "uncertain" and broken["reasonCode"] == "PARSE_UNAVAILABLE"
+    rename = next(c for c in out["fileChanges"] if c["kind"] == "renamed")
+    assert (
+        rename["old"]["path"] == "legacy/retired.md"
+        and rename["new"]["path"] == "policies/policy.md"
     )
-    mod = next(
-        c for c in report["fileChanges"] if c["kind"] == "modified" and c["path"] == "requirements/prd.md"
-    )
-    assert mod["spanReport"] is not None
-    assert any(s["kind"] == "modified" for s in mod["spanReport"]["changes"])
+    modified = next(c for c in out["fileChanges"] if c["kind"] == "modified")
+    assert any(s["kind"] == "modified" for s in modified["spanReport"]["changes"])
+    assert out["complete"] is False and out["requiresHumanReview"] is True
 
 
-def test_failed_fetch_old_path_missing_is_not_removed():
-    old = {
-        "snapshotId": "o",
-        "entries": [
-            {
-                "path": "x.md",
-                "checksum": "aa" * 32,
-                "documentVersionId": "dv-old",
-                "fetchStatus": "FETCH_FAILED",
-                "parseStatus": None,
-            }
-        ],
-    }
-    new = {"snapshotId": "n", "entries": []}
-    report = compare_snapshots(old, new)
-    assert report["fileChanges"] == [
-        {
-            "kind": "uncertain",
-            "oldPath": "x.md",
-            "oldChecksum": "aa" * 32,
-            "oldDocumentVersionId": "dv-old",
-            "oldFetchStatus": "FETCH_FAILED",
-            "oldParseStatus": None,
-            "reason": "旧版文件未成功获取或解析，不能认定为删除",
-        }
-    ]
+def test_fixture_checksums_are_original_bytes_not_parsed_text():
+    a, b, _ = _fixture()
+    for side, snapshot in [("old", a), ("new", b)]:
+        for e in snapshot["entries"]:
+            raw = (_FIX / "raw" / side / e["path"]).read_bytes()
+            assert sha256(raw).hexdigest() == e["checksum"]
+            assert len(raw) == e["sizeBytes"]
 
 
-def test_duplicate_checksum_blocks_unique_rename():
-    checksum = "bb" * 32
-    old = {
-        "snapshotId": "o",
-        "entries": [
-            {"path": "a.md", "checksum": checksum, "fetchStatus": "OK", "parseStatus": "PARSED"},
-            {"path": "b.md", "checksum": checksum, "fetchStatus": "OK", "parseStatus": "PARSED"},
-        ],
-    }
-    new = {
-        "snapshotId": "n",
-        "entries": [
-            {"path": "c.md", "checksum": checksum, "fetchStatus": "OK", "parseStatus": "PARSED"},
-            {"path": "d.md", "checksum": checksum, "fetchStatus": "OK", "parseStatus": "PARSED"},
-        ],
-    }
-    report = compare_snapshots(old, new)
-    assert all(c["kind"] == "uncertain" for c in report["fileChanges"])
-    assert any("多处出现" in (c.get("reason") or "") for c in report["fileChanges"])
+def test_input_order_does_not_change_output_or_mutate_input():
+    a, b, bundles = _fixture()
+    before = deepcopy((a, b, bundles))
+    expected = compare_snapshots(a, b, bundles=bundles)
+    assert (a, b, bundles) == before
+    a["entries"].reverse()
+    b["entries"].reverse()
+    assert compare_snapshots(a, b, bundles=bundles) == expected
+    expected["fileChanges"][0]["old"]["path"] = "not-the-input"
+    assert (a, b, bundles) != before  # order was deliberately reversed
+    assert all(e["path"] != "not-the-input" for e in a["entries"])
 
 
-def test_single_file_compare_still_used_for_modified_path():
-    old = _md("Line\n", "old")
-    new = _md("Line changed\n", "new")
-    span = compare_bundles("f.md", old, new)
-    assert span["changes"]
-    old_snap = {
-        "snapshotId": "o",
-        "entries": [
-            {
-                "path": "f.md",
-                "checksum": "01" * 32,
-                "documentVersionId": "old",
-                "fetchStatus": "OK",
-                "parseStatus": "PARSED",
-            }
-        ],
-    }
-    new_snap = {
-        "snapshotId": "n",
-        "entries": [
-            {
-                "path": "f.md",
-                "checksum": "02" * 32,
-                "documentVersionId": "new",
-                "fetchStatus": "OK",
-                "parseStatus": "PARSED",
-            }
-        ],
-    }
-    report = compare_snapshots(
-        old_snap, new_snap, bundles={"old": old, "new": new}
-    )
-    mod = report["fileChanges"][0]
-    assert mod["kind"] == "modified"
-    assert mod["spanReport"]["changes"]
+def test_same_valid_unparsed_image_bundles_never_prove_no_change():
+    from io import BytesIO
+    from PIL import Image
+    from aiqa_intelligence.doc_ingestion.runner import parse_bytes
+    from aiqa_intelligence.contracts.validation import validate_bundle
+
+    a, b, bundles = _fixture()
+    a["entries"] = []
+    b["entries"] = []
+    bundles = {}
+    for snap, color, id in [(a, "red", "old-image"), (b, "blue", "new-image")]:
+        stream = BytesIO()
+        Image.new("RGB", (16, 16), color).save(stream, format="PNG")
+        raw = stream.getvalue()
+        bundle = parse_bytes(raw, id, "PNG")
+        validate_bundle(bundle)
+        bundles[id] = bundle
+        snap["entries"].append(
+            dict(
+                path="prototype.png",
+                checksum=sha256(raw).hexdigest(),
+                sizeBytes=len(raw),
+                documentVersionId=id,
+                format="PNG",
+                fetchStatus="OK",
+                parseStatus="NEEDS_OCR",
+            )
+        )
+    out = compare_snapshots(a, b, bundles=bundles)
+    assert out["fileChanges"][0]["kind"] == "uncertain"
+    assert out["fileChanges"][0]["reasonCode"] == "SOURCE_QUALITY_UNCERTAIN"

@@ -320,6 +320,32 @@ class UnresolvedItem(RootModel[str]):
     root: str = Field(..., min_length=1)
 
 
+class Checksum(RootModel[str]):
+    root: str = Field(..., pattern='^[a-f0-9]{64}$')
+
+
+class SizeBytes(RootModel[int]):
+    root: int = Field(..., ge=0, le=9007199254740991)
+
+
+class EnumerationReason(RootModel[str]):
+    root: str = Field(..., max_length=1000, min_length=1)
+
+
+class Reason(RootModel[str]):
+    root: str = Field(..., max_length=1000, min_length=1)
+
+
+class Coverage(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    oldFiles: int = Field(..., ge=0, le=200)
+    newFiles: int = Field(..., ge=0, le=200)
+    oldCovered: int = Field(..., ge=0, le=200)
+    newCovered: int = Field(..., ge=0, le=200)
+
+
 class Locator10(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -398,6 +424,10 @@ class Items(BaseModel):
     ) = None
     value: str | float | bool | None = None
     unit: str | None = Field(None, min_length=1)
+
+
+class PathModel(RootModel[str]):
+    root: str = Field(..., max_length=1024, min_length=1)
 
 
 class RequestId(RootModel[str]):
@@ -996,6 +1026,58 @@ class ImpactAnalysisOutput(BaseModel):
     requiresHumanReview: Literal[True]
 
 
+class SnapshotFileEntry(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    path: str = Field(..., max_length=1024, min_length=1)
+    checksum: Checksum | None
+    sizeBytes: SizeBytes | None
+    documentVersionId: RequestId | None
+    format: (
+        Literal['MARKDOWN', 'TXT', 'DOCX', 'PDF_TEXT', 'PDF_SCANNED', 'PNG', 'JPEG']
+        | None
+    )
+    fetchStatus: Literal['OK', 'NOT_FETCHED', 'FETCH_FAILED']
+    parseStatus: Literal['PENDING', 'PARSING', 'PARSED', 'FAILED', 'NEEDS_OCR'] | None
+
+
+class Scope(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    root: Literal[''] | PathModel
+    include: list[PathModel] = Field(..., max_length=100, min_length=1)
+    exclude: list[PathModel] = Field(..., max_length=100)
+    policyVersion: str = Field(..., max_length=100, min_length=1)
+
+
+class RepositorySnapshotManifest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    snapshotId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    repositoryId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    commitSha: str = Field(..., pattern='^[a-f0-9]{40}$')
+    scope: Scope
+    enumerationStatus: Literal['COMPLETE', 'PARTIAL', 'FAILED']
+    enumerationReason: EnumerationReason | None
+    entries: list[SnapshotFileEntry] = Field(..., max_length=200)
+
+
+class SnapshotDiffInput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    oldSnapshot: RepositorySnapshotManifest
+    newSnapshot: RepositorySnapshotManifest
+    bundles: dict[str, ParsedDocumentBundle]
+
+
 class ItemsModel(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -1379,6 +1461,45 @@ class ChangeReviewAnalysisResponse(BaseModel):
     output: ChangeReviewAnalysisOutput
 
 
+class SnapshotFileChange(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: Literal['unchanged', 'added', 'removed', 'modified', 'renamed', 'uncertain']
+    old: SnapshotFileEntry | None
+    new: SnapshotFileEntry | None
+    reasonCode: (
+        Literal[
+            'SNAPSHOT_INCOMPLETE',
+            'FETCH_UNAVAILABLE',
+            'PARSE_UNAVAILABLE',
+            'SOURCE_QUALITY_UNCERTAIN',
+            'FORMAT_CHANGED',
+            'PARSE_CHANGED',
+            'AMBIGUOUS_RENAME',
+        ]
+        | None
+    )
+    reason: Reason | None
+    spanReport: SourceChangeReport | None
+
+
+class SnapshotDiffReport(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    oldSnapshotId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    newSnapshotId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    fileChanges: list[SnapshotFileChange] = Field(..., max_length=400)
+    complete: bool
+    requiresHumanReview: Literal[True]
+    coverage: Coverage
+
+
 class IntelligenceContracts(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -1456,6 +1577,13 @@ class IntelligenceContracts(BaseModel):
     ChangeReviewAnalysisResponse_1: ChangeReviewAnalysisResponse = Field(
         ..., alias='ChangeReviewAnalysisResponse'
     )
+    SnapshotFileEntry_1: SnapshotFileEntry = Field(..., alias='SnapshotFileEntry')
+    RepositorySnapshotManifest_1: RepositorySnapshotManifest = Field(
+        ..., alias='RepositorySnapshotManifest'
+    )
+    SnapshotDiffInput_1: SnapshotDiffInput = Field(..., alias='SnapshotDiffInput')
+    SnapshotFileChange_1: SnapshotFileChange = Field(..., alias='SnapshotFileChange')
+    SnapshotDiffReport_1: SnapshotDiffReport = Field(..., alias='SnapshotDiffReport')
 
 
 class Model(RootModel[IntelligenceContracts]):
