@@ -329,6 +329,32 @@ class StrategyParams(BaseModel):
     modelBudgetChars: int = Field(..., ge=1000, le=200000)
 
 
+class ExcludedPath(RootModel[str]):
+    root: str = Field(..., max_length=1024, min_length=1)
+
+
+class OldPath(RootModel[str]):
+    root: str = Field(..., max_length=1024, min_length=1)
+
+
+class NewPath(RootModel[str]):
+    root: str = Field(..., max_length=1024, min_length=1)
+
+
+class Totals(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    oldFiles: int = Field(..., ge=0)
+    newFiles: int = Field(..., ge=0)
+    unchanged: int = Field(..., ge=0)
+    modified: int = Field(..., ge=0)
+    added: int = Field(..., ge=0)
+    removed: int = Field(..., ge=0)
+    renamed: int = Field(..., ge=0)
+    uncertain: int = Field(..., ge=0)
+
+
 class Locator10(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -1121,6 +1147,14 @@ class Output(BaseModel):
     coverage: ChunkCoverageReport
 
 
+class OldFile(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    path: str = Field(..., max_length=1024, min_length=1)
+    bundle: ParsedDocumentBundle
+
+
 class ItemsModel(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -1156,6 +1190,14 @@ class ItemsModel(BaseModel):
 
 
 class ItemsModel1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    path: str = Field(..., max_length=1024, min_length=1)
+    bundle: ParsedDocumentBundle
+
+
+class ItemsModel2(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -1201,7 +1243,7 @@ class TestCaseModel(BaseModel):
     createdAt: AwareDatetime
 
 
-class ItemsModel2(BaseModel):
+class ItemsModel3(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -1327,7 +1369,7 @@ class CaseDraft(BaseModel):
     preconditions: list[str] | None = []
     dataSpec: DataSpec | DataSpec1
     steps: list[Step1] = Field(..., min_length=1)
-    assertions: list[ItemsModel2] = Field(..., min_length=1)
+    assertions: list[ItemsModel3] = Field(..., min_length=1)
     cleanup: Cleanup
     priority: Literal['P0', 'P1', 'P2'] | None = 'P1'
     dimensions: list[
@@ -1398,7 +1440,7 @@ class SourceChange1(BaseModel):
     path: str = Field(..., min_length=1)
     kind: Literal['added']
     old: None
-    new: ItemsModel1
+    new: ItemsModel2
     reason: None
 
 
@@ -1408,7 +1450,7 @@ class SourceChange2(BaseModel):
     )
     path: str = Field(..., min_length=1)
     kind: Literal['removed']
-    old: ItemsModel1
+    old: ItemsModel2
     new: None
     reason: None
 
@@ -1419,8 +1461,8 @@ class SourceChange3(BaseModel):
     )
     path: str = Field(..., min_length=1)
     kind: Literal['modified']
-    old: ItemsModel1
-    new: ItemsModel1
+    old: ItemsModel2
+    new: ItemsModel2
     reason: None
 
 
@@ -1430,8 +1472,8 @@ class SourceChange4(BaseModel):
     )
     path: str = Field(..., min_length=1)
     kind: Literal['uncertain']
-    old: ItemsModel1
-    new: ItemsModel1 | None
+    old: ItemsModel2
+    new: ItemsModel2 | None
     reason: str = Field(..., min_length=1)
 
 
@@ -1517,6 +1559,68 @@ class ChunkingResponse(BaseModel):
     output: Output
 
 
+class MultiFileComparisonInput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    oldFiles: list[OldFile] = Field(..., max_length=200, min_length=1)
+    newFiles: list[ItemsModel1] = Field(..., max_length=200, min_length=1)
+    excludedPaths: list[ExcludedPath] | None = Field(
+        [], max_length=200, validate_default=True
+    )
+
+
+class Outcome(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: Literal['unchanged', 'modified', 'added', 'removed', 'renamed', 'uncertain']
+    oldPath: OldPath | None
+    newPath: NewPath | None
+    contentHash: str | None
+    fragmentReport: SourceChangeReport | None
+    reason: str | None
+
+
+class MultiFileChangeReport(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    outcomes: list[Outcome] = Field(..., max_length=400, min_length=1)
+    totals: Totals
+    excludedPaths: list[ExcludedPath] | None = Field(
+        [], max_length=200, validate_default=True
+    )
+    exclusionsChanged: bool
+    truncated: bool
+
+
+class SnapshotCompareRequest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    timeoutMs: int = Field(..., ge=1000, le=600000)
+    input: MultiFileComparisonInput
+
+
+class SnapshotCompareResponse(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    invocations: list[InvocationRecord]
+    output: MultiFileChangeReport
+
+
 class IntelligenceContracts(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -1600,6 +1704,18 @@ class IntelligenceContracts(BaseModel):
     ChunkCoverageReport_1: ChunkCoverageReport = Field(..., alias='ChunkCoverageReport')
     ChunkingRequest_1: ChunkingRequest = Field(..., alias='ChunkingRequest')
     ChunkingResponse_1: ChunkingResponse = Field(..., alias='ChunkingResponse')
+    MultiFileComparisonInput_1: MultiFileComparisonInput = Field(
+        ..., alias='MultiFileComparisonInput'
+    )
+    MultiFileChangeReport_1: MultiFileChangeReport = Field(
+        ..., alias='MultiFileChangeReport'
+    )
+    SnapshotCompareRequest_1: SnapshotCompareRequest = Field(
+        ..., alias='SnapshotCompareRequest'
+    )
+    SnapshotCompareResponse_1: SnapshotCompareResponse = Field(
+        ..., alias='SnapshotCompareResponse'
+    )
 
 
 class Model(RootModel[IntelligenceContracts]):

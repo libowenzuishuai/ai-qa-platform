@@ -1,4 +1,5 @@
 import {runChangeReview} from "./change-review-job.js";
+import { runSnapshotDiff } from "./snapshot-diff-job.js";
 import { runLoginCheck } from './login-check-job.js';
 import { runDataJob } from './data-plugin-job.js';
 import { processProductJob } from "./product-jobs.js";
@@ -164,6 +165,8 @@ export async function processAgentJob(
     const store = new ArtifactStore(config.artifactDir);
     if(job.kind === "CHANGE_REVIEW") {
       await runChangeReview(prisma,store,job,config,commitJob);
+    } else if(job.kind === "SNAPSHOT_DIFF") {
+      await runSnapshotDiff(prisma,store,job,config,commitJob);
     } else if(job.kind === "LOGIN_CHECK") {
       await runLoginCheck(prisma,store,job,commitJob,controller.signal);
     } else if(["DATA_PREPARE","DATA_CLEANUP","DATA_INSPECT"].includes(job.kind)){

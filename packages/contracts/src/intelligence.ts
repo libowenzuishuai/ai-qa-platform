@@ -4,6 +4,7 @@ import { z } from "zod";
 import { EntityId } from "./common.js";
 import { DocumentFormat, ParsedDocumentBundle } from "./document.js";
 import { ChunkingInput, ChunkingOutput } from "./chunking.js";
+import { MultiFileComparisonInput, MultiFileChangeReport } from "./source-changes.js";
 import { RuleExtractionInput, RuleExtractionOutput } from "./agent-rule.js";
 import { CaseGenerationInput, CaseGenerationOutput } from "./agent-case.js";
 import { ModelPurpose, ModelResponse } from "./model-adapter.js";
@@ -53,3 +54,7 @@ export const ChangeReviewAnalysisResponse=responseBase.extend({output:ChangeRevi
 
 export const ChunkingRequest = requestBase.extend({ input: ChunkingInput });
 export const ChunkingResponse = responseBase.extend({ output: ChunkingOutput });
+
+/** R02：快照对比（确定性，不调用模型）。 */
+export const SnapshotCompareRequest = requestBase.extend({ input: MultiFileComparisonInput });
+export const SnapshotCompareResponse = responseBase.extend({ output: MultiFileChangeReport });

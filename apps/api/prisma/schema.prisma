@@ -41,6 +41,7 @@ model Session {
 
 model Project {
   changeReviews     ChangeReview[]
+  snapshotChanges   SnapshotChange[]
   id                String              @id @default(cuid())
   name              String
   settings          Json                @default("{}")
@@ -564,6 +565,7 @@ model DeploymentEvent {
  */
 model Job {
   changeReview ChangeReview?
+  snapshotChange SnapshotChange?
   id           String        @id @default(cuid())
   projectId    String
   kind         String
@@ -943,6 +945,32 @@ model ChangeReview {
   updatedAt            DateTime @updatedAt
   project              Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
   job                  Job      @relation(fields: [jobId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, createdAt])
+}
+
+// ============ R02: 快照对比（多文件变更闭环） ============
+
+model SnapshotChange {
+  id            String   @id @default(cuid())
+  projectId     String
+  jobId         String   @unique
+  baselineId    String
+  /** 冻结的文件清单 [{documentVersionId, path}]（旧/新）。 */
+  oldFiles      Json
+  newFiles      Json
+  excludedPaths Json     @default("[]")
+  /** 冻结的 MultiFileComparisonInput（含全部 bundle）。 */
+  input         Json
+  inputHash     String
+  /** MultiFileChangeReport（确定性输出）。 */
+  output        Json?
+  outputHash    String?
+  resolutions   Json     @default("{}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Restrict)
 
   @@index([projectId, createdAt])
 }

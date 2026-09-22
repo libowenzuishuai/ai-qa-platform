@@ -44,6 +44,11 @@ const schemas = {
   ChunkCoverageReport: c.ChunkCoverageReport,
   ChunkingRequest: c.ChunkingRequest,
   ChunkingResponse: c.ChunkingResponse,
+  // R02：快照对比（确定性多文件差异）
+  MultiFileComparisonInput: c.MultiFileComparisonInput,
+  MultiFileChangeReport: c.MultiFileChangeReport,
+  SnapshotCompareRequest: c.SnapshotCompareRequest,
+  SnapshotCompareResponse: c.SnapshotCompareResponse,
 };
 const schema = zodToJsonSchema(z.object(schemas), {
   name: "IntelligenceContracts",

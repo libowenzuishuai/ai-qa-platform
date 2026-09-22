@@ -3209,6 +3209,265 @@
       ],
       "additionalProperties": false
     },
+    "MultiFileComparisonInput": {
+      "type": "object",
+      "properties": {
+        "oldFiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "bundle": {
+                "$ref": "#/definitions/ParsedDocumentBundle"
+              }
+            },
+            "required": [
+              "path",
+              "bundle"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 200
+        },
+        "newFiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MultiFileComparisonInput/properties/oldFiles/items"
+          },
+          "minItems": 1,
+          "maxItems": 200
+        },
+        "excludedPaths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "maxItems": 200,
+          "default": []
+        }
+      },
+      "required": [
+        "oldFiles",
+        "newFiles"
+      ],
+      "additionalProperties": false
+    },
+    "MultiFileChangeReport": {
+      "type": "object",
+      "properties": {
+        "outcomes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "unchanged",
+                  "modified",
+                  "added",
+                  "removed",
+                  "renamed",
+                  "uncertain"
+                ]
+              },
+              "oldPath": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "newPath": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "contentHash": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "fragmentReport": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/SourceChangeReport"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "oldPath",
+              "newPath",
+              "contentHash",
+              "fragmentReport",
+              "reason"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 400
+        },
+        "totals": {
+          "type": "object",
+          "properties": {
+            "oldFiles": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "newFiles": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unchanged": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "modified": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "added": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "removed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "renamed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "uncertain": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "oldFiles",
+            "newFiles",
+            "unchanged",
+            "modified",
+            "added",
+            "removed",
+            "renamed",
+            "uncertain"
+          ],
+          "additionalProperties": false
+        },
+        "excludedPaths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "maxItems": 200,
+          "default": []
+        },
+        "exclusionsChanged": {
+          "type": "boolean"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "outcomes",
+        "totals",
+        "exclusionsChanged",
+        "truncated"
+      ],
+      "additionalProperties": false
+    },
+    "SnapshotCompareRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "mode": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+        },
+        "timeoutMs": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+        },
+        "input": {
+          "$ref": "#/definitions/MultiFileComparisonInput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "timeoutMs",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "SnapshotCompareResponse": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "mode": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+        },
+        "invocations": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+        },
+        "output": {
+          "$ref": "#/definitions/MultiFileChangeReport"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "invocations",
+        "output"
+      ],
+      "additionalProperties": false
+    },
     "IntelligenceContracts": {
       "type": "object",
       "properties": {
@@ -3328,6 +3587,18 @@
         },
         "ChunkingResponse": {
           "$ref": "#/definitions/ChunkingResponse"
+        },
+        "MultiFileComparisonInput": {
+          "$ref": "#/definitions/MultiFileComparisonInput"
+        },
+        "MultiFileChangeReport": {
+          "$ref": "#/definitions/MultiFileChangeReport"
+        },
+        "SnapshotCompareRequest": {
+          "$ref": "#/definitions/SnapshotCompareRequest"
+        },
+        "SnapshotCompareResponse": {
+          "$ref": "#/definitions/SnapshotCompareResponse"
         }
       },
       "required": [
@@ -3369,7 +3640,11 @@
         "ChunkManifest",
         "ChunkCoverageReport",
         "ChunkingRequest",
-        "ChunkingResponse"
+        "ChunkingResponse",
+        "MultiFileComparisonInput",
+        "MultiFileChangeReport",
+        "SnapshotCompareRequest",
+        "SnapshotCompareResponse"
       ],
       "additionalProperties": false
     }
