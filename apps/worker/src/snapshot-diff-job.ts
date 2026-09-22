@@ -2,10 +2,10 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import type { ArtifactStore } from "@ai-qa/artifact-store";
 import {
   MultiFileComparisonInput,
-  MultiFileChangeReport,
   SnapshotCompareResponse,
 } from "@ai-qa/contracts";
 import { contentHash, loadReviewBundle } from "../../api/src/change-review-service.js";
+import { validateSnapshotOutput } from "../../api/src/routes-snapshot-changes.js";
 import { callIntelligence } from "./intelligence-client.js";
 import type { WorkerConfig } from "./config.js";
 
@@ -72,8 +72,9 @@ export async function runSnapshotDiff(
     throw Object.assign(new Error("确定性对比不应调用模型"), {
       code: "MODEL_OUTPUT_INVALID",
     });
-  // 服务端二次校验（Python 无 DB 权威）：契约 + 覆盖对账在 superRefine 内完成。
-  const output = MultiFileChangeReport.parse(remote.output);
+  // 评审修复（#4）：输出与冻结输入联合校验（路径归属/方向性/renamed 字节证据/
+  // totals/排除回显），Python 无 DB 权威，落库前必须通过。
+  const output = validateSnapshotOutput(input, remote.output);
   await commit(db, job, async (tx) => {
     await tx.snapshotChange.update({
       where: { id: change.id },

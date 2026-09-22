@@ -15,8 +15,15 @@ def parse_md(text: str, document_id: str):
     return parse_bytes(text.encode(), document_id, "MARKDOWN")
 
 
+def _byte_hash(bundle):
+    """模拟 DocumentVersion.checksum：同一文本同一字节哈希（与解析质量无关）。"""
+    import hashlib
+    text = "\n".join((s.get("quotedText") or "") for s in bundle["spans"])
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
 def files(*pairs):
-    return [{"path": path, "bundle": bundle} for path, bundle in pairs]
+    return [{"path": path, "bundle": bundle, "fileChecksum": _byte_hash(bundle)} for path, bundle in pairs]
 
 
 def outcome_paths(report, kind):
@@ -96,12 +103,15 @@ def test_cross_format_same_path_is_uncertain():
     doc.save(buf)
     old = files(("spec.md", parse_md("内容\n", "v1")))
     new = files(("spec.md", parse_bytes(buf.getvalue(), "v2", "DOCX")))
+    # 跨格式意味着真实字节必然不同（文本 ≠ DOCX 二进制）。
+    old[0]["fileChecksum"], new[0]["fileChecksum"] = "1" * 64, "2" * 64
     report = compare_files({"oldFiles": old, "newFiles": new})
     assert report["totals"]["uncertain"] == 1
     assert "跨格式" in report["outcomes"][0]["reason"]
 
 
-def test_same_bytes_parse_quality_degradation_is_modified():
+def test_same_bytes_parse_quality_degradation_is_not_unchanged():
+    """评审修复（#3 相关）：同字节但解析质量退化 → uncertain，不得判未变化。"""
     old_bundle = parse_md("# 标题\n规则内容\n", "v1")
     degraded = parse_md("# 标题\n规则内容\n", "v2")
     degraded["spans"][0]["extractionQuality"] = "LOW"
@@ -109,7 +119,9 @@ def test_same_bytes_parse_quality_degradation_is_modified():
     degraded["coverageSummary"]["lowSpans"] += 1
     assert content_hash(old_bundle) != content_hash(degraded)
     report = compare_files({"oldFiles": files(("a.md", old_bundle)), "newFiles": files(("a.md", degraded))})
-    assert report["totals"]["modified"] == 1
+    outcome = report["outcomes"][0]
+    assert outcome["kind"] == "uncertain"
+    assert "解析形态或质量" in outcome["reason"]
 
 
 def test_failed_parse_is_uncertain_never_dropped():
@@ -182,3 +194,74 @@ def test_coverage_reconciliation_always_balances():
     new_covered = {o["newPath"] for o in report["outcomes"] if o["newPath"]}
     assert old_covered == {"same.md", "gone.md", "renamed-from.md"}
     assert new_covered == {"same.md", "renamed-to.md", "fresh.md"}
+
+
+# ============ 评审反例：真实字节哈希 / 未解析内容 ============
+
+def test_same_bundle_hash_but_different_bytes_must_not_be_unchanged():
+    """反例（#2）：解析产物相同但文件字节不同 → 不得判未变化。
+
+    bundle 派生哈希只覆盖文本/质量/定位；真实判据必须是文件字节 sha256。
+    """
+    old_bundle = parse_md("# 标题\n内容\n", "v1")
+    new_bundle = parse_md("# 标题\n内容\n", "v2")
+    assert content_hash(old_bundle) == content_hash(new_bundle)  # 解析产物一致
+    # 两侧字节校验和不同（模拟同一可见文本、不同文件字节）。
+    old_entry = {"path": "a.md", "bundle": old_bundle, "fileChecksum": "f" * 64}
+    new_entry = {"path": "a.md", "bundle": new_bundle, "fileChecksum": "0" * 64}
+    report = compare_files({"oldFiles": [old_entry], "newFiles": [new_entry]})
+    assert report["outcomes"][0]["kind"] != "unchanged", "字节不同不得判未变化"
+
+
+def test_unchanged_and_rename_require_byte_checksums():
+    """反例（#2）：缺少字节校验和 → 不得给 unchanged/renamed 结论。"""
+    old_bundle = parse_md("内容\n", "v1")
+    new_bundle = parse_md("内容\n", "v2")
+    report = compare_files({
+        "oldFiles": [{"path": "a.md", "bundle": old_bundle}],   # 无 fileChecksum
+        "newFiles": [{"path": "a.md", "bundle": new_bundle, "fileChecksum": "f" * 64}],
+    })
+    assert report["outcomes"][0]["kind"] == "uncertain"
+    assert "字节校验和" in report["outcomes"][0]["reason"]
+
+
+def test_unparsed_content_must_not_be_unchanged():
+    """反例（#3）：同字节但含未解析片段 → uncertain，不得判未变化。"""
+    old_bundle = parse_md("规则一\n", "v1")
+    new_bundle = parse_md("规则一\n", "v2")
+    for bundle in (old_bundle, new_bundle):
+        bundle["spans"][0]["extractionQuality"] = "UNPARSED"
+        bundle["spans"][0]["quotedText"] = None
+        bundle["coverageSummary"]["goodSpans"] -= 1
+        bundle["coverageSummary"]["unparsedSpans"] += 1
+    checksum = "f" * 64
+    report = compare_files({
+        "oldFiles": [{"path": "a.md", "bundle": old_bundle, "fileChecksum": checksum}],
+        "newFiles": [{"path": "a.md", "bundle": new_bundle, "fileChecksum": checksum}],
+    })
+    outcome = report["outcomes"][0]
+    assert outcome["kind"] == "uncertain", "含未解析内容不得判未变化"
+    assert "未解析" in outcome["reason"]
+
+
+def test_rename_with_unparsed_content_carries_note():
+    """（#3 续）：同字节重命名凭字节证据成立，但必须附未解析内容备注。
+
+    字节一致与解析质量无关；重命名可判，片段内容未核对必须显式可见。
+    """
+    text = "旧内容\n"
+    old_bundle = parse_md(text, "v1")
+    new_bundle = parse_md(text, "v2")
+    for bundle in (old_bundle, new_bundle):
+        bundle["spans"][0]["extractionQuality"] = "UNPARSED"
+        bundle["spans"][0]["quotedText"] = None
+        bundle["coverageSummary"]["goodSpans"] -= 1
+        bundle["coverageSummary"]["unparsedSpans"] += 1
+    checksum = "a" * 64
+    report = compare_files({
+        "oldFiles": [{"path": "old.md", "bundle": old_bundle, "fileChecksum": checksum}],
+        "newFiles": [{"path": "new.md", "bundle": new_bundle, "fileChecksum": checksum}]},
+    )
+    outcome = next(o for o in report["outcomes"] if o["oldPath"] == "old.md")
+    assert outcome["kind"] == "renamed"
+    assert "未解析" in (outcome["reason"] or "")

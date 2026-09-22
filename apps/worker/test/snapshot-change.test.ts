@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { createTestEnv, type TestEnv } from "../../api/test/helpers/db.js";
 import { registerSnapshotChangeRoutes } from "../../api/src/routes-snapshot-changes.js";
+import { registerJobRoutes } from "../../api/src/routes-jobs.js";
 import { sendApiError } from "../../api/src/errors.js";
 import { processAgentJob } from "../src/agent-job-processor.js";
 import { WorkerConfig } from "../src/config.js";
@@ -103,12 +104,15 @@ async function seedDocumentVersion(
     filename: "bundle.json",
     data: Buffer.from(JSON.stringify(bundle)),
   });
+  // checksum = 真实文件字节 sha256（源文本）；bundle 存储校验和独立记录。
+  const { createHash } = await import("node:crypto");
+  const fileChecksum = createHash("sha256").update(Buffer.from(text)).digest("hex");
   await env.prisma.documentVersion.create({
     data: {
       id: documentVersionId,
       documentId,
       version,
-      checksum: saved.checksum,
+      checksum: fileChecksum,
       storageKey: saved.storageKey,
       format: "MARKDOWN",
       parseStatus: "PARSED",
@@ -144,6 +148,7 @@ beforeAll(async () => {
   });
   app.setErrorHandler((e, q, r) => sendApiError(q, r, e));
   registerSnapshotChangeRoutes(app, env.prisma, env.store, queue);
+  registerJobRoutes(app, env.prisma, queue);
   python = spawn(
     root + "services/intelligence/.venv/bin/python",
     ["-c", "import uvicorn;uvicorn.run('aiqa_intelligence.app:app',host='127.0.0.1',port=0)"],
@@ -390,4 +395,113 @@ it("冻结输出防篡改：落库结果被改后读取被拒绝", async () => {
   });
   const detail = await app.inject({ method: "GET", url: `/api/snapshot-changes/${changeId}`, headers: H });
   expect(detail.statusCode).toBe(409);
+  // 自清理：恢复原始 output，避免污染后续联合校验反例。
+  await env.prisma.snapshotChange.update({
+    where: { id: changeId },
+    data: { output: row.output as never, outputHash: row.outputHash },
+  });
+});
+
+// ============ 评审反例（六项修复的暴露用例） ============
+
+it("反例（#1 快照完整性）：漏报项目文档被拒绝", async () => {
+  const partial = requestBody();
+  partial.idempotencyKey = "snap-key-partial";
+  partial.oldFiles = partial.oldFiles.filter((f) => f.path !== "ops/deploy.md"); // 漏掉 deploy
+  const res = await app.inject({ method: "POST", url: `/api/projects/${projectId}/snapshot-changes`, headers: H, payload: partial });
+  expect(res.statusCode).toBe(422);
+  expect(res.json().message).toContain("快照不完整");
+  expect(res.json().message).toContain("部署说明");
+});
+
+it("反例（#4 联合校验）：与冻结输入不符的报告即使哈希自洽也被拒绝", async () => {
+  const list = await app.inject({ method: "GET", url: `/api/projects/${projectId}/snapshot-changes`, headers: H });
+  const changeId = list.json().changes[0].id;
+  const row = await env.prisma.snapshotChange.findUniqueOrThrow({ where: { id: changeId } });
+  // 伪造：把 added 的路径换成输入里不存在的路径，并同步修正 outputHash（绕过哈希防线）。
+  const forged = JSON.parse(JSON.stringify(row.output));
+  const added = forged.outcomes.find((o: { kind: string }) => o.kind === "added");
+  added.newPath = "requirements/fabricated.md";
+  const { contentHash } = await import("../../api/src/change-review-service.js");
+  await env.prisma.snapshotChange.update({
+    where: { id: changeId },
+    data: { output: forged, outputHash: contentHash(forged) } as never,
+  });
+  const detail = await app.inject({ method: "GET", url: `/api/snapshot-changes/${changeId}`, headers: H });
+  expect(detail.statusCode).toBe(409);
+  expect(detail.json().code).toBe("CONFLICT");
+  expect(detail.json().message).toContain("冻结输入不符");
+});
+
+it("反例（#5 查询/取消）：SNAPSHOT_DIFF 作业可查询可取消", async () => {
+  // 查询已完成作业：kind 信封含 SNAPSHOT_DIFF。
+  const done = await env.prisma.job.findFirstOrThrow({ where: { kind: "SNAPSHOT_DIFF", status: "SUCCEEDED" } });
+  const queried = await app.inject({ method: "GET", url: `/api/jobs/${done.id}`, headers: H });
+  expect(queried.statusCode).toBe(200);
+  expect(queried.json().kind).toBe("SNAPSHOT_DIFF");
+  expect(queried.json().result.snapshotChangeId).toBeTruthy();
+
+  // 新建一个保持 QUEUED 的快照作业并取消。
+  const created = await app.inject({
+    method: "POST", url: `/api/projects/${projectId}/snapshot-changes`, headers: H,
+    payload: { ...requestBody(), idempotencyKey: "snap-key-cancel" },
+  });
+  const jobId = created.json().jobId;
+  const cancelled = await app.inject({ method: "POST", url: `/api/jobs/${jobId}/cancel`, headers: H });
+  expect(cancelled.statusCode).toBe(200);
+  expect(cancelled.json().status).toBe("CANCELLED");
+  // 终态后不可再取消。
+  expect((await app.inject({ method: "POST", url: `/api/jobs/${jobId}/cancel`, headers: H })).statusCode).toBe(409);
+});
+
+it("反例（#6 完成门）：挂接复核自身有待办未决议时拒绝", async () => {
+  const list = await app.inject({ method: "GET", url: `/api/projects/${projectId}/snapshot-changes`, headers: H });
+  const changeId = list.json().changes.find(
+    (c: { job: { status: string } }) => c.job.status === "SUCCEEDED",
+  ).id;
+  // 造一个分析完成但资产待办未决议的复核（覆盖 prd 版本对）。
+  const { contentHash } = await import("../../api/src/change-review-service.js");
+  const pendingJob = await env.prisma.job.create({
+    data: { projectId, kind: "CHANGE_REVIEW", fingerprint: `fp-${randomUUID()}`, status: "SUCCEEDED", request: {} },
+  });
+  const craftedOutput = {
+    sourceReport: {
+      path: "requirements/prd.md",
+      oldDocumentVersionId: prdOldId,
+      newDocumentVersionId: prdNewId,
+      format: "MARKDOWN",
+      changes: [],
+    },
+    impact: {
+      affectedRules: [{
+        ruleVersionId: rulePrdId,
+        reason: "来源变化",
+        evidenceRefs: [{ documentVersionId: prdNewId, spanId: `s-${prdNewId}-1` }],
+        suggestion: "复核该规则",
+      }],
+      affectedCases: [],
+      unresolved: [],
+      requiresHumanReview: true,
+    },
+  };
+  await env.prisma.changeReview.create({
+    data: {
+      projectId, jobId: pendingJob.id, baselineId,
+      oldDocumentVersionId: prdOldId, newDocumentVersionId: prdNewId,
+      input: {}, inputHash: "x",
+      output: craftedOutput as never, outputHash: contentHash(craftedOutput),
+      resolutions: {}, // 全部待办未决议
+    },
+  });
+  // 恢复 modified 待办为未决议状态（直接清掉该 key 的既有决策）。
+  const target = await env.prisma.snapshotChange.findUniqueOrThrow({ where: { id: changeId } });
+  const resolutions = { ...(target.resolutions as Record<string, unknown>) };
+  delete resolutions["modified:requirements/prd.md"];
+  await env.prisma.snapshotChange.update({ where: { id: changeId }, data: { resolutions: resolutions as never } });
+  const res = await app.inject({
+    method: "POST", url: `/api/snapshot-changes/${changeId}/resolve`, headers: H,
+    payload: { fileKey: "modified:requirements/prd.md", decision: "MODIFIED_REVIEWED", changeReviewId: (await env.prisma.changeReview.findFirstOrThrow({ where: { jobId: pendingJob.id } })).id },
+  });
+  expect(res.statusCode).toBe(409);
+  expect(res.json().message).toContain("资产待办");
 });

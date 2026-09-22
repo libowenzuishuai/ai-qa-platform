@@ -1221,6 +1221,7 @@ class OldFile(BaseModel):
     )
     path: str = Field(..., max_length=1024, min_length=1)
     bundle: ParsedDocumentBundle
+    fileChecksum: str = Field(..., pattern='^[a-f0-9]{64}$')
 
 
 class GoalProposalAgentRequest(BaseModel):
@@ -1276,6 +1277,7 @@ class ItemsModel1(BaseModel):
     )
     path: str = Field(..., max_length=1024, min_length=1)
     bundle: ParsedDocumentBundle
+    fileChecksum: str = Field(..., pattern='^[a-f0-9]{64}$')
 
 
 class ItemsModel2(BaseModel):

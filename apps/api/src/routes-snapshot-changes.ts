@@ -9,7 +9,7 @@ import {
 } from "@ai-qa/contracts";
 import { requireAuth, requireProjectAccess } from "./auth.js";
 import { ApiError } from "./errors.js";
-import { contentHash, loadReviewBundle } from "./change-review-service.js";
+import { contentHash, loadReviewBundle, reviewTasks } from "./change-review-service.js";
 
 /**
  * R02 快照对比（多文件变更闭环）。
@@ -25,6 +25,56 @@ const FileRef = z.object({
   path: z.string().min(1).max(1024),
   documentVersionId: z.string().min(1),
 }).strict();
+
+/**
+ * 评审修复（#4）：输出与冻结输入联合校验。
+ * Python 返回（或落库后被篡改）的报告必须与冻结清单吻合：
+ * - 结局引用的路径必须来自冻结清单（不得凭空出现/偷换）；
+ * - added/removed/renamed/modified 的方向性正确；
+ * - renamed 的两侧字节校验和必须一致（防止把不同文件说成重命名）；
+ * - totals 与冻结清单规模一致；excludedPaths 原样回显。
+ */
+export function validateSnapshotOutput(input: unknown, output: unknown) {
+  const i = MultiFileComparisonInput.parse(input);
+  const o = MultiFileChangeReport.parse(output);
+  const fail = (message: string) =>
+    new ApiError("CONFLICT", `快照报告与冻结输入不符：${message}`);
+  if (o.totals.oldFiles !== i.oldFiles.length || o.totals.newFiles !== i.newFiles.length)
+    throw fail("两侧文件总数不一致");
+  const oldByPath = new Map(i.oldFiles.map((f) => [f.path, f]));
+  const newByPath = new Map(i.newFiles.map((f) => [f.path, f]));
+  const sortedExcluded = [...i.excludedPaths].sort();
+  const sortedEchoed = [...o.excludedPaths].sort();
+  if (
+    sortedExcluded.length !== sortedEchoed.length ||
+    sortedExcluded.some((p, idx) => p !== sortedEchoed[idx])
+  )
+    throw fail("排除路径回显不一致");
+  for (const outcome of o.outcomes) {
+    if (outcome.oldPath !== null && !oldByPath.has(outcome.oldPath))
+      throw fail(`旧路径不在冻结清单：${outcome.oldPath}`);
+    if (outcome.newPath !== null && !newByPath.has(outcome.newPath))
+      throw fail(`新路径不在冻结清单：${outcome.newPath}`);
+    if (outcome.kind === "added" && outcome.oldPath !== null)
+      throw fail("added 不得携带旧路径");
+    if (outcome.kind === "removed" && outcome.newPath !== null)
+      throw fail("removed 不得携带新路径");
+    if (outcome.kind === "renamed") {
+      const oldFile = oldByPath.get(outcome.oldPath!);
+      const newFile = newByPath.get(outcome.newPath!);
+      if (!oldFile || !newFile) throw fail("renamed 路径缺失");
+      if (oldFile.path === newFile.path) throw fail("renamed 必须是不同路径");
+      if (oldFile.fileChecksum !== newFile.fileChecksum)
+        throw fail(`renamed 两侧字节校验和不同：${outcome.oldPath} → ${outcome.newPath}`);
+    }
+    if (
+      (outcome.kind === "modified" || outcome.kind === "unchanged") &&
+      (!oldByPath.has(outcome.oldPath!) || !newByPath.has(outcome.newPath!))
+    )
+      throw fail(`${outcome.kind} 要求两侧路径同时存在`);
+  }
+  return o;
+}
 
 export function registerSnapshotChangeRoutes(
   app: FastifyInstance,
@@ -127,9 +177,41 @@ export function registerSnapshotChangeRoutes(
           where: { id: body.baselineId, projectId },
         });
         if (!baseline) throw new ApiError("VALIDATION_ERROR", "基线不属于当前项目");
+        // 评审修复（#1）：快照完整性 —— 项目内每个有可解析版本的文档必须被
+        // 恰好覆盖一次（旧或新），缺报即拒（不允许静默缩小对比范围）。
+        {
+          const referenced = new Set(
+            [...body.oldFiles, ...body.newFiles].map((f) => f.documentVersionId),
+          );
+          if (referenced.size !== body.oldFiles.length + body.newFiles.length)
+            throw new ApiError("VALIDATION_ERROR", "同一文档版本在清单中重复出现");
+          const parsed = await tx.documentVersion.findMany({
+            where: { parseStatus: { in: ["PARSED", "NEEDS_OCR"] }, document: { projectId } },
+            select: { id: true, document: { select: { id: true, title: true } } },
+          });
+          const byDocument = new Map<string, { title: string; versionIds: string[] }>();
+          for (const row of parsed) {
+            const entry = byDocument.get(row.document.id) ?? {
+              title: row.document.title,
+              versionIds: [],
+            };
+            entry.versionIds.push(row.id);
+            byDocument.set(row.document.id, entry);
+          }
+          const missing: string[] = [];
+          for (const [documentId, entry] of byDocument) {
+            const covered = entry.versionIds.some((v) => referenced.has(v));
+            if (!covered) missing.push(entry.title || documentId);
+          }
+          if (missing.length)
+            throw new ApiError(
+              "VALIDATION_ERROR",
+              `快照不完整：以下项目文档未纳入对比（旧新两侧均未出现）：${missing.join("、")}`,
+            );
+        }
         const input = { oldFiles: [], newFiles: [] } as {
-          oldFiles: { path: string; bundle: unknown }[];
-          newFiles: { path: string; bundle: unknown }[];
+          oldFiles: { path: string; bundle: unknown; fileChecksum: string }[];
+          newFiles: { path: string; bundle: unknown; fileChecksum: string }[];
         };
         const mode = { mock: false };
         for (const side of ["oldFiles", "newFiles"] as const) {
@@ -141,7 +223,11 @@ export function registerSnapshotChangeRoutes(
             // 装载点复用单文件复核的校验：归属/解析状态/证据校验和/片段一致性。
             const loaded = await loadReviewBundle(tx, store, projectId, entry.documentVersionId);
             if (loaded.row.mode === "mock") mode.mock = true;
-            input[side].push({ path: entry.path, bundle: loaded.bundle });
+            // 真实文件字节 sha256（DocumentVersion.checksum）随冻结输入固定：
+            // 未变化/重命名判定只认字节证据，不认解析产物派生哈希。
+            if (!/^[a-f0-9]{64}$/.test(loaded.row.checksum))
+              throw new ApiError("VALIDATION_ERROR", `文件字节校验和缺失或格式非法：${entry.path}`);
+            input[side].push({ path: entry.path, bundle: loaded.bundle, fileChecksum: loaded.row.checksum });
           }
         }
         // 同一路径新旧必须是同一 Document 的两个版本（与单文件复核一致）。
@@ -211,7 +297,7 @@ export function registerSnapshotChangeRoutes(
 
   app.get("/api/snapshot-changes/:id", async (req) => {
     const r = await owned(req);
-    if (r.output) MultiFileChangeReport.parse(r.output); // 读取时二次校验
+    if (r.output) validateSnapshotOutput(r.input, r.output); // 读取时联合校验
     const tasks = snapshotTasks(r.output);
     const resolutions = r.resolutions as Record<string, unknown>;
     return { ...r, tasks, pendingCount: tasks.filter((t) => !resolutions[t.key]).length };
@@ -267,6 +353,19 @@ export function registerSnapshotChangeRoutes(
           review.newDocumentVersionId !== files.new?.documentVersionId
         )
           throw new ApiError("VALIDATION_ERROR", "挂接的复核与该文件的版本对不一致");
+        // 评审修复（#6）：人工复核完成门 —— 挂接复核自身的全部受影响
+        // 资产待办也必须已决议，否则不得以它为完成依据。
+        {
+          const linkedResolutions = review.resolutions as Record<string, unknown>;
+          const pending = reviewTasks(review.output).filter(
+            (t) => !linkedResolutions[t.key],
+          );
+          if (pending.length)
+            throw new ApiError(
+              "CONFLICT",
+              `挂接的变更复核仍有 ${pending.length} 项资产待办未决议，请先完成其人工复核`,
+            );
+        }
       } else if (body.decision === "ADDED_APPROVED") {
         if (task.kind !== "added")
           throw new ApiError("VALIDATION_ERROR", "仅 added 待办可确认新增来源");

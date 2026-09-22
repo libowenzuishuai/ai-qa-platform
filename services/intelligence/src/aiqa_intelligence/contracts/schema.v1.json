@@ -3225,11 +3225,16 @@
               },
               "bundle": {
                 "$ref": "#/definitions/ParsedDocumentBundle"
+              },
+              "fileChecksum": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
               }
             },
             "required": [
               "path",
-              "bundle"
+              "bundle",
+              "fileChecksum"
             ],
             "additionalProperties": false
           },

@@ -1,7 +1,7 @@
 {
-  "description": "R01 多文件快照差异夹具（synthetic，可从本目录 old/ new/ 复现）：modified(prd.md) + renamed(legacy→archived) + added(payment.md) + removed(ops/deploy.md)",
+  "description": "R01 多文件快照差异夹具（synthetic，可从本目录 old/ new/ 复现）：modified(prd.md) + renamed(legacy→archived) + added(payment.md) + removed(ops/deploy.md)；未变化/重命名只认真实字节 sha256",
   "synthetic": true,
-  "reproduction": "对 old/ 与 new/ 目录内文件逐个 MARKDOWN 解析后调用 compare_files；文件字节 sha256 记录在 fileChecksums",
+  "reproduction": "对 old/ 与 new/ 目录内文件逐个 MARKDOWN 解析后调用 compare_files；文件字节 sha256 随输入固定（fileChecksum）",
   "fileChecksums": {
     "old": {
       "ops/deploy.md": "025ea69d7d357e17f249576df9452032a82e3421d4f6981b2d229ae3bcfaadb3",
@@ -50,7 +50,8 @@
             "lowSpans": 0,
             "unparsedSpans": 0
           }
-        }
+        },
+        "fileChecksum": "025ea69d7d357e17f249576df9452032a82e3421d4f6981b2d229ae3bcfaadb3"
       },
       {
         "path": "requirements/legacy-rules.md",
@@ -102,7 +103,8 @@
             "lowSpans": 0,
             "unparsedSpans": 0
           }
-        }
+        },
+        "fileChecksum": "9535294afea02898e0a9d4971e086ab7f6332364e849e83ab1e1bd9485825b4d"
       },
       {
         "path": "requirements/prd.md",
@@ -170,7 +172,8 @@
             "lowSpans": 0,
             "unparsedSpans": 0
           }
-        }
+        },
+        "fileChecksum": "3a2c6f7bb3b41f0f05e13dc35bb5507df0dd4fa250eee3303c61003ddf890f42"
       }
     ],
     "newFiles": [
@@ -224,7 +227,8 @@
             "lowSpans": 0,
             "unparsedSpans": 0
           }
-        }
+        },
+        "fileChecksum": "9535294afea02898e0a9d4971e086ab7f6332364e849e83ab1e1bd9485825b4d"
       },
       {
         "path": "requirements/payment.md",
@@ -260,7 +264,8 @@
             "lowSpans": 0,
             "unparsedSpans": 0
           }
-        }
+        },
+        "fileChecksum": "c52d88a820917d997d0478c1ae565280e6f7259ad56a1df270a5fcfa73cc42cb"
       },
       {
         "path": "requirements/prd.md",
@@ -328,7 +333,8 @@
             "lowSpans": 0,
             "unparsedSpans": 0
           }
-        }
+        },
+        "fileChecksum": "0d92fc6cf4a067660d182cd121c681f1c6c0716be2896a94416ad7181a73a275"
       }
     ],
     "excludedPaths": [
@@ -341,7 +347,7 @@
         "kind": "removed",
         "oldPath": "ops/deploy.md",
         "newPath": null,
-        "contentHash": "2e0dabbe19e2b170e5ad1be70da34ddb14da9dc01dc722f5b226db5accdddf49",
+        "contentHash": "025ea69d7d357e17f249576df9452032a82e3421d4f6981b2d229ae3bcfaadb3",
         "fragmentReport": null,
         "reason": null
       },
@@ -349,7 +355,7 @@
         "kind": "renamed",
         "oldPath": "requirements/legacy-rules.md",
         "newPath": "requirements/archived-rules.md",
-        "contentHash": "4179dc1433e76669a0a7e54e7d937e9b64306eb017c71d976ff6543687cd8c6a",
+        "contentHash": "9535294afea02898e0a9d4971e086ab7f6332364e849e83ab1e1bd9485825b4d",
         "fragmentReport": null,
         "reason": null
       },
@@ -357,7 +363,7 @@
         "kind": "added",
         "oldPath": null,
         "newPath": "requirements/payment.md",
-        "contentHash": "6b82bd4c33a9e36fa4e7591e63ee8a95fc428be85bbc6f809aa75ddb2dac5fa1",
+        "contentHash": "c52d88a820917d997d0478c1ae565280e6f7259ad56a1df270a5fcfa73cc42cb",
         "fragmentReport": null,
         "reason": null
       },
@@ -365,7 +371,7 @@
         "kind": "modified",
         "oldPath": "requirements/prd.md",
         "newPath": "requirements/prd.md",
-        "contentHash": "0600bcb3d9d08196ec875fc55487f9f54fd3b8b473cba92d404a2895339b80f2",
+        "contentHash": "0d92fc6cf4a067660d182cd121c681f1c6c0716be2896a94416ad7181a73a275",
         "fragmentReport": {
           "path": "requirements/prd.md",
           "oldDocumentVersionId": "snapshot-old-requirements-prd.md",

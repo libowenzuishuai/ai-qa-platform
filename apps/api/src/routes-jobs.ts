@@ -190,9 +190,10 @@ export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jo
     const {id}=z.object({id:z.string()}).parse(req.params);
     const job=await prisma.job.findUnique({where:{id}});if(!job)throw new ApiError('NOT_FOUND','作业不存在');
     await requireProjectAccess(prisma,req,job.projectId,'LEAD');
-    if(!['LOGIN_CHECK','DATA_PREPARE','DATA_CLEANUP','DATA_INSPECT','CHANGE_REVIEW'].includes(job.kind))throw new ApiError('UNSUPPORTED','此类作业使用所属运行的取消入口');
+    if(!['LOGIN_CHECK','DATA_PREPARE','DATA_CLEANUP','DATA_INSPECT','CHANGE_REVIEW','SNAPSHOT_DIFF'].includes(job.kind))throw new ApiError('UNSUPPORTED','此类作业使用所属运行的取消入口');
     const changed=await prisma.job.updateMany({where:{id,status:{in:['QUEUED','RUNNING']}},data:{status:'CANCELLED',finishedAt:new Date()}});
-    if(changed.count&&job.kind==='LOGIN_CHECK')await prisma.loginPreparation.updateMany({where:{lastCheckJobId:id},data:{lastCheckStatus:'CANCELLED',lastCheckAt:null}});
+    if(!changed.count)throw new ApiError('CONFLICT','作业已处于终态，不能取消');
+    if(job.kind==='LOGIN_CHECK')await prisma.loginPreparation.updateMany({where:{lastCheckJobId:id},data:{lastCheckStatus:'CANCELLED',lastCheckAt:null}});
     return {jobId:id,status:(await prisma.job.findUniqueOrThrow({where:{id}})).status};
   });
 

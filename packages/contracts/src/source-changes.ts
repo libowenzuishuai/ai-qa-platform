@@ -91,6 +91,8 @@ export const FileSnapshotEntry = z.object({
   /** 仓库内相对路径（UTF-8，大小写敏感，逐字节比较）。 */
   path: z.string().min(1).max(1024),
   bundle: ParsedDocumentBundle,
+  /** 真实文件字节 sha256（DocumentVersion.checksum）：未变化/重命名判定的唯一字节证据。 */
+  fileChecksum: z.string().regex(/^[a-f0-9]{64}$/),
 }).strict();
 export type FileSnapshotEntry = z.infer<typeof FileSnapshotEntry>;
 
