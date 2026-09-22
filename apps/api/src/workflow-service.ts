@@ -9,6 +9,9 @@ export type WorkflowInputs = {
   baselineId?: string;
   buildId?: string;
   observationPages?: Array<{ role: string; path: string }>;
+  /** R07 工程体检：仓库地址与子目录（由准备中心的私库授权固定）。 */
+  repositoryUrl?: string;
+  subdirectory?: string;
   caseVersionIds?: string[];
   ruleVersionIds?: string[];
   pinnedPlans?: Array<{

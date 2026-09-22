@@ -45,6 +45,8 @@ export function registerWorkflowRoutes(
     )
       throw new ApiError("VALIDATION_ERROR", "资料版本不能重复");
     const fingerprint = configHash(body);
+    if (!body.templateVersion && !body.templateId)
+      throw new ApiError("VALIDATION_ERROR", "请指定内置模板（templateVersion v1）或已发布的能力目录模板（templateId）");
     const wf = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "Project" WHERE id=${projectId} FOR UPDATE`;
       const old = await tx.workflowRun.findUnique({
@@ -59,6 +61,16 @@ export function registerWorkflowRoutes(
         if (old.inputFingerprint !== fingerprint)
           throw new ApiError("IDEMPOTENCY_CONFLICT", "相同幂等键对应不同请求");
         return old;
+      }
+      // R07：目录模板 → 冻结节点快照（运行固定引用该版本，后续发布 v2 不影响）。
+      let templateNodes: unknown = null;
+      if (body.templateId) {
+        const template = await tx.workflowTemplate.findFirst({
+          where: { id: body.templateId, projectId, status: "PUBLISHED" },
+        });
+        if (!template)
+          throw new ApiError("VALIDATION_ERROR", "模板不存在、未发布或不属于本项目");
+        templateNodes = template.nodes;
       }
       const env = await tx.environment.findFirst({
         where: {
@@ -121,11 +133,13 @@ export function registerWorkflowRoutes(
         data: {
           projectId,
           missionId: body.missionId,
-          templateVersion: "v1",
+          templateVersion: body.templateVersion ?? `catalog:${body.templateId}`,
+          templateId: body.templateId ?? null,
           inputs: {
             ...body.inputs,
             ...frozen,
             environmentRevision: env.revision,
+            ...(templateNodes ? { templateNodes } : {}),
           },
           budget: body.budget,
           status: "QUEUED",

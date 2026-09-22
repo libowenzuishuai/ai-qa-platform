@@ -848,6 +848,8 @@ model WorkflowRun {
    * 模板版本。
    */
   templateVersion   String
+  /** R07：运行固定的能力目录模板（WorkflowTemplate；运行期间模板发布 v2 不影响本运行）。 */
+  templateId        String?
   /**
    * 固定输入引用（documentVersionIds / baselineId / environmentId / buildId）。
    */
@@ -881,6 +883,8 @@ model WorkflowNode {
    * 模板中的节点 key。
    */
   nodeKey        String
+  /** R07：节点执行的能力 key（模板运行时按此分发；v1 固定链为空）。 */
+  capabilityKey  String?
   /**
    * 检查点/依赖顺序。
    */

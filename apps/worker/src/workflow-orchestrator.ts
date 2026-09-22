@@ -78,14 +78,22 @@ export async function advanceWorkflow(
           where: { id: workflowId },
           data: { status: "RUNNING" },
         });
-        for (const [i, key] of WORKFLOW_TEMPLATE_V1_NODES.entries())
+        // R07：目录模板运行按冻结快照建节点（capabilityKey 驱动分发）；v1 固定链不变。
+        const templateNodes = (input as WorkflowInputs & {
+          templateNodes?: Array<{ key: string; capabilityKey: string; dependsOn?: string[]; isApprovalGate?: boolean; condition?: Record<string, unknown> }>;
+        }).templateNodes;
+        const nodeDefs: Array<{ key: string; capabilityKey?: string; condition?: Record<string, unknown> }> = templateNodes
+          ? templateNodes.map((n) => ({ key: n.key, capabilityKey: n.capabilityKey, condition: n.condition }))
+          : WORKFLOW_TEMPLATE_V1_NODES.map((key) => ({ key }));
+        for (const [i, def] of nodeDefs.entries())
           await tx.workflowNode.upsert({
-            where: { workflowId_nodeKey: { workflowId, nodeKey: key } },
+            where: { workflowId_nodeKey: { workflowId, nodeKey: def.key } },
             create: {
               workflowId,
-              nodeKey: key,
+              nodeKey: def.key,
+              capabilityKey: def.capabilityKey ?? null,
               seq: i + 1,
-              idempotencyKey: `${workflowId}:${key}`,
+              idempotencyKey: `${workflowId}:${def.key}`,
               inputHash: wf.inputFingerprint ?? workflowId,
             },
             update: {},
@@ -272,8 +280,53 @@ export async function advanceWorkflow(
           output("case_suggest").caseVersionIds ?? input.caseVersionIds ?? [];
         const rules: string[] =
           output("rule_suggest").ruleVersionIds ?? input.ruleVersionIds ?? [];
+        // 受限条件（不 eval）：变量指向 prior 节点输出或运行输入；不满足 → 跳过。
+        const nodeCondition = templateNodes?.find((t) => t.key === node.nodeKey)?.condition;
+        if (nodeCondition) {
+          const cond = nodeCondition as { variable: string; operator: string; value?: unknown };
+          const resolved = cond.variable.startsWith("input.")
+            ? (input as Record<string, unknown>)[cond.variable.slice(6)]
+            : cond.variable.split(".").reduce<unknown>((acc, part) =>
+                (acc as Record<string, unknown> | undefined)?.[part], {
+                  outputs: Object.fromEntries(
+                    nodes
+                      .filter((n) => n.status === "completed")
+                      .map((n) => [n.capabilityKey ?? n.nodeKey, n.outputRef ?? {}]),
+                  ),
+                });
+          let met = false;
+          if (cond.operator === "exists") met = resolved !== undefined && resolved !== null;
+          else if (cond.operator === "not_exists") met = resolved === undefined || resolved === null;
+          else if (cond.operator === "eq") met = resolved === cond.value;
+          else if (cond.operator === "ne") met = resolved !== cond.value;
+          else if (cond.operator === "gt") met = Number(resolved) > Number(cond.value);
+          else if (cond.operator === "lt") met = Number(resolved) < Number(cond.value);
+          else throw new Error(`不支持的条件运算符：${cond.operator}`);
+          if (!met) {
+            await complete({ skippedByCondition: cond }, true);
+            return;
+          }
+        }
+        const CAPABILITY_HANDLERS: Record<string, string> = {
+          "document-parse": "document_parse",
+          "rule-extract": "rule_suggest",
+          "rule-approval-gate": "rule_approval_gate",
+          "case-generate": "case_suggest",
+          "case-approval-gate": "case_approval_gate",
+          "page-observe": "page_observation",
+          "plan-approval-gate": "plan_proposal_gate",
+          "login-check": "preparation_check",
+          "browser-execute": "execution",
+          "evaluate": "evaluation",
+          "repo-discovery": "repo_discovery",
+        };
+        const dispatchKey = node.capabilityKey
+          ? CAPABILITY_HANDLERS[node.capabilityKey]
+          : node.nodeKey;
+        if (node.capabilityKey && !dispatchKey)
+          throw new Error(`节点 ${node.nodeKey} 引用了未注册的执行能力：${node.capabilityKey}`);
         try {
-          switch (node.nodeKey) {
+          switch (dispatchKey) {
             case "document_parse": {
               if (input.baselineId) {
                 await complete(
@@ -352,6 +405,17 @@ export async function advanceWorkflow(
                   });
                 }
               }
+              break;
+            }
+            case "repo_discovery": {
+              // 工程体检入口：真实仓库发现（凭据与范围由准备中心固定）。
+              const r = await children([
+                {
+                  kind: "REPO_DISCOVERY",
+                  request: { repositoryUrl: input.repositoryUrl ?? "", subdirectory: input.subdirectory ?? "", mode: "real" },
+                },
+              ]);
+              if (r) await complete(r[0] ?? {});
               break;
             }
             case "rule_suggest": {

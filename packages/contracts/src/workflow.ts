@@ -49,7 +49,10 @@ export const WorkflowBudget = z.object({
 export const WorkflowRunRequest = z.object({
   idempotencyKey: z.string().min(1).max(120),
   missionId: EntityId.optional(),
-  templateVersion: z.literal('v1'),
+  /** 内置固定链（v1）。 */
+  templateVersion: z.literal('v1').optional(),
+  /** R07：能力目录模板（已发布）；运行创建时冻结节点快照，模板后续发布 v2 不影响本运行。 */
+  templateId: EntityId.optional(),
   inputs: z.object({
     documentVersionIds: z.array(EntityId).max(20).default([]),
     baselineId: EntityId.optional(),
