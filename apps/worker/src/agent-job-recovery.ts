@@ -23,6 +23,7 @@ export async function reconcileAgentJobs(prisma: PrismaClient, queue: Pick<Queue
     });
     if (changed.count) {
       await markDocumentFailed(tx, job);
+      if(job.kind==='CHUNK_EXTRACT')await tx.documentChunk.updateMany({where:{leaseOwnerJobId:job.id,status:"in_progress"},data:{status:"failed",leaseOwnerJobId:null,leaseExpiresAt:null}});
       if(job.kind==='LOGIN_CHECK')await tx.loginPreparation.updateMany({where:{lastCheckJobId:job.id},data:{lastCheckStatus:'ERROR',lastCheckAt:null,lastCheckDetail:'检查进程失联，需重新检查'}});
     }
     });

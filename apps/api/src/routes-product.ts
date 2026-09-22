@@ -171,6 +171,7 @@ export function registerProductRoutes(app: FastifyInstance, prisma: PrismaClient
     const body = z.object({ paths: ids }).strict().parse(req.body);
     const files = snapshot.files as Array<{ path: string; category: string; checksum: string; storageKey: string; format: string; size: number }>;
     const created = await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM "Project" WHERE id = ${snapshot.projectId} FOR UPDATE`;
       await tx.$queryRaw`SELECT id FROM "ContextSnapshot" WHERE id = ${snapshot.id} FOR UPDATE`;
       const results: { documentVersionId: string; jobId?: string }[] = [];
       for (const path of body.paths) {
@@ -179,13 +180,22 @@ export function registerProductRoutes(app: FastifyInstance, prisma: PrismaClient
         if (!store.verify(file.storageKey,file.checksum)) throw new ApiError('VALIDATION_ERROR','仓库资料损坏');
         const existing = await tx.contextSource.findUnique({ where: { snapshotId_path: { snapshotId: snapshot.id, path } } });
         if (existing) { results.push({ documentVersionId: existing.documentVersionId }); continue; }
-        const reusable = await tx.documentVersion.findFirst({ where: { checksum: file.checksum, document: { projectId: snapshot.projectId }, parseStatus: 'PARSED', mode: 'real' } });
-        let versionId = reusable?.id, jobId: string | undefined;
-        if (!versionId) {
-          const doc = await tx.document.create({ data: { projectId: snapshot.projectId, title: file.path } });
-          const version = await tx.documentVersion.create({ data: { documentId: doc.id, version: 1, checksum: file.checksum, storageKey: file.storageKey, format: file.format, parseStatus: 'PENDING', mode: 'real', fileSizeBytes: file.size } });
+        // Identity is repository + subdirectory + path, not byte equality across arbitrary documents.
+        // A project lock serializes concurrent snapshot imports and document version allocation.
+        const priorSource = await tx.contextSource.findFirst({
+          where: { path, snapshot: { projectId: snapshot.projectId, repositoryUrl: snapshot.repositoryUrl, subdirectory: snapshot.subdirectory }, documentVersion: { format: file.format } },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], include: { documentVersion: true },
+        });
+        const latest = priorSource ? await tx.documentVersion.findFirst({where:{documentId:priorSource.documentVersion.documentId},orderBy:{version:'desc'}}) : null;
+        let versionId: string, jobId: string | undefined;
+        if (latest?.checksum === file.checksum && latest.format === file.format && latest.mode === 'real') {
+          versionId = latest.id;
+          if (latest.parseStatus !== 'PARSED') jobId = (await tx.job.findFirst({where:{projectId:snapshot.projectId,kind:'DOCUMENT_PARSE',fingerprint:hash({versionId})}}))?.id;
+        } else {
+          const documentId = latest?.documentId ?? (await tx.document.create({ data: { projectId: snapshot.projectId, title: file.path } })).id;
+          const version = await tx.documentVersion.create({ data: { documentId, version: (latest?.version ?? 0) + 1, checksum: file.checksum, storageKey: file.storageKey, format: file.format, parseStatus: 'PENDING', mode: 'real', fileSizeBytes: file.size } });
           versionId = version.id;
-          const job = await tx.job.create({ data: { projectId: snapshot.projectId, kind: 'DOCUMENT_PARSE', fingerprint: hash({ versionId }), request: { documentId: doc.id, documentVersionId: version.id, mode: 'real' } } }); jobId = job.id;
+          const job = await tx.job.create({ data: { projectId: snapshot.projectId, kind: 'DOCUMENT_PARSE', fingerprint: hash({ versionId }), request: { documentId, documentVersionId: version.id, mode: 'real' } } }); jobId = job.id;
         }
         await tx.contextSource.create({ data: { snapshotId: snapshot.id, path, documentVersionId: versionId, authority: 'BUSINESS_CANDIDATE', confirmedBy: requireAuth(req).userId } });
         results.push({ documentVersionId: versionId, jobId });

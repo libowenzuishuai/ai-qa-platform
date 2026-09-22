@@ -1,8 +1,12 @@
+import type {Queue} from 'bullmq';
+import {freezeGoalInput} from './goal-service.js';
+import {contentHash} from './change-review-service.js';
+import { freezeExecutableTemplate, installBuiltinTemplates } from './template-runtime.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import {
-  ReleaseDecisionKind,
+  ReleaseDecisionKind, TemplateNodeDefinition, EvidenceRetentionPolicy,
   GoalProposal,
   MemoryRecord,
   DiagnosisEntry,
@@ -23,10 +27,27 @@ import { ApiError } from './errors.js';
  * - 记忆检索按 projectId 隔离，跨项目一律拒绝。
  */
 
-export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient, store: ArtifactStore) {
+export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient, store: ArtifactStore, queue?:Pick<Queue,"add">) {
   const param = (req: FastifyRequest, key: string) =>
     (req.params as Record<string, string>)[key]!;
   const json = (x: unknown) => x as never;
+
+  app.get('/api/projects/:id/evidence-retention', async req => {
+    const projectId=param(req,'id');await requireProjectAccess(prisma,req,projectId);
+    const project=await prisma.project.findUniqueOrThrow({where:{id:projectId}});
+    return {policy:EvidenceRetentionPolicy.parse((project.settings as any).evidenceRetention??{}),scope:'仅终态运行的执行证据；资料原文与计划观察来源保留',note:'停用策略不会恢复已删除或已过期的证据'};
+  });
+  app.put('/api/projects/:id/evidence-retention', async req => {
+    const projectId=param(req,'id');await requireProjectAccess(prisma,req,projectId,'ADMIN');
+    const policy=EvidenceRetentionPolicy.parse(req.body);
+    return prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT id FROM "Project" WHERE id = ${projectId} FOR UPDATE`;
+      const project=await tx.project.findUniqueOrThrow({where:{id:projectId}});
+      await tx.project.update({where:{id:projectId},data:{settings:json({...project.settings as object,evidenceRetention:policy})}});
+      await tx.auditEvent.create({data:{actorId:requireAuth(req).userId,action:'evidenceRetention.configure',entityType:'Project',entityId:projectId,metadata:json({previous:(project.settings as any).evidenceRetention??null,policy})}});
+      return {policy};
+    });
+  });
 
   // ============ R09: ReleaseDecision ============
 
@@ -198,7 +219,7 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
   app.get('/api/projects/:id/stats', async req => {
     const projectId = param(req, 'id');
     await requireProjectAccess(prisma, req, projectId);
-    const [total, byLifecycle, byAcceptance, defectCounts] = await Promise.all([
+    const [total, byLifecycle, recordedByAcceptance, defectCounts] = await Promise.all([
       prisma.run.count({ where: { projectId } }),
       prisma.run.groupBy({ by: ['lifecycle'], where: { projectId }, _count: { _all: true } }),
       prisma.run.groupBy({ by: ['acceptanceStatus'], where: { projectId }, _count: { _all: true } }),
@@ -207,14 +228,22 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
     const lifecycle: Record<string, number> = {};
     for (const row of byLifecycle) lifecycle[row.lifecycle] = row._count._all;
     const acceptance: Record<string, number> = {};
-    for (const row of byAcceptance) acceptance[row.acceptanceStatus] = row._count._all;
+    const recordedAcceptance: Record<string,number> = {};
+    for (const row of recordedByAcceptance) recordedAcceptance[row.acceptanceStatus] = row._count._all;
+    // Re-evaluate evidence through the same report builder; cached terminal PASS can outlive its files.
+    let cursor:string|undefined;
+    do {
+      const batch=await prisma.run.findMany({where:{projectId},select:{id:true},orderBy:{id:'asc'},take:50,...(cursor?{cursor:{id:cursor},skip:1}:{})});
+      for(const run of batch){const report=await buildRunReport(prisma,store,run.id);const status=report.metrics.acceptanceStatus;acceptance[status]=(acceptance[status]??0)+1;}
+      cursor=batch.length===50?batch.at(-1)!.id:undefined;
+    }while(cursor);
     const defects: Record<string, number> = {};
     for (const row of defectCounts) defects[row.status] = row._count._all;
     return {
-      runs: { total, byLifecycle: lifecycle, byAcceptance: acceptance },
+      runs: { total, byLifecycle: lifecycle, byAcceptance: acceptance, recordedByAcceptance: recordedAcceptance },
       defects: { byStatus: defects, total: Object.values(defects).reduce((a, b) => a + b, 0) },
       generatedAt: new Date().toISOString(),
-      note: '服务端全量统计（group by 数库），与列表分页限额无关',
+      note: '服务端全量统计；当前验收状态重新核对证据，与报告同源，另保留入库时状态',
     };
   });
 
@@ -238,11 +267,13 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
       cleanupResponsibility: z.string().max(1000).optional(),
     }).strict().parse(req.body);
 
-    const prior = await prisma.capabilityCatalog.findFirst({
+    return prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT id FROM "Project" WHERE id = ${projectId} FOR UPDATE`;
+    const prior = await tx.capabilityCatalog.findFirst({
       where: { projectId, key: body.key },
       orderBy: { version: 'desc' },
     });
-    const created = await prisma.capabilityCatalog.create({
+    const created = await tx.capabilityCatalog.create({
       data: {
         projectId,
         key: body.key,
@@ -261,7 +292,7 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
         createdBy: requireAuth(req).userId,
       },
     });
-    await prisma.auditEvent.create({
+    await tx.auditEvent.create({
       data: {
         actorId: requireAuth(req).userId,
         action: 'capability.create',
@@ -271,6 +302,7 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
       },
     });
     return created;
+    });
   });
 
   app.get('/api/projects/:id/capabilities', async req => {
@@ -293,16 +325,7 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
       key: z.string().regex(/^[a-z][a-z0-9-]*$/),
       name: z.string().min(1).max(200),
       description: z.string().max(2000).optional(),
-      nodes: z.array(z.object({
-        key: z.string().regex(/^[a-z][a-z0-9-]*$/),
-        capabilityKey: z.string().regex(/^[a-z][a-z0-9-]*$/),
-        capabilityVersion: z.number().int().min(1),
-        dependsOn: z.array(z.string()).default([]),
-        isApprovalGate: z.boolean().default(false),
-        condition: z.unknown().optional(),
-        inputMapping: z.record(z.string(), z.string()).default({}),
-        budgetOverride: z.unknown().optional(),
-      })).min(1).max(64),
+      nodes: z.array(TemplateNodeDefinition).min(1).max(64),
       defaultBudget: z.object({
         maxWallClockMs: z.number().int().min(60_000).default(3_600_000),
         maxModelCalls: z.number().int().min(1).default(50),
@@ -352,11 +375,13 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
       throw new ApiError('VALIDATION_ERROR', `模板包含环：${cycle.join(', ')}`);
     }
 
-    const prior = await prisma.workflowTemplate.findFirst({
+    return prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT id FROM "Project" WHERE id = ${projectId} FOR UPDATE`;
+    const prior = await tx.workflowTemplate.findFirst({
       where: { projectId, key: body.key },
       orderBy: { version: 'desc' },
     });
-    const created = await prisma.workflowTemplate.create({
+    const created = await tx.workflowTemplate.create({
       data: {
         projectId,
         key: body.key,
@@ -369,7 +394,7 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
         createdBy: requireAuth(req).userId,
       },
     });
-    await prisma.auditEvent.create({
+    await tx.auditEvent.create({
       data: {
         actorId: requireAuth(req).userId,
         action: 'workflowTemplate.create',
@@ -379,6 +404,12 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
       },
     });
     return created;
+    });
+  });
+
+  app.post('/api/projects/:id/workflow-templates/builtins',async req=>{
+    const projectId=param(req,'id');await requireProjectAccess(prisma,req,projectId,'ADMIN');
+    return prisma.$transaction(async tx=>{await tx.$queryRaw`SELECT id FROM "Project" WHERE id=${projectId} FOR UPDATE`;return {templates:await installBuiltinTemplates(tx,projectId,requireAuth(req).userId)};});
   });
 
   app.get('/api/projects/:id/workflow-templates', async req => {
@@ -399,6 +430,7 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
     await requireProjectAccess(prisma, req, template.projectId, 'ADMIN');
     if (template.status === 'PUBLISHED') return { id, status: 'PUBLISHED', note: '已发布（幂等）' };
     if (template.status === 'DEPRECATED') throw new ApiError('CONFLICT', '已废弃的模板不能发布');
+    await freezeExecutableTemplate(prisma,template.projectId,template.nodes);
     await prisma.workflowTemplate.update({
       where: { id },
       data: { status: 'PUBLISHED', publishedAt: new Date() },
@@ -416,6 +448,22 @@ export function registerReleaseRoutes(app: FastifyInstance, prisma: PrismaClient
   });
 
   // ============ R08: GoalProposal ============
+
+  app.post('/api/projects/:id/goal-proposals/propose',async(req,reply)=>{
+    const projectId=param(req,'id');await requireProjectAccess(prisma,req,projectId,'LEAD');
+    const body=z.object({goal:z.string().trim().min(1).max(4000),idempotencyKey:z.string().min(8).max(120),documentVersionIds:z.array(z.string().min(1)).max(20).default([]),environmentId:z.string().optional(),mode:z.enum(['real','mock']).default('real')}).strict().parse(req.body);
+    const fingerprint=contentHash({key:body.idempotencyKey});
+    const job=await prisma.$transaction(async tx=>{
+      await tx.$queryRaw`SELECT id FROM "Project" WHERE id=${projectId} FOR UPDATE`;
+      const old=await tx.job.findUnique({where:{projectId_kind_fingerprint:{projectId,kind:'GOAL_PROPOSAL',fingerprint}}});
+      if(old){if((old.request as any).bodyHash!==contentHash(body))throw new ApiError('IDEMPOTENCY_CONFLICT','相同幂等键的目标内容不同');return old;}
+      const frozen=await freezeGoalInput(tx,projectId,body);
+      if(body.mode==='real'&&frozen.pins.documents.some(d=>d.mode!=='real'))throw new ApiError('VALIDATION_ERROR','模拟资料不能作为真实规划依据');
+      return tx.job.create({data:{projectId,kind:'GOAL_PROPOSAL',fingerprint,request:{...body,bodyHash:contentHash(body),frozen,createdBy:requireAuth(req).userId}}});
+    });
+    if(job.status==='QUEUED'&&queue)try{await queue.add('run',{jobId:job.id},{removeOnComplete:true,removeOnFail:200});}catch{/* durable reconciliation */}
+    return reply.code(202).send({jobId:job.id});
+  });
 
   app.post('/api/projects/:id/goal-proposals', async req => {
     const projectId = param(req, 'id');

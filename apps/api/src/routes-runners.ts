@@ -19,7 +19,7 @@ export function registerRunnerRoutes(app:FastifyInstance,prisma:PrismaClient,sto
   }
   app.post('/api/projects/:id/runners',async req=>{
     const projectId=id(req);await requireProjectAccess(prisma,req,projectId,'ADMIN');
-    const body=z.object({name:z.string().min(1).max(100),capabilities:z.array(z.enum(['NODE_TEST','PYTHON_TEST','NODE_BUILD'])).min(1)}).strict().parse(req.body);
+    const body=z.object({name:z.string().min(1).max(100),capabilities:z.array(CodeCheckRequest.shape.kind).min(1)}).strict().parse(req.body);
     const token=randomBytes(32).toString('hex');const row=await prisma.executionRunner.create({data:{...body,projectId,tokenHash:digest(token)}});
     return {id:row.id,name:row.name,token,capabilities:row.capabilities};
   });

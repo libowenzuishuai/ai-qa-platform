@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CodeCheckRequest } from './product.js';
 import { EntityId, IsoDateTime } from './common.js';
 
 /**
@@ -56,13 +57,14 @@ export const WorkflowRunRequest = z.object({
   inputs: z.object({
     documentVersionIds: z.array(EntityId).max(20).default([]),
     baselineId: EntityId.optional(),
-    environmentId: EntityId,
+    environmentId: EntityId.optional(),
     buildId: z.string().min(1).max(200).optional(),
     observationPages: z.array(z.object({role:z.string().min(1).max(80),path:z.string().regex(/^\/(?!\/)[^\\\r\n]*$/)}).strict()).max(20).optional(),
+    codeCheck: CodeCheckRequest.optional(),
     goal: z.string().max(4000).optional(),
   }).strict(),
   budget: WorkflowBudget.default({}),
-}).strict();
+}).strict().refine(r=>Boolean(r.templateId)!==Boolean(r.templateVersion),{message:'请指定一个模板入口'});
 
 /** 节点状态（对外 API）。 */
 export const WorkflowNodeView = z.object({

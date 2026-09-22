@@ -135,14 +135,8 @@ it('模板校验：悬空引用、环、重复节点 key 均被拒绝', async ()
 
 it('模板创建与发布：合法 DAG 通过，发布幂等，重复 key 版本自增', async () => {
   const url = `/projects/${projectId}/workflow-templates`;
-  const okBody = {
-    key: 'release-acceptance', name: '发布验收',
-    nodes: [
-      { key: 'observe', capabilityKey: 'doc-parse', capabilityVersion: 1 },
-      { key: 'gate', capabilityKey: 'doc-parse', capabilityVersion: 1, dependsOn: ['observe'], isApprovalGate: true },
-      { key: 'execute', capabilityKey: 'doc-parse', capabilityVersion: 2, dependsOn: ['gate'] },
-    ],
-  };
+  await post(`/projects/${projectId}/capabilities`,{key:'document-parse',name:'解析',inputSchema:{type:'object'},outputSchema:{type:'object'},effects:['READ'],idempotencyStrategy:'idempotent',recoveryStrategy:'read_only'});
+  const okBody={key:'release-acceptance',name:'解析入口',nodes:[{key:'parse-my-doc',capabilityKey:'document-parse',capabilityVersion:1}]};
   const created = await post(url, okBody);
   expect(created.statusCode).toBe(200);
   const template = created.json();
@@ -303,4 +297,13 @@ it('全量统计：group by 数库，与列表限额无关', async () => {
   expect(stats.runs.byLifecycle.FINISHED).toBeGreaterThanOrEqual(1);
   expect(stats.runs.byAcceptance.FAIL).toBeGreaterThanOrEqual(1);
   expect(stats.generatedAt).toBeTruthy();
+});
+
+it('并发能力注册与模板新版本分配唯一版本号，不返回 500',async()=>{
+ const base={key:'concurrent-cap',name:'并发',inputSchema:{type:'object'},outputSchema:{type:'object'},effects:['READ'],idempotencyStrategy:'idempotent',recoveryStrategy:'read_only'};
+ const caps=await Promise.all([post(`/projects/${projectId}/capabilities`,base),post(`/projects/${projectId}/capabilities`,base)]);
+ expect(caps.map(r=>r.statusCode)).toEqual([200,200]);expect(caps.map(r=>r.json().version).sort()).toEqual([1,2]);
+ const template={key:'concurrent-template',name:'并发',nodes:[{key:'parse',capabilityKey:'doc-parse',capabilityVersion:1}]};
+ const ts=await Promise.all([post(`/projects/${projectId}/workflow-templates`,template),post(`/projects/${projectId}/workflow-templates`,template)]);
+ expect(ts.map(r=>r.statusCode)).toEqual([200,200]);expect(ts.map(r=>r.json().version).sort()).toEqual([1,2]);
 });

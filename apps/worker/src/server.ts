@@ -1,3 +1,4 @@
+import { sweepProjectEvidence } from './evidence-retention.js';
 import { reconcileCodeChecks } from '@ai-qa/run-events';
 import { ArtifactStore } from "@ai-qa/artifact-store";
 import Fastify from "fastify";
@@ -162,6 +163,19 @@ const workflowTimer=setInterval(()=>{
   })().finally(()=>{workflowTickRunning=false;});
 },1000);
 
+let retentionRunning=false;
+const retentionTimer=setInterval(()=>{
+ if(retentionRunning)return;retentionRunning=true;
+ void (async()=>{
+  let cursor:string|undefined;
+  do{
+   const projects=await prisma.project.findMany({where:{settings:{path:['evidenceRetention','enabled'],equals:true}},orderBy:{id:'asc'},take:20,...(cursor?{cursor:{id:cursor},skip:1}:{})});
+   for(const project of projects)await sweepProjectEvidence(prisma,workflowStore,project.id).catch(err=>console.error('[retention]',project.id,err.message));
+   cursor=projects.length===20?projects.at(-1)!.id:undefined;
+  }while(cursor);
+ })().catch(err=>console.error('[retention]',err.message)).finally(()=>{retentionRunning=false;});
+},60000);
+
 // —— 健康服务 ——
 const app = Fastify({ logger: { level: config.logLevel } });
 app.get("/api/health", async () => ({
@@ -179,6 +193,7 @@ app.log.info(`worker ready on http://${host}:${port}`);
 const shutdown = async () => {
   clearInterval(reconciler);
   clearInterval(workflowTimer);
+  clearInterval(retentionTimer);
   await runWorker.close();
   await agentJobWorker.close();
   await seedWorker.close();

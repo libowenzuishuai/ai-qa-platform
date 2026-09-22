@@ -52,6 +52,8 @@ async def propose_goal(input, context):
         capability = catalog.get(tool['capabilityKey'])
         if capability is None:
             raise ServiceError('MODEL_OUTPUT_INVALID', f"模型建议了目录外工具：{tool['capabilityKey']}")
+        if not data.get('hasDocuments') and tool['capabilityKey'] not in {'code-check', 'repo-discovery', 'page-observe'}:
+            raise ServiceError('MODEL_OUTPUT_INVALID', '无资料只能建议工程检查或只读探索，不能生成伪业务标准')
         if capability.get('requiresEnvironment') and not data.get('environmentConfigured', False):
             raise ServiceError('MODEL_OUTPUT_INVALID', f"环境未配置却建议了需要环境的能力：{tool['capabilityKey']}")
     if not data.get('hasDocuments', False):

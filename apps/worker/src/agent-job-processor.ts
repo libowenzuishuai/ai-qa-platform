@@ -1,3 +1,4 @@
+import {runGoalProposal} from './goal-job.js';
 import { loadCompletedChunks } from "../../api/src/chunk-results.js";
 import {runChangeReview} from "./change-review-job.js";
 import { runSnapshotDiff } from "./snapshot-diff-job.js";
@@ -165,7 +166,9 @@ export async function processAgentJob(
       config={...config,executionBudget:request.workflowBudget};
     }
     const store = new ArtifactStore(config.artifactDir);
-    if(job.kind === "CHANGE_REVIEW") {
+    if(job.kind === "GOAL_PROPOSAL"){
+      await runGoalProposal(prisma,job,config,commitJob);
+    } else if(job.kind === "CHANGE_REVIEW") {
       await runChangeReview(prisma,store,job,config,commitJob);
     } else if(job.kind === "SNAPSHOT_DIFF") {
       await runSnapshotDiff(prisma,store,job,config,commitJob);

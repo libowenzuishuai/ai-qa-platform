@@ -1,3 +1,8 @@
+import {registerReleaseRoutes} from '../../api/src/routes-release.js';
+import {registerChangeReviewRoutes} from '../../api/src/routes-change-review.js';
+import {registerSnapshotChangeRoutes} from '../../api/src/routes-snapshot-changes.js';
+import {registerChunkRoutes} from '../../api/src/routes-chunks.js';
+import {installBuiltinTemplates,HANDLERS} from '../../api/src/template-runtime.js';
 import { beforeAll, afterAll, it, expect } from "vitest";
 import Fastify from "fastify";
 import { randomUUID } from "node:crypto";
@@ -529,6 +534,10 @@ beforeAll(async () => {
   registerPreparationRoutes(app, env.prisma, outbox);
   registerDataPluginRoutes(app, env.prisma, outbox);
   registerWorkflowRoutes(app, env.prisma);
+  registerReleaseRoutes(app,env.prisma,env.store,queue);
+  registerChangeReviewRoutes(app,env.prisma,env.store,queue);
+  registerSnapshotChangeRoutes(app,env.prisma,env.store,queue);
+  registerChunkRoutes(app,env.prisma,queue);
   registerJobRoutes(app, env.prisma, queue);
   registerProductRoutes(app, env.prisma, env.store, queue, queue);
   registerDocumentRoutes(app, env.prisma, queue, env.store);
@@ -954,10 +963,12 @@ async function baseline(withPlugin = false) {
   ).id;
   return a;
 }
-it("真实基线→浏览器执行→报告；进程在执行提交点退出后不重复创建 Run", async () => {
+it.each([false,true])("真实基线→浏览器执行→报告；SIGKILL 不重复 Run（目录模板=%s）", async catalog => {
   const a = await baseline();
+  const template=catalog?(await env.prisma.$transaction(tx=>installBuiltinTemplates(tx,a.projectId,actor.id))).find(t=>t.key==='baseline-retest'):null;
   const w = await workflow(
     {
+      ...(template?{templateId:template.id,templateVersion:undefined}:{}),
       inputs: {
         environmentId: a.environmentId,
         baselineId: a.baselineId,
@@ -969,7 +980,7 @@ it("真实基线→浏览器执行→报告；进程在执行提交点退出后�
   for (let i = 0; i < 8; i++) await tick(w.workflowId);
   await childTickAndKill(w.workflowId);
   const execution = await env.prisma.workflowNode.findFirstOrThrow({
-    where: { workflowId: w.workflowId, nodeKey: "execution" },
+    where: { workflowId: w.workflowId, nodeKey: catalog?"browser-execute":"execution" },
   });
   const runId = (execution.outputRef as any).runId;
   expect(runId).toBeTruthy();
@@ -1195,7 +1206,7 @@ it("准备中心及工作流页面能在真实浏览器打开、填写和提交"
   }
 }, 25000);
 
-it("需求资料→Python真实解析与网关→三个批准门→真实浏览器→评估（模型协议模拟器）", async () => {
+it.each([false,true])("需求→Python→三个批准门→浏览器→评估（模型模拟器，目录模板=%s）", async catalog => {
   const p = await env.prisma.project.create({
     data: {
       name: "完整流程",
@@ -1232,8 +1243,10 @@ it("需求资料→Python真实解析与网关→三个批准门→真实浏览�
       fileSizeBytes: file.size,
     },
   });
+  const template=catalog?(await env.prisma.$transaction(tx=>installBuiltinTemplates(tx,p.id,actor.id))).find(t=>t.key==='release-acceptance'):null;
   const w = await workflow(
     {
+      ...(template?{templateId:template.id,templateVersion:undefined}:{}),
       inputs: {
         environmentId: e.id,
         documentVersionIds: [v.id],
@@ -1276,11 +1289,11 @@ it("需求资料→Python真实解析与网关→三个批准门→真实浏览�
       }
     }
     if (current.status === "WAITING_HUMAN") {
-      gates.push(current.currentGate!);
+      gates.push(HANDLERS[current.currentGate!]??current.currentGate!);
       const node = current.nodes.find(
         (n) => n.nodeKey === current.currentGate,
       )!;
-      if (node.nodeKey === "rule_approval_gate") {
+      if ((HANDLERS[node.capabilityKey??""]??node.nodeKey) === "rule_approval_gate") {
         await childTickAndKill(w.workflowId);
         const rules = await env.prisma.ruleVersion.findMany({
           where: { rule: { projectId: p.id } },
@@ -1288,14 +1301,14 @@ it("需求资料→Python真实解析与网关→三个批准门→真实浏览�
         for (const r of rules)
           await request("POST", `/api/rule-versions/${r.id}/approve`, {});
       }
-      if (node.nodeKey === "case_approval_gate") {
+      if ((HANDLERS[node.capabilityKey??""]??node.nodeKey) === "case_approval_gate") {
         const cases = await env.prisma.testCaseVersion.findMany({
           where: { projectId: p.id },
         });
         for (const c of cases)
           await request("POST", `/api/case-versions/${c.id}/approve`, {});
       }
-      if (node.nodeKey === "plan_proposal_gate") {
+      if ((HANDLERS[node.capabilityKey??""]??node.nodeKey) === "plan_proposal_gate") {
         for (const id of (node.outputRef as any).proposalIds)
           await request("POST", `/api/plan-proposals/${id}/approve`, {});
       }
@@ -1315,7 +1328,7 @@ it("需求资料→Python真实解析与网关→三个批准门→真实浏览�
   ]);
   expect(modelRequests - before).toBe(3);
   expect(
-    (done.nodes.find((n) => n.nodeKey === "evaluation")!.outputRef as any)
+    (done.nodes.find((n) => (HANDLERS[n.capabilityKey??""]??n.nodeKey) === "evaluation")!.outputRef as any)
       .acceptanceStatus,
   ).toBe("PASS");
   const spans = await env.prisma.sourceSpan.findMany({
@@ -1501,3 +1514,24 @@ it("启动真实 worker 后无需页面轮询：数据库调度→BullMQ→执�
     await once(worker, "exit");
   }
 }, 60000);
+
+it('交付中心、模板和多文件页面真实浏览器可用，桌面与手机无横向溢出',async()=>{
+ const browser=await chromium.launch({headless:true});
+ try{
+  const context=await browser.newContext({viewport:{width:1440,height:1050}});await context.addCookies([{name:'web_sid',value:'p0-test',url:webUrl}]);
+  const page=await context.newPage();const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(`${webUrl}/projects/${project.id}/templates`);
+  await page.getByRole('button',{name:'安装三种内置模板'}).click();
+  expect(await page.locator('h2').allTextContents()).toEqual(expect.arrayContaining(['发布验收','原标准复测','工程体检']));
+  mkdirSync(root+'data/pilot-evidence',{recursive:true});
+  for(const width of [1440,390]){
+   await page.setViewportSize({width,height:1000});
+   for(const route of ['delivery','templates','snapshot-changes','evidence-retention']){
+    const response=await page.goto(`${webUrl}/projects/${project.id}/${route}`);expect(response?.status()).toBe(200);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+    await page.screenshot({path:root+`data/pilot-evidence/delivery-${route}-${width}.png`,fullPage:true});
+   }
+  }
+  expect(errors).toEqual([]);
+ }finally{await browser.close();}
+},25000);

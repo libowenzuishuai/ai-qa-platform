@@ -85,7 +85,7 @@ export async function buildServer() {
   registerPreparationRoutes(app, prisma, agentJobsQueue);
   registerDataPluginRoutes(app, prisma, agentJobsQueue);
   registerWorkflowRoutes(app, prisma);
-  registerReleaseRoutes(app, prisma, artifactStore);
+  registerReleaseRoutes(app, prisma, artifactStore, agentJobsQueue);
   registerDocumentRoutes(app, prisma, agentJobsQueue, artifactStore);
   registerReviewRoutes(app, prisma);
   registerProductRoutes(app, prisma, artifactStore, agentJobsQueue, runsQueue);

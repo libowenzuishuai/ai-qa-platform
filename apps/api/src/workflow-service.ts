@@ -1,9 +1,13 @@
+import { HANDLERS } from './template-runtime.js';
+import type { CodeCheckRequest } from '@ai-qa/contracts';
 import type { Prisma } from "@prisma/client";
 import { ApiError } from "./errors.js";
 
 type DB = Prisma.TransactionClient;
 export type WorkflowInputs = {
-  environmentId: string;
+  environmentId?: string;
+  codeCheck?: import("zod").z.infer<typeof CodeCheckRequest>;
+  createdBy?:string;
   environmentRevision: number;
   documentVersionIds: string[];
   baselineId?: string;
@@ -30,8 +34,10 @@ export async function workflowGateAssets(
     include: { nodes: true },
   });
   const input = wf.inputs as WorkflowInputs;
+  const actual=wf.nodes.find(n=>n.nodeKey===nodeKey);
+  nodeKey=HANDLERS[actual?.capabilityKey??""]??nodeKey;
   const result = (key: string) =>
-    (wf.nodes.find((n) => n.nodeKey === key)?.outputRef ?? {}) as Record<
+    (wf.nodes.find((n) => (HANDLERS[n.capabilityKey??""]??n.nodeKey) === key)?.outputRef ?? {}) as Record<
       string,
       any
     >;

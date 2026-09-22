@@ -35,6 +35,7 @@ export function registerArtifactRoutes(
     if (artifact.sensitivity === "RESTRICTED_RAW" && access.role === "VIEWER") {
       throw new ApiError("FORBIDDEN", "受限原始证据（trace 等）需要 LEAD 及以上权限");
     }
+    if (artifact.expiresAt && artifact.expiresAt <= new Date()) throw new ApiError("NOT_FOUND", "证据已过期，历史结果保留但材料不再可验证");
     if (!store.exists(artifact.storageKey)) {
       throw new ApiError("NOT_FOUND", `证据文件不存在（storageKey 已登记）：${artifact.storageKey}`);
     }
@@ -58,7 +59,8 @@ export function registerArtifactRoutes(
       sensitivity: artifact.sensitivity,
       checksum: artifact.checksum,
       size: store.size(artifact.storageKey),
-      exists: store.exists(artifact.storageKey),
+      exists: store.exists(artifact.storageKey) && (!artifact.expiresAt || artifact.expiresAt > new Date()),
+      expiresAt: artifact.expiresAt,
       createdAt: artifact.createdAt,
     };
   });

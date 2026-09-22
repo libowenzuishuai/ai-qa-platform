@@ -209,14 +209,14 @@ export async function buildRunReport(
       ? (
           await prisma.artifact.findMany({
             where: { attemptId: attempt.id, type: "TRACE" },
-            select: { id: true, type: true, sensitivity: true, storageKey: true },
+            select: { id: true, type: true, sensitivity: true, storageKey: true, expiresAt: true },
           })
         ).map((t) => ({
           artifactId: t.id,
           type: t.type,
           sensitivity: t.sensitivity,
           url: `/api/artifacts/${t.id}`,
-          exists: store.exists(t.storageKey),
+          exists: store.exists(t.storageKey) && (!t.expiresAt || t.expiresAt > new Date()),
         }))
       : [];
 
@@ -248,7 +248,7 @@ export async function buildRunReport(
   for (const name of ["before", "after"]) {
     const phase = build[name];
     const evidence = phase?.evidenceId ? await prisma.artifact.findUnique({ where: { id: phase.evidenceId } }) : null;
-    if (!evidence || evidence.projectId !== run.projectId || evidence.type !== "BUILD_IDENTITY" || !store.verify(evidence.storageKey, evidence.checksum)) { buildVerified = false; continue; }
+    if (!evidence || (evidence.expiresAt && evidence.expiresAt <= new Date()) || evidence.projectId !== run.projectId || evidence.type !== "BUILD_IDENTITY" || !store.verify(evidence.storageKey, evidence.checksum)) { buildVerified = false; continue; }
     try {
       const proof = JSON.parse(store.read(evidence.storageKey).toString());
       if (proof.phase !== name || proof.expected !== run.buildId || proof.observed !== run.buildId || proof.verified !== true) buildVerified = false;

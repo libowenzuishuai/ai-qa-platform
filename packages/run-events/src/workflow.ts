@@ -32,10 +32,11 @@ export async function cancelWorkflowChildren(
 ) {
   const nodes = await tx.workflowNode.findMany({ where: { workflowId } });
   const jobs: string[] = [];
-  const runs: string[] = [];
+  const runs: string[] = [], checks:string[]=[];
   for (const node of nodes) {
-    const ref = (node.outputRef ?? {}) as { jobIds?: string[]; runId?: string };
+    const ref = (node.outputRef ?? {}) as { jobIds?: string[]; runId?: string; checkId?:string };
     jobs.push(...(ref.jobIds ?? []));
+    if(ref.checkId)checks.push(ref.checkId);
     if (ref.runId) runs.push(ref.runId);
   }
   const parsing = await tx.job.findMany({
@@ -65,6 +66,8 @@ export async function cancelWorkflowChildren(
     },
     data: { lifecycle: "CANCEL_REQUESTED" },
   });
+  await tx.codeCheck.updateMany({where:{id:{in:checks},status:"RUNNING"},data:{status:"CANCEL_REQUESTED"}});
+  await tx.codeCheck.updateMany({where:{id:{in:checks},status:"QUEUED"},data:{status:"CANCELLED"}});
   await tx.workflowNode.updateMany({
     where: {
       workflowId,

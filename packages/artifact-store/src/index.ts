@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, writeFileSync, createReadStream, existsSync, statSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { mkdirSync, writeFileSync, createReadStream, existsSync, statSync, readFileSync, lstatSync, unlinkSync } from "node:fs";
+import { dirname, join, resolve, isAbsolute, relative } from "node:path";
 
 /**
  * 证据存储（PRD FR-09 / 阶段 1 提示词 E 节）。
@@ -92,6 +92,22 @@ export class ArtifactStore {
       throw new Error(`证据文件不存在：${storageKey}`);
     }
     return createReadStream(absolute);
+  }
+
+  /** Delete a single owned file. Never follow symlinks or remove directories. Missing is idempotent. */
+  remove(storageKey: string): boolean {
+    if (isAbsolute(storageKey) || storageKey.split(/[\\/]/).includes("..") || !storageKey) throw new Error("非法删除路径");
+    const absolute = this.resolveSafe(storageKey);
+    if (absolute === this.root) throw new Error("不能删除证据根目录");
+    let current = this.root;
+    for (const segment of relative(this.root, absolute).split("/")) {
+      current = join(current, segment);
+      try { if (lstatSync(current).isSymbolicLink()) throw new Error("不能删除符号链接路径"); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; }
+    }
+    if (!lstatSync(absolute).isFile()) throw new Error("只能删除普通证据文件");
+    unlinkSync(absolute);
+    return true;
   }
 
   read(storageKey: string): Buffer {

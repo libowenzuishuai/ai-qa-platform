@@ -2,11 +2,12 @@ import {
   ChangeReviewAnalysisRequest, ChangeReviewAnalysisResponse, DocumentParseRequest, DocumentParseResponse, RuleExtractionRequest, RuleExtractionResponse,
   CaseGenerationRequest, CaseGenerationResponse, PlanProposalRequest, PlanProposalResponse, SourceClassificationRequest, SourceClassificationResponse, ApiErrorBody,
   SnapshotCompareRequest, SnapshotCompareResponse,
-  ChunkingRequest, ChunkingResponse,
+  ChunkingRequest, ChunkingResponse, GoalProposalAgentRequest, GoalProposalAgentResponse,
 } from '@ai-qa/contracts';
 import type { WorkerConfig } from './config.js';
 
 const operations = {
+  goal:{path:"/v1/goals/propose",request:GoalProposalAgentRequest,response:GoalProposalAgentResponse},
   changes: {path:"/v1/changes/analyze",request:ChangeReviewAnalysisRequest,response:ChangeReviewAnalysisResponse},
   sources: { path: "/v1/sources/classify", request: SourceClassificationRequest, response: SourceClassificationResponse },
   plan: { path: "/v1/plans/propose", request: PlanProposalRequest, response: PlanProposalResponse },

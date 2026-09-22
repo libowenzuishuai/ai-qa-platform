@@ -140,3 +140,10 @@ export const DiagnosisEntry = z.object({
   createdBy: z.string(),
   createdAt: IsoDateTime,
 }).strict();
+
+/** Explicit opt-in. Only terminal-run artifacts are eligible; requirement/observation sources are retained. */
+export const EvidenceRetentionPolicy = z.object({
+  enabled: z.boolean().default(false),
+  normalDays: z.number().int().min(1).max(3650).default(90),
+  restrictedDays: z.number().int().min(1).max(3650).default(30),
+}).strict();

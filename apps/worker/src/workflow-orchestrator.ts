@@ -1,3 +1,6 @@
+import {HANDLERS,validateExecutableGraph,ancestors,readReference} from '../../api/src/template-runtime.js';
+import {configHash} from '../../api/src/preparation-service.js';
+import {CodeCheckRequest} from '@ai-qa/contracts';
 import type { PrismaClient, Prisma } from "@prisma/client";
 import { ArtifactStore } from "@ai-qa/artifact-store";
 import {
@@ -30,8 +33,9 @@ export async function advanceWorkflow(
         if (!wf || ["COMPLETED", "FAILED", "CANCELLED"].includes(wf.status))
           return;
         const budget = WorkflowBudget.parse(wf.budget),
-          input = wf.inputs as WorkflowInputs;
-        const deadline = wf.createdAt.getTime() + budget.maxWallClockMs;
+          baseInput = wf.inputs as WorkflowInputs;
+        let input={...baseInput};
+        let deadline = wf.createdAt.getTime() + budget.maxWallClockMs;
         async function stop(message: string, nodeId?: string) {
           if (nodeId)
             await tx.workflowNode.update({
@@ -55,15 +59,16 @@ export async function advanceWorkflow(
           await stop("工作流时间预算已耗尽（包含等待人工确认）");
           return;
         }
-        const env = await tx.environment.findFirst({
+        const environment = input.environmentId? await tx.environment.findFirst({
           where: {
             id: input.environmentId,
             projectId: wf.projectId,
             revision: input.environmentRevision,
             isProduction: false,
           },
-        });
-        if (!env) {
+        }):null;
+        const env=environment!;
+        if (!env && !input.codeCheck) {
           await stop("环境配置发生变化，请重新创建工作流");
           return;
         }
@@ -79,9 +84,11 @@ export async function advanceWorkflow(
           data: { status: "RUNNING" },
         });
         // R07：目录模板运行按冻结快照建节点（capabilityKey 驱动分发）；v1 固定链不变。
-        const templateNodes = (input as WorkflowInputs & {
-          templateNodes?: Array<{ key: string; capabilityKey: string; dependsOn?: string[]; isApprovalGate?: boolean; condition?: Record<string, unknown> }>;
-        }).templateNodes;
+        const frozen=input as WorkflowInputs & {templateNodes?:unknown;templateCapabilities?:unknown;templateParallelism?:number;templateHash?:string};
+        const templateNodes = frozen.templateNodes ? validateExecutableGraph(frozen.templateNodes) : undefined;
+        if(templateNodes && frozen.templateHash!==configHash({templateNodes:frozen.templateNodes,templateCapabilities:frozen.templateCapabilities,templateParallelism:frozen.templateParallelism})){
+          await stop('模板快照校验和不符');return;
+        }
         const nodeDefs: Array<{ key: string; capabilityKey?: string; condition?: Record<string, unknown> }> = templateNodes
           ? templateNodes.map((n) => ({ key: n.key, capabilityKey: n.capabilityKey, condition: n.condition }))
           : WORKFLOW_TEMPLATE_V1_NODES.map((key) => ({ key }));
@@ -102,9 +109,13 @@ export async function advanceWorkflow(
           where: { workflowId },
           orderBy: { seq: "asc" },
         });
-        const node = nodes.find(
-          (n) => !["completed", "skipped"].includes(n.status),
-        );
+        const unfinished=nodes.filter(n=>!['completed','skipped'].includes(n.status));
+        const active=unfinished.filter(n=>n.status==='running');
+        const nextQueued=unfinished.find(n=>n.status==='queued'&&(!templateNodes||templateNodes.find(t=>t.key===n.nodeKey)!.dependsOn.every(d=>nodes.some(p=>p.nodeKey===d&&['completed','skipped'].includes(p.status)))));
+        const node=templateNodes
+          ? unfinished.find(n=>n.status==='failed')??(active.length<Math.min(2,frozen.templateParallelism??1)?nextQueued:undefined)??[...active].sort((a,b)=>a.updatedAt.getTime()-b.updatedAt.getTime())[0]
+          : unfinished[0];
+        if(!node&&unfinished.length){await stop('模板存在无法推进的依赖');return;}
         if (!node) {
           await tx.workflowRun.update({
             where: { id: workflowId },
@@ -117,9 +128,18 @@ export async function advanceWorkflow(
           await stop(node.error ?? "节点失败");
           return;
         }
+        await tx.workflowNode.update({where:{id:node.id},data:{updatedAt:new Date()}});
+        const def=templateNodes?.find(n=>n.key===node.nodeKey);
+        if(def)for(const [key,ref] of Object.entries(def.inputMapping)){
+          const value=readReference(ref,baseInput as Record<string,unknown>,nodes);
+          if(value===undefined){await stop(`节点输入 ${key} 的前序结果缺失`,node.id);return;}
+          (input as Record<string,unknown>)[key]=value;
+        }
+        if(def?.budgetOverride?.maxWallClockMs!==undefined)deadline=Math.min(deadline,(node.startedAt?.getTime()??Date.now())+def.budgetOverride.maxWallClockMs);
+        if(Date.now()>=deadline){await stop('节点时间预算已耗尽',node.id);return;}
         const ref = (node.outputRef ?? {}) as Record<string, any>;
         const output = (key: string) =>
-          (nodes.find((n) => n.nodeKey === key)?.outputRef ?? {}) as Record<
+          (nodes.find((n) => (HANDLERS[n.capabilityKey??""]??n.nodeKey) === key && (!templateNodes||ancestors(templateNodes,node.nodeKey).has(n.nodeKey)))?.outputRef ?? {}) as Record<
             string,
             any
           >;
@@ -180,6 +200,8 @@ export async function advanceWorkflow(
               ...(wf.usage as object),
             };
             const jobIds: string[] = [];
+            let nodeCalls=0;
+            if(def?.budgetOverride?.maxToolCalls!==undefined&&specs.length>def.budgetOverride.maxToolCalls)throw new Error('节点工具预算不足');
             for (const spec of specs) {
               usage.toolCalls++;
               const model = [
@@ -188,7 +210,7 @@ export async function advanceWorkflow(
                 "CASE_GENERATION",
                 "PLAN_PROPOSAL",
               ].includes(spec.kind);
-              const calls = model
+              let calls = model
                 ? spec.kind === "DOCUMENT_PARSE"
                   ? Math.min(
                       16,
@@ -196,6 +218,8 @@ export async function advanceWorkflow(
                     )
                   : 1
                 : 0;
+              if(def?.budgetOverride?.maxModelCalls!==undefined)calls=Math.min(calls,def.budgetOverride.maxModelCalls-nodeCalls);
+              nodeCalls+=calls;
               const tokens = model
                 ? Math.min(200000, budget.maxTokens - usage.tokensReserved)
                 : 0;
@@ -277,23 +301,14 @@ export async function advanceWorkflow(
           });
         }
         const cases: string[] =
-          output("case_suggest").caseVersionIds ?? input.caseVersionIds ?? [];
+          input.caseVersionIds ?? output("case_suggest").caseVersionIds ?? [];
         const rules: string[] =
-          output("rule_suggest").ruleVersionIds ?? input.ruleVersionIds ?? [];
+          input.ruleVersionIds ?? output("rule_suggest").ruleVersionIds ?? [];
         // 受限条件（不 eval）：变量指向 prior 节点输出或运行输入；不满足 → 跳过。
         const nodeCondition = templateNodes?.find((t) => t.key === node.nodeKey)?.condition;
         if (nodeCondition) {
           const cond = nodeCondition as { variable: string; operator: string; value?: unknown };
-          const resolved = cond.variable.startsWith("input.")
-            ? (input as Record<string, unknown>)[cond.variable.slice(6)]
-            : cond.variable.split(".").reduce<unknown>((acc, part) =>
-                (acc as Record<string, unknown> | undefined)?.[part], {
-                  outputs: Object.fromEntries(
-                    nodes
-                      .filter((n) => n.status === "completed")
-                      .map((n) => [n.capabilityKey ?? n.nodeKey, n.outputRef ?? {}]),
-                  ),
-                });
+          const resolved = readReference(cond.variable,input as Record<string,unknown>,nodes);
           let met = false;
           if (cond.operator === "exists") met = resolved !== undefined && resolved !== null;
           else if (cond.operator === "not_exists") met = resolved === undefined || resolved === null;
@@ -307,21 +322,8 @@ export async function advanceWorkflow(
             return;
           }
         }
-        const CAPABILITY_HANDLERS: Record<string, string> = {
-          "document-parse": "document_parse",
-          "rule-extract": "rule_suggest",
-          "rule-approval-gate": "rule_approval_gate",
-          "case-generate": "case_suggest",
-          "case-approval-gate": "case_approval_gate",
-          "page-observe": "page_observation",
-          "plan-approval-gate": "plan_proposal_gate",
-          "login-check": "preparation_check",
-          "browser-execute": "execution",
-          "evaluate": "evaluation",
-          "repo-discovery": "repo_discovery",
-        };
         const dispatchKey = node.capabilityKey
-          ? CAPABILITY_HANDLERS[node.capabilityKey]
+          ? HANDLERS[node.capabilityKey]
           : node.nodeKey;
         if (node.capabilityKey && !dispatchKey)
           throw new Error(`节点 ${node.nodeKey} 引用了未注册的执行能力：${node.capabilityKey}`);
@@ -407,15 +409,21 @@ export async function advanceWorkflow(
               }
               break;
             }
-            case "repo_discovery": {
-              // 工程体检入口：真实仓库发现（凭据与范围由准备中心固定）。
-              const r = await children([
-                {
-                  kind: "REPO_DISCOVERY",
-                  request: { repositoryUrl: input.repositoryUrl ?? "", subdirectory: input.subdirectory ?? "", mode: "real" },
-                },
-              ]);
-              if (r) await complete(r[0] ?? {});
+            case "code_check": {
+              if(!ref.checkId){
+                const spec=CodeCheckRequest.parse(input.codeCheck);
+                if(!await tx.executionRunner.findFirst({where:{projectId:wf.projectId,revokedAt:null,capabilities:{has:spec.kind}}}))throw new Error('没有支持此检查的运行器');
+                const usage={toolCalls:0,...wf.usage as object};
+                if(def?.budgetOverride?.maxToolCalls===0)throw new Error("节点工具预算不足");
+                if(++usage.toolCalls>budget.maxToolCalls)throw new Error('工具预算耗尽');
+                const check=await tx.codeCheck.create({data:{projectId:wf.projectId,request:{...spec,timeoutSeconds:Math.min(spec.timeoutSeconds,Math.max(10,Math.floor((deadline-Date.now())/1000)))},createdBy:input.createdBy??'workflow'}});
+                await tx.workflowRun.update({where:{id:workflowId},data:{usage}});
+                await tx.workflowNode.update({where:{id:node.id},data:{outputRef:{checkId:check.id},toolCalls:[{checkId:check.id,kind:'CODE_CHECK'}]}});
+              }else{
+                const check=await tx.codeCheck.findFirstOrThrow({where:{id:ref.checkId,projectId:wf.projectId}});
+                if(['ERROR','CANCELLED'].includes(check.status))throw new Error('工程检查未完成');
+                if(check.status==='FINISHED')await complete({checkId:check.id,verdict:check.verdict});
+              }
               break;
             }
             case "rule_suggest": {
@@ -450,7 +458,7 @@ export async function advanceWorkflow(
                 break;
               }
               await waitHuman(
-                node.nodeKey === "rule_approval_gate"
+                dispatchKey === "rule_approval_gate"
                   ? "请逐条批准规则并解决澄清后确认"
                   : "请逐条批准用例并核对覆盖后确认",
                 { ruleVersionIds: rules, caseVersionIds: cases },
@@ -506,7 +514,7 @@ export async function advanceWorkflow(
                   kind: "PLAN_PROPOSAL",
                   request: {
                     caseVersionId,
-                    observationId: output("page_observation").artifactId,
+                    observationId: (input as any).observationId??output("page_observation").artifactId,
                     mode: "real",
                   },
                 })),
@@ -603,7 +611,7 @@ export async function advanceWorkflow(
                   baselineId,
                   environmentId: env.id,
                   caseVersionIds: cases,
-                  pinnedPlans: approved.pinnedPlans,
+                  pinnedPlans: input.pinnedPlans??approved.pinnedPlans,
                   buildId: input.buildId,
                   mode: "real",
                   idempotencyKey: `workflow-${workflowId}`,
@@ -644,7 +652,7 @@ export async function advanceWorkflow(
               break;
             }
             case "evaluation": {
-              const runId = output("execution").runId;
+              const runId = (input as any).runId??output("execution").runId;
               // Reporting re-reads artifacts and computes the same verdict as the public report.
               const report = await buildRunReport(
                 tx as unknown as PrismaClient,

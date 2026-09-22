@@ -39,3 +39,8 @@ tools/phase1-acceptance/ui-report.png
 
 # 隔离验收临时证据目录（退出时会清理）
 tools/phase1-acceptance/artifacts-*/
+
+# Source imports must resolve authored TypeScript, never stale compiler output.
+/apps/api/src/*.js
+/apps/api/src/*.js.map
+/apps/api/src/*.d.ts

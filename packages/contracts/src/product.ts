@@ -71,7 +71,7 @@ export const CodeCheckRequest = z.object({
   repositoryUrl: GitConnectionRequest.shape.url,
   commitSha: z.string().regex(/^[a-f0-9]{40}$/),
   subdirectory: GitConnectionRequest.shape.subdirectory,
-  kind: z.enum(['NODE_TEST','PYTHON_TEST','NODE_BUILD']),
+  kind: z.enum(['NODE_TEST','PYTHON_TEST','NODE_BUILD','NODE_VITEST','NODE_JEST','NODE_PLAYWRIGHT','NODE_LINT','NODE_TYPECHECK']),
   timeoutSeconds: z.number().int().min(10).max(600).default(120),
   installDependencies: z.boolean().default(false),
 }).strict();
@@ -130,3 +130,17 @@ export const GoalProposalAgentOutput = z.object({
   rationale: z.string().min(1).max(4000),
 }).strict();
 export type GoalProposalAgentOutput = z.infer<typeof GoalProposalAgentOutput>;
+
+/** Joint validation before persisted goal suggestions; model text never grants a capability. */
+export function validateGoalProposal(input:GoalProposalAgentInput,output:GoalProposalAgentOutput){
+ const problems:string[]=[];
+ if(new Set(output.suggestedTools.map(t=>t.capabilityKey)).size!==output.suggestedTools.length)problems.push('建议工具重复');
+ for(const t of output.suggestedTools){
+   const c=input.capabilities.find(c=>c.key===t.capabilityKey);
+   if(!c)problems.push('建议了目录外工具');
+   if(c?.requiresEnvironment&&!input.environmentConfigured)problems.push('环境未配置');
+   if(!input.hasDocuments&&!['code-check','repo-discovery','page-observe'].includes(t.capabilityKey))problems.push('无资料只能建议工程检查或只读探索');
+ }
+ if(!input.hasDocuments&&!output.blockers.some(b=>b.kind==='MISSING_DATA'))problems.push('缺少资料 blocker');
+ return {ok:problems.length===0,problems};
+}

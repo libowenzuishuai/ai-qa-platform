@@ -1,3 +1,5 @@
+import { freezeExecutableTemplate } from './template-runtime.js';
+import { requireAuth } from './auth.js';
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
@@ -32,7 +34,7 @@ export function registerWorkflowRoutes(
     const projectId = param(req, "id");
     await requireProjectAccess(prisma, req, projectId, "LEAD");
     const body = WorkflowRunRequest.parse(req.body);
-    if (!body.inputs.baselineId && !body.inputs.documentVersionIds.length)
+    if (!body.inputs.baselineId && !body.inputs.documentVersionIds.length && !body.inputs.codeCheck)
       throw new ApiError("VALIDATION_ERROR", "请选择验收基线或需求资料");
     if (body.inputs.baselineId && body.inputs.documentVersionIds.length)
       throw new ApiError(
@@ -63,27 +65,30 @@ export function registerWorkflowRoutes(
         return old;
       }
       // R07：目录模板 → 冻结节点快照（运行固定引用该版本，后续发布 v2 不影响）。
-      let templateNodes: unknown = null;
+      let templateNodes: unknown = null, templateCapabilities:unknown=null, templateParallelism=1;
       if (body.templateId) {
         const template = await tx.workflowTemplate.findFirst({
           where: { id: body.templateId, projectId, status: "PUBLISHED" },
         });
         if (!template)
           throw new ApiError("VALIDATION_ERROR", "模板不存在、未发布或不属于本项目");
-        templateNodes = template.nodes;
+        const compiled=await freezeExecutableTemplate(tx,projectId,template.nodes);
+        templateNodes=compiled.nodes;templateCapabilities=compiled.capabilities;templateParallelism=template.defaultParallelism;
+        if(body.inputs.codeCheck && compiled.nodes.some(n=>n.capabilityKey!=="code-check"))throw new ApiError("VALIDATION_ERROR","工程体检输入只能使用工程检查模板");
       }
-      const env = await tx.environment.findFirst({
+      if(body.inputs.codeCheck && !body.templateId)throw new ApiError("VALIDATION_ERROR","请选择工程体检模板");
+      const env = body.inputs.environmentId ? await tx.environment.findFirst({
         where: {
           id: body.inputs.environmentId,
           projectId,
           isProduction: false,
         },
-      });
-      if (!env) throw new ApiError("VALIDATION_ERROR", "环境不可用");
+      }):null;
+      if (!env && !body.inputs.codeCheck) throw new ApiError("VALIDATION_ERROR", "环境不可用");
       if (
         body.missionId &&
         !(await tx.mission.findFirst({
-          where: { id: body.missionId, projectId, environmentId: env.id },
+          where: { id: body.missionId, projectId, environmentId: env?.id },
         }))
       )
         throw new ApiError("VALIDATION_ERROR", "任务不属于该项目和环境");
@@ -138,9 +143,10 @@ export function registerWorkflowRoutes(
           inputs: {
             ...body.inputs,
             ...frozen,
-            environmentRevision: env.revision,
-            ...(templateNodes ? { templateNodes } : {}),
-          },
+            environmentRevision: env?.revision??0,
+            createdBy:requireAuth(req).userId,
+            ...(templateNodes ? { templateNodes, templateCapabilities, templateParallelism,templateHash:configHash({templateNodes,templateCapabilities,templateParallelism}) } : {}),
+          } as never,
           budget: body.budget,
           status: "QUEUED",
           idempotencyKey: body.idempotencyKey,
