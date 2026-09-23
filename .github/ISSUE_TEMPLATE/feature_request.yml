@@ -1,0 +1,29 @@
+name: Capability proposal / 能力建议
+description: Propose a concrete testing workflow or adapter. 提出具体的测试需求。
+title: "[Proposal] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem / 用户问题
+      description: Which testing task is hard today? Start with a real workflow.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Expected outcome / 希望完成什么
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: How to verify it / 如何验收
+      description: Include a successful example and a case that must be rejected or blocked.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Existing tools, scope and evidence / 现有工具、范围与依据
+      description: Links, 2.0 requirement IDs, supported environments, or sanitized examples.

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Installation / 安装说明
+    url: https://github.com/libowenzuishuai/ai-qa-platform/blob/main/deploy/README.md
+    about: Container startup, configuration, upgrade and restore.
+  - name: Product roadmap / 产品路线
+    url: https://github.com/libowenzuishuai/ai-qa-platform/blob/main/docs/product/v2.0/PRD.md
+    about: Current limits, planned capabilities and acceptance gates.

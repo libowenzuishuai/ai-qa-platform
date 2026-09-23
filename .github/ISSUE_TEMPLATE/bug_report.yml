@@ -1,0 +1,42 @@
+name: Bug report / 问题反馈
+description: Report a reproducible problem with evidence. 提供可复现的问题。
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: "Please remove API keys, cookies and private business data. 标明 mock / real，不要把环境错误直接当作产品缺陷。"
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior / 预期行为
+      description: What should happen, and what requirement supports it?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior / 实际行为
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction / 复现步骤
+      description: Small inputs, steps, and sanitized evidence. 合成或授权样例均可，请注明。
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Version / 提交 SHA
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment / 环境
+      description: OS, architecture, Docker, deployment mode, browser, mock or real model. No secrets.
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact and workaround / 影响与临时处理
