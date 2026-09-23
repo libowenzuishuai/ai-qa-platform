@@ -11,6 +11,7 @@ from .agents.change_review import analyze as analyze_change_review
 from .agents.service import AgentPipelines
 from .agents.planner import propose_plan, classify_sources
 from .agents.goal import propose_goal
+from .agents.context_retrieval import retrieve as retrieve_context
 from .doc_ingestion.service import DocumentParser
 from .doc_ingestion.chunking import ChunkLimit, chunk_bundle, coverage_report
 from .source_changes import compare_snapshots
@@ -43,6 +44,12 @@ async def chunk_document(typed_input, context):
     # 匿名 Output 模型经 ChunkingResponse 注解取用（生成器会为嵌套类型去重命名）。
     output_model = models.ChunkingResponse.model_fields["output"].annotation
     return output_model.model_validate({"manifest": manifest, "coverage": coverage})
+
+
+async def retrieve_context_agent(typed_input, context):
+    """CTX-04 检索基线（keyword-structural-v1，确定性，不调用模型）。"""
+    data = typed_input.model_dump(mode="json", exclude_unset=True)
+    return models.ContextRetrievalResponse.model_fields["output"].annotation.model_validate(retrieve_context(data))
 
 
 async def compare_snapshot(typed_input, context):
@@ -136,6 +143,7 @@ def create_app(
             "chunk": "Chunking",
             "snapshot": "SnapshotCompare",
             "goal": "GoalProposalAgent",
+            "context": "ContextRetrieval",
         }
         name = names[operation]
         validate_shape(name + "Request", wire)
@@ -201,6 +209,7 @@ def create_app(
             "chunk": chunk_document,
             "snapshot": compare_snapshot,
             "goal": propose_goal,
+            "context": retrieve_context_agent,
         }
         try:
             output = await asyncio.wait_for(
@@ -249,6 +258,10 @@ def create_app(
     @app.post("/v1/snapshots/compare")
     async def snapshot(request: Request):
         return await invoke(request, "snapshot")
+
+    @app.post("/v2/context/retrieve")
+    async def context_route(request: Request):
+        return await invoke(request, "context")
 
     @app.post("/v1/goals/propose")
     async def goal(request: Request):

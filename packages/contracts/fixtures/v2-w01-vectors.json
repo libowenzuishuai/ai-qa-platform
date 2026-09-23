@@ -103,7 +103,7 @@
       "layer": "shape"
     },
     {
-      "name": "oracle_non_decimal_expected_rejected",
+      "name": "oracle_empty_text_expected_rejected",
       "schema": "V2OracleSpec",
       "valid": false,
       "value": {
@@ -120,7 +120,7 @@
             "ruleVersionId": "rv-1",
             "kind": "deterministic",
             "operator": "equals",
-            "expected": "5,000元",
+            "expected": "",
             "unit": null,
             "allowedRoles": [],
             "required": true

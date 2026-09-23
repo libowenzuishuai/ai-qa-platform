@@ -342,6 +342,10 @@ class Expected(RootModel[str]):
     root: str = Field(..., pattern='^-?\\d+(\\.\\d+)?$')
 
 
+class Expected1(RootModel[str]):
+    root: str = Field(..., max_length=2000, min_length=1)
+
+
 class Unit(RootModel[str]):
     root: str = Field(None, max_length=64, min_length=1)
 
@@ -624,6 +628,10 @@ class V2RemoteCapabilityResult(BaseModel):
     )
     retryable: bool | None = False
     error: Error | None = None
+
+
+class Score1(RootModel[float]):
+    root: float = Field(..., ge=0.0, le=1.0)
 
 
 class ExcludedPath(RootModel[str]):
@@ -1594,7 +1602,7 @@ class Assertion1(BaseModel):
         'visible',
         'hidden',
     ]
-    expected: Expected | bool | None
+    expected: Expected | bool | Expected1 | None
     unit: Unit | None = None
     allowedRoles: list[AllowedRole] | None = Field(
         [], max_length=20, validate_default=True
@@ -2168,6 +2176,50 @@ class V2RemoteExecuteRequest(BaseModel):
     )
     envelope: V2CapabilityRpcEnvelope
     input: Any | None = None
+
+
+class RuleRef(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    ruleVersionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    sourceSpanIds: list[RequestId] = Field(..., min_length=1)
+
+
+class ContextRetrievalInput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    query: str = Field(..., max_length=4000, min_length=1)
+    documentVersions: list[ParsedDocumentBundle] = Field(
+        ..., max_length=50, min_length=1
+    )
+    ruleRefs: list[RuleRef] | None = Field([], max_length=500, validate_default=True)
+    maxSelected: int | None = Field(50, ge=1, le=500)
+
+
+class Selection1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: Literal['span', 'unparsed_range']
+    ref: str = Field(..., max_length=500, min_length=1)
+    documentVersionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    score: Score1 | None
+    decision: Literal['selected', 'rejected']
+    reason: str = Field(..., max_length=2000, min_length=1)
+
+
+class ContextRetrievalOutput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    strategy: str = Field(..., max_length=200, min_length=1)
+    selections: list[Selection1] = Field(..., max_length=10000, min_length=1)
 
 
 class OldFile(BaseModel):
@@ -2786,6 +2838,32 @@ class V2WorkflowDefinition(BaseModel):
     publishedAt: AwareDatetime | None = None
 
 
+class ContextRetrievalRequest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    timeoutMs: int = Field(..., ge=1000, le=600000)
+    input: ContextRetrievalInput
+
+
+class ContextRetrievalResponse(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    invocations: list[InvocationRecord]
+    output: ContextRetrievalOutput
+
+
 class MultiFileComparisonInput(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -3019,6 +3097,18 @@ class IntelligenceContracts(BaseModel):
     )
     V2RemoteCapabilityResult_1: V2RemoteCapabilityResult = Field(
         ..., alias='V2RemoteCapabilityResult'
+    )
+    ContextRetrievalRequest_1: ContextRetrievalRequest = Field(
+        ..., alias='ContextRetrievalRequest'
+    )
+    ContextRetrievalResponse_1: ContextRetrievalResponse = Field(
+        ..., alias='ContextRetrievalResponse'
+    )
+    ContextRetrievalInput_1: ContextRetrievalInput = Field(
+        ..., alias='ContextRetrievalInput'
+    )
+    ContextRetrievalOutput_1: ContextRetrievalOutput = Field(
+        ..., alias='ContextRetrievalOutput'
     )
     MultiFileComparisonInput_1: MultiFileComparisonInput = Field(
         ..., alias='MultiFileComparisonInput'

@@ -66,6 +66,10 @@ const schemas = {
   V2CapabilityRpcEnvelope: c.CapabilityRpcEnvelope,
   V2RemoteExecuteRequest: c.RemoteExecuteRequest,
   V2RemoteCapabilityResult: c.RemoteCapabilityResult,
+  ContextRetrievalRequest: c.ContextRetrievalRequest,
+  ContextRetrievalResponse: c.ContextRetrievalResponse,
+  ContextRetrievalInput: c.ContextRetrievalInput,
+  ContextRetrievalOutput: c.ContextRetrievalOutput,
   // R02：快照对比（确定性多文件差异）
   MultiFileComparisonInput: c.MultiFileComparisonInput,
   MultiFileChangeReport: c.MultiFileChangeReport,

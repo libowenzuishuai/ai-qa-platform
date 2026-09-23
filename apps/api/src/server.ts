@@ -25,6 +25,8 @@ import { registerReleaseRoutes } from "./routes-release.js";
 import { registerSnapshotChangeRoutes } from "./routes-snapshot-changes.js";
 import { registerChunkRoutes } from "./routes-chunks.js";
 import { registerV2CapabilityRoutes } from "./routes-v2-capabilities.js";
+import { registerV2OracleRoutes } from "./routes-v2-oracle.js";
+import { registerV2ContextRoutes } from "./routes-v2-context.js";
 import { sendApiError } from "./errors.js";
 
 const config = loadConfig();
@@ -96,6 +98,12 @@ export async function buildServer() {
   registerSnapshotChangeRoutes(app,prisma,artifactStore,agentJobsQueue);
   registerChunkRoutes(app,prisma,agentJobsQueue);
   registerV2CapabilityRoutes(app,prisma);
+  registerV2OracleRoutes(app,prisma);
+  registerV2ContextRoutes(app,prisma,{
+    intelligenceUrl: process.env.AIQA_INTELLIGENCE_URL,
+    intelligenceToken: process.env.AIQA_INTELLIGENCE_TOKEN,
+    artifactDir: process.env.AIQA_ARTIFACT_DIR,
+  });
   registerDefectRoutes(app, prisma, artifactStore, runsQueue);
   registerRunnerRoutes(app, prisma, artifactStore);
 

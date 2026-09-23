@@ -3265,6 +3265,11 @@
                     "type": "boolean"
                   },
                   {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  {
                     "type": "null"
                   }
                 ]
@@ -5830,6 +5835,189 @@
       ],
       "additionalProperties": false
     },
+    "ContextRetrievalRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "mode": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+        },
+        "timeoutMs": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+        },
+        "input": {
+          "$ref": "#/definitions/ContextRetrievalInput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "timeoutMs",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "ContextRetrievalResponse": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "mode": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+        },
+        "invocations": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+        },
+        "output": {
+          "$ref": "#/definitions/ContextRetrievalOutput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "invocations",
+        "output"
+      ],
+      "additionalProperties": false
+    },
+    "ContextRetrievalInput": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "documentVersions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ParsedDocumentBundle"
+          },
+          "minItems": 1,
+          "maxItems": 50
+        },
+        "ruleRefs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ruleVersionId": {
+                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+              },
+              "sourceSpanIds": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                },
+                "minItems": 1
+              }
+            },
+            "required": [
+              "ruleVersionId",
+              "sourceSpanIds"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 500,
+          "default": []
+        },
+        "maxSelected": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 50
+        }
+      },
+      "required": [
+        "query",
+        "documentVersions"
+      ],
+      "additionalProperties": false
+    },
+    "ContextRetrievalOutput": {
+      "type": "object",
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "selections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "span",
+                  "unparsed_range"
+                ]
+              },
+              "ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "documentVersionId": {
+                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+              },
+              "score": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "selected",
+                  "rejected"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "kind",
+              "ref",
+              "documentVersionId",
+              "score",
+              "decision",
+              "reason"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 10000
+        }
+      },
+      "required": [
+        "strategy",
+        "selections"
+      ],
+      "additionalProperties": false
+    },
     "MultiFileComparisonInput": {
       "type": "object",
       "properties": {
@@ -6859,6 +7047,18 @@
         "V2RemoteCapabilityResult": {
           "$ref": "#/definitions/V2RemoteCapabilityResult"
         },
+        "ContextRetrievalRequest": {
+          "$ref": "#/definitions/ContextRetrievalRequest"
+        },
+        "ContextRetrievalResponse": {
+          "$ref": "#/definitions/ContextRetrievalResponse"
+        },
+        "ContextRetrievalInput": {
+          "$ref": "#/definitions/ContextRetrievalInput"
+        },
+        "ContextRetrievalOutput": {
+          "$ref": "#/definitions/ContextRetrievalOutput"
+        },
         "MultiFileComparisonInput": {
           "$ref": "#/definitions/MultiFileComparisonInput"
         },
@@ -6960,6 +7160,10 @@
         "V2CapabilityRpcEnvelope",
         "V2RemoteExecuteRequest",
         "V2RemoteCapabilityResult",
+        "ContextRetrievalRequest",
+        "ContextRetrievalResponse",
+        "ContextRetrievalInput",
+        "ContextRetrievalOutput",
         "MultiFileComparisonInput",
         "MultiFileChangeReport",
         "SnapshotCompareRequest",

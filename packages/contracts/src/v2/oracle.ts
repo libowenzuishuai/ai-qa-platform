@@ -22,7 +22,8 @@ export const OracleAssertion = z.object({
   /** 确定性断言：期望值/运算符/单位全部冻结。 */
   kind: z.literal("deterministic"),
   operator: z.enum(["equals", "not_equals", "greater_than", "less_than", "exists", "not_exists", "visible", "hidden"]),
-  expected: z.union([DecimalString, z.boolean(), z.null()]),
+  /** 期望值：数值断言用十进制字符串；文本断言（ui.text equals）用受长度约束的原文。 */
+  expected: z.union([DecimalString, z.boolean(), z.string().min(1).max(2000), z.null()]),
   unit: z.string().min(1).max(64).nullable().default(null),
   /** 允许的角色（权限断言的依据，不可扩大）。 */
   allowedRoles: z.array(z.string().min(1).max(80)).max(20).default([]),
