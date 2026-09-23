@@ -1,6 +1,10 @@
 # AI QA 2.0 · GLM 开发总提示词
 
-版本：2026-09-23 / 1。对应 [PRD 2.0](PRD.md) 及其配套规格。**这是开发任务，不是完成报告；新增文件不表示任何2.0功能已实现。**
+版本：2026-09-23 / 2。对应 [PRD 2.0](PRD.md) 及其配套规格。**这是开发任务，不是完成报告；新增文件不表示任何2.0功能已实现。**
+
+## 当前续做入口
+
+已有W00～W03实现（分支`v2/autonomous-qa@2c240fa`）的会话，先执行 [本轮续做提示词](GLM-CONTINUE-W04.md)：修复 [定向评审发现](../../delivery/v2-w03-review-and-product-decisions.md) → 准备检查 → W04 → 最小用户旅程。不要直接跳过修复，也不要重做W00。总任务书作为完整范围保留；本轮R0～R4的顺序优先。
 
 ## 使用方法
 
@@ -289,4 +293,4 @@ services/intelligence/.venv/bin/python services/intelligence/scripts/generate_mo
 
 ## 续写指令（下次单独发送）
 
-继续执行 `docs/product/v2.0/GLM-DEVELOPMENT-PROMPT.md`。先读取 `docs/delivery/v2-handoff.md`、`v2-progress.md`、`v2-requirement-matrix.md`、`v2-decisions.md`，核对真实分支、提交、工作树与测试证据。从未完成的最早依赖开始，不覆盖他人的修改，不重做已验收能力，不把mock当真实验收。按工作包完成实现、反例、真实验证和提交；缺少外部资料只阻塞对应发布门，继续完成独立代码。保持原业务标准、v1兼容和首败记录，按文件中的交付格式报告。
+继续执行 `docs/product/v2.0/GLM-DEVELOPMENT-PROMPT.md`；已有W00～W03实现时先按 `docs/product/v2.0/GLM-CONTINUE-W04.md` 完成本轮修复与闭环。先读取 `docs/delivery/v2-handoff.md`、`v2-progress.md`、`v2-requirement-matrix.md`、`v2-decisions.md`，核对真实分支、提交、工作树与测试证据。从未完成的最早依赖开始，不覆盖他人的修改，不重做已验收能力，不把mock当真实验收。按工作包完成实现、反例、真实验证和提交；缺少外部资料只阻塞对应发布门，继续完成独立代码。保持原业务标准、v1兼容和首败记录，按文件中的交付格式报告。

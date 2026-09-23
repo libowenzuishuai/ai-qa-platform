@@ -1,0 +1,40 @@
+{
+  "method": "Actual source functions; in-memory Prisma stub, not DB integration; local HTTP servers for redirect only",
+  "probes": {
+    "retryFalse": {
+      "calls": 2,
+      "status": "completed",
+      "firstFailure": null,
+      "attempts": 2
+    },
+    "repeatCurrentOutput": {
+      "calls": 2,
+      "status": "completed"
+    },
+    "mapAccounting": {
+      "actualCalls": 2,
+      "recordedItems": 1,
+      "status": "failed"
+    },
+    "expiredDeadline": {
+      "calls": 1,
+      "status": "completed"
+    },
+    "invalidPattern": {
+      "selfCheck": {
+        "ok": true,
+        "problems": []
+      },
+      "thrown": "SyntaxError"
+    },
+    "remoteRedirect": {
+      "secondReceiverRequests": 1,
+      "syntheticInputReceived": true
+    },
+    "bindingShape": {
+      "ordinaryPath": false
+    }
+  },
+  "reviewedCommit": "2c240fa",
+  "date": "2026-09-23"
+}
