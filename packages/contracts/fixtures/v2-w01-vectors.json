@@ -1,0 +1,680 @@
+{
+  "description": "W01 跨语言共享向量。layer=shape：TS Zod 与 Python Pydantic 必须同判（结构/类型/枚举/模式）。layer=semantic：superRefine 业务规则为 TS 权威层（服务端），Python 侧不镜像，避免两套判定规则。",
+  "schemaVersion": "v2-w01",
+  "cases": [
+    {
+      "name": "oracle_valid",
+      "schema": "V2OracleSpec",
+      "valid": true,
+      "value": {
+        "id": "oracle-1",
+        "projectId": "proj-1",
+        "version": 1,
+        "status": "APPROVED",
+        "ruleVersionIds": [
+          "rv-1"
+        ],
+        "assertions": [
+          {
+            "id": "a-1",
+            "ruleVersionId": "rv-1",
+            "kind": "deterministic",
+            "operator": "equals",
+            "expected": "5000",
+            "unit": "元",
+            "allowedRoles": [
+              "applicant"
+            ],
+            "required": true
+          }
+        ],
+        "semanticCandidates": [],
+        "coverageDeclarations": [
+          {
+            "ruleVersionId": "rv-1",
+            "dimension": "boundary",
+            "status": "planned",
+            "reason": "金额边界需验证"
+          }
+        ],
+        "oracleHash": "a77b0f7bd5e5a0e9d3cecc8ee0dbbb8f7ff5f7461e2c8bbf7f85ee7bb50b4aa1",
+        "supersedesId": null,
+        "createdBy": "u1",
+        "createdAt": "2026-09-23T00:00:00Z",
+        "approvedBy": "u2",
+        "approvedAt": "2026-09-23T01:00:00Z"
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "oracle_empty_assertions_rejected",
+      "schema": "V2OracleSpec",
+      "valid": false,
+      "value": {
+        "id": "oracle-2",
+        "projectId": "proj-1",
+        "version": 1,
+        "status": "DRAFT",
+        "ruleVersionIds": [
+          "rv-1"
+        ],
+        "assertions": [],
+        "semanticCandidates": [],
+        "coverageDeclarations": [],
+        "oracleHash": "b000000000000000000000000000000000000000000000000000000000000000",
+        "supersedesId": null,
+        "createdBy": "u1",
+        "createdAt": "2026-09-23T00:00:00Z"
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "oracle_unknown_field_rejected",
+      "schema": "V2OracleSpec",
+      "valid": false,
+      "value": {
+        "id": "oracle-3",
+        "projectId": "proj-1",
+        "version": 1,
+        "status": "DRAFT",
+        "ruleVersionIds": [
+          "rv-1"
+        ],
+        "assertions": [
+          {
+            "id": "a-1",
+            "ruleVersionId": "rv-1",
+            "kind": "deterministic",
+            "operator": "equals",
+            "expected": "1",
+            "unit": null,
+            "allowedRoles": [],
+            "required": true
+          }
+        ],
+        "semanticCandidates": [],
+        "coverageDeclarations": [],
+        "oracleHash": "c000000000000000000000000000000000000000000000000000000000000000",
+        "supersedesId": null,
+        "createdBy": "u1",
+        "createdAt": "2026-09-23T00:00:00Z",
+        "customField": "not allowed"
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "oracle_non_decimal_expected_rejected",
+      "schema": "V2OracleSpec",
+      "valid": false,
+      "value": {
+        "id": "oracle-4",
+        "projectId": "proj-1",
+        "version": 1,
+        "status": "DRAFT",
+        "ruleVersionIds": [
+          "rv-1"
+        ],
+        "assertions": [
+          {
+            "id": "a-1",
+            "ruleVersionId": "rv-1",
+            "kind": "deterministic",
+            "operator": "equals",
+            "expected": "5,000元",
+            "unit": null,
+            "allowedRoles": [],
+            "required": true
+          }
+        ],
+        "semanticCandidates": [],
+        "coverageDeclarations": [],
+        "oracleHash": "d000000000000000000000000000000000000000000000000000000000000000",
+        "supersedesId": null,
+        "createdBy": "u1",
+        "createdAt": "2026-09-23T00:00:00Z"
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "manifest_valid",
+      "schema": "V2CapabilityManifest",
+      "valid": true,
+      "value": {
+        "id": "example.http-read",
+        "version": "1.0.0",
+        "protocolVersion": "aiqa.capability/2",
+        "protocol": "remote-http",
+        "entrypointRef": "installation.endpoint",
+        "inputSchema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "resourcePath"
+          ],
+          "properties": {
+            "resourcePath": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 500
+            }
+          }
+        },
+        "outputSchema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 599
+            }
+          }
+        },
+        "effectClass": "READ",
+        "permissions": {
+          "network": "environment-allowlist",
+          "declaredOrigins": [],
+          "secrets": "none",
+          "secretRefs": []
+        },
+        "idempotency": "read_only",
+        "recovery": "read_only",
+        "cancel": "cooperative",
+        "timeoutMsMax": 30000,
+        "humanName": "HTTP 只读检查",
+        "description": ""
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "manifest_bad_id_rejected",
+      "schema": "V2CapabilityManifest",
+      "valid": false,
+      "value": {
+        "id": "HTTP READ",
+        "version": "1.0.0",
+        "protocolVersion": "aiqa.capability/2",
+        "protocol": "local-ts",
+        "entrypointRef": "./adapter.js",
+        "inputSchema": {
+          "type": "object"
+        },
+        "outputSchema": {
+          "type": "object"
+        },
+        "effectClass": "READ",
+        "permissions": {
+          "network": "environment-allowlist",
+          "declaredOrigins": [],
+          "secrets": "none",
+          "secretRefs": []
+        },
+        "idempotency": "read_only",
+        "recovery": "read_only",
+        "cancel": "cooperative",
+        "timeoutMsMax": 30000,
+        "humanName": "x",
+        "description": ""
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "installation_authorized_without_record_rejected",
+      "schema": "V2AdapterInstallation",
+      "valid": false,
+      "value": {
+        "id": "inst-1",
+        "projectId": "proj-1",
+        "capabilityId": "example.http-read",
+        "capabilityVersion": "1.0.0",
+        "manifestHash": "e000000000000000000000000000000000000000000000000000000000000000",
+        "installedBy": "admin",
+        "installedAt": "2026-09-23T00:00:00Z",
+        "status": "AUTHORIZED",
+        "endpoint": null,
+        "authorization": null
+      },
+      "layer": "semantic"
+    },
+    {
+      "name": "installation_validated_without_authorization_ok",
+      "schema": "V2AdapterInstallation",
+      "valid": true,
+      "value": {
+        "id": "inst-2",
+        "projectId": "proj-1",
+        "capabilityId": "example.http-read",
+        "capabilityVersion": "1.0.0",
+        "manifestHash": "f000000000000000000000000000000000000000000000000000000000000000",
+        "installedBy": "admin",
+        "installedAt": "2026-09-23T00:00:00Z",
+        "status": "VALIDATED",
+        "endpoint": "http://127.0.0.1:9100/capability",
+        "authorization": null
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "budget_negative_rejected",
+      "schema": "V2SessionBudget",
+      "valid": false,
+      "value": {
+        "maxWallClockMs": 3600000,
+        "maxActiveMs": 1800000,
+        "maxModelCalls": 50,
+        "maxTokens": 100000,
+        "maxToolCalls": 200,
+        "maxResources": 20,
+        "maxCostMicros": -5
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "budget_unknown_cost_null_ok",
+      "schema": "V2SessionBudget",
+      "valid": true,
+      "value": {
+        "maxWallClockMs": 3600000,
+        "maxActiveMs": 1800000,
+        "maxModelCalls": 50,
+        "maxTokens": 100000,
+        "maxToolCalls": 200,
+        "maxResources": 20,
+        "maxCostMicros": null
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "budget_active_exceeds_wall_rejected",
+      "schema": "V2SessionBudget",
+      "valid": false,
+      "value": {
+        "maxWallClockMs": 600000,
+        "maxActiveMs": 900000,
+        "maxModelCalls": 50,
+        "maxTokens": 100000,
+        "maxToolCalls": 200,
+        "maxResources": 20,
+        "maxCostMicros": null
+      },
+      "layer": "semantic"
+    },
+    {
+      "name": "intent_valid",
+      "schema": "V2ActionIntent",
+      "valid": true,
+      "value": {
+        "id": "intent-1",
+        "sessionId": "sess-1",
+        "stepAttemptId": "step-1",
+        "capabilityId": "example.http-read",
+        "capabilityVersion": "1.0.0",
+        "inputHash": "1000000000000000000000000000000000000000000000000000000000000000",
+        "idempotencyKey": "idem-0001-x",
+        "fencingToken": "tok-1",
+        "deadline": "2026-09-23T01:00:00Z",
+        "createdAt": "2026-09-23T00:00:00Z"
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "intent_bad_hash_rejected",
+      "schema": "V2ActionIntent",
+      "valid": false,
+      "value": {
+        "id": "intent-2",
+        "sessionId": "sess-1",
+        "stepAttemptId": "step-1",
+        "capabilityId": "example.http-read",
+        "capabilityVersion": "1.0.0",
+        "inputHash": "not-hex",
+        "idempotencyKey": "idem-0002-x",
+        "fencingToken": "tok-1",
+        "deadline": "2026-09-23T01:00:00Z",
+        "createdAt": "2026-09-23T00:00:00Z"
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "invocation_unknown_status_valid",
+      "schema": "V2Invocation",
+      "valid": true,
+      "value": {
+        "id": "inv-1",
+        "intentId": "intent-1",
+        "attemptNo": 1,
+        "status": "UNKNOWN",
+        "businessOutcome": "unknown",
+        "receipt": {
+          "intentId": "intent-1",
+          "outcome": "unknown_write",
+          "resourceKeys": [
+            "draft:abc"
+          ],
+          "externalRefs": [],
+          "outputHash": null,
+          "recordedAt": "2026-09-23T00:01:00Z"
+        },
+        "error": null,
+        "startedAt": "2026-09-23T00:00:30Z",
+        "finishedAt": null
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "invocation_bad_business_outcome_rejected",
+      "schema": "V2Invocation",
+      "valid": false,
+      "value": {
+        "id": "inv-2",
+        "intentId": "intent-1",
+        "attemptNo": 1,
+        "status": "RUNNING",
+        "businessOutcome": "definitely_pass",
+        "receipt": null,
+        "error": null,
+        "startedAt": null,
+        "finishedAt": null
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "context_manifest_truncated_without_omitted_rejected",
+      "schema": "V2ContextManifest",
+      "valid": false,
+      "value": {
+        "id": "ctx-1",
+        "sessionId": "sess-1",
+        "projectId": "proj-1",
+        "retrievalStrategy": "keyword-structural-v1",
+        "selections": [
+          {
+            "kind": "span",
+            "ref": "span-1",
+            "documentVersionId": "dv-1",
+            "score": 0.9,
+            "decision": "selected",
+            "reason": "命中金额关键词"
+          }
+        ],
+        "budget": {
+          "tokensMax": 10000,
+          "tokensUsed": 10000,
+          "truncated": true,
+          "omittedRefs": []
+        },
+        "inputHash": "2000000000000000000000000000000000000000000000000000000000000000",
+        "generatedAt": "2026-09-23T00:00:00Z"
+      },
+      "layer": "semantic"
+    },
+    {
+      "name": "context_manifest_valid",
+      "schema": "V2ContextManifest",
+      "valid": true,
+      "value": {
+        "id": "ctx-2",
+        "sessionId": "sess-1",
+        "projectId": "proj-1",
+        "retrievalStrategy": "keyword-structural-v1",
+        "selections": [
+          {
+            "kind": "span",
+            "ref": "span-1",
+            "documentVersionId": "dv-1",
+            "score": 0.9,
+            "decision": "selected",
+            "reason": "命中金额关键词"
+          },
+          {
+            "kind": "conflict",
+            "ref": "conflict-1",
+            "documentVersionId": "dv-1",
+            "score": null,
+            "decision": "rejected",
+            "reason": "冲突片段留人工裁决"
+          }
+        ],
+        "budget": {
+          "tokensMax": 10000,
+          "tokensUsed": 8000,
+          "truncated": false,
+          "omittedRefs": []
+        },
+        "inputHash": "3000000000000000000000000000000000000000000000000000000000000000",
+        "generatedAt": "2026-09-23T00:00:00Z"
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "coverage_entry_not_applicable_without_confirmer_rejected",
+      "schema": "V2CoverageLedger",
+      "valid": false,
+      "value": {
+        "id": "cov-1",
+        "projectId": "proj-1",
+        "oracleSpecId": "oracle-1",
+        "entries": [
+          {
+            "ruleVersionId": "rv-1",
+            "dimension": "permission",
+            "status": "not_applicable",
+            "evidenceAttemptId": null,
+            "reason": "无管理员角色",
+            "confirmedBy": null
+          }
+        ],
+        "updatedAt": "2026-09-23T00:00:00Z"
+      },
+      "layer": "semantic"
+    },
+    {
+      "name": "coverage_entry_covered_with_evidence_valid",
+      "schema": "V2CoverageLedger",
+      "valid": true,
+      "value": {
+        "id": "cov-2",
+        "projectId": "proj-1",
+        "oracleSpecId": "oracle-1",
+        "entries": [
+          {
+            "ruleVersionId": "rv-1",
+            "dimension": "normal",
+            "status": "covered",
+            "evidenceAttemptId": "att-1",
+            "reason": "断言通过",
+            "confirmedBy": null
+          },
+          {
+            "ruleVersionId": "rv-1",
+            "dimension": "state",
+            "status": "blocked",
+            "evidenceAttemptId": null,
+            "reason": "缺状态入口",
+            "confirmedBy": null
+          }
+        ],
+        "updatedAt": "2026-09-23T00:00:00Z"
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "finding_no_evidence_reproduced_rejected",
+      "schema": "V2Finding",
+      "valid": false,
+      "value": {
+        "id": "find-1",
+        "projectId": "proj-1",
+        "oracleSpecId": "oracle-1",
+        "ruleVersionId": "rv-1",
+        "status": "reproduced",
+        "expected": "草稿名称保留",
+        "actual": "刷新后名称丢失",
+        "firstFailure": {
+          "sessionId": "sess-1",
+          "attemptId": null,
+          "runId": null,
+          "evidenceIds": [],
+          "observedAt": "2026-09-23T00:00:00Z"
+        },
+        "hypotheses": [],
+        "minimalReproduction": null,
+        "severity": null,
+        "dedupeKey": "dedupe-0001-x",
+        "buildId": "b1",
+        "role": "applicant",
+        "createdAt": "2026-09-23T00:00:00Z"
+      },
+      "layer": "semantic"
+    },
+    {
+      "name": "finding_candidate_without_evidence_valid",
+      "schema": "V2Finding",
+      "valid": true,
+      "value": {
+        "id": "find-2",
+        "projectId": "proj-1",
+        "oracleSpecId": "oracle-1",
+        "ruleVersionId": "rv-1",
+        "status": "candidate",
+        "expected": "草稿名称保留",
+        "actual": "刷新后名称丢失",
+        "firstFailure": {
+          "sessionId": "sess-1",
+          "attemptId": null,
+          "runId": null,
+          "evidenceIds": [],
+          "observedAt": "2026-09-23T00:00:00Z"
+        },
+        "hypotheses": [
+          {
+            "text": "保存接口未持久化名称",
+            "supportingEvidence": [],
+            "contradictingEvidence": [],
+            "status": "open"
+          }
+        ],
+        "minimalReproduction": null,
+        "severity": null,
+        "dedupeKey": "dedupe-0002-x",
+        "buildId": "b1",
+        "role": "applicant",
+        "createdAt": "2026-09-23T00:00:00Z"
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "test_patch_validated_without_detection_rejected",
+      "schema": "V2TestPatch",
+      "valid": false,
+      "value": {
+        "id": "patch-1",
+        "projectId": "proj-1",
+        "origin": {
+          "kind": "approved_rule",
+          "refs": [
+            "rv-1"
+          ]
+        },
+        "repositoryUrl": "https://github.com/test/test",
+        "commitSha": "0123456789abcdef0123456789abcdef01234567",
+        "files": [
+          {
+            "path": "test/calc.test.js",
+            "contentHash": "4000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ],
+        "status": "validated",
+        "execution": {
+          "ranAt": "2026-09-23T00:00:00Z",
+          "totalTests": 5,
+          "failedTests": 0,
+          "reportArtifactId": null
+        },
+        "validity": {
+          "knownDefectsDetected": null,
+          "mutantsKilled": null,
+          "mutantsTotal": null,
+          "weakPatternsFound": []
+        },
+        "createdAt": "2026-09-23T00:00:00Z"
+      },
+      "layer": "semantic"
+    },
+    {
+      "name": "test_patch_draft_valid",
+      "schema": "V2TestPatch",
+      "valid": true,
+      "value": {
+        "id": "patch-2",
+        "projectId": "proj-1",
+        "origin": {
+          "kind": "approved_property",
+          "refs": [
+            "prop-1"
+          ]
+        },
+        "repositoryUrl": "https://github.com/test/test",
+        "commitSha": "0123456789abcdef0123456789abcdef01234567",
+        "files": [
+          {
+            "path": "test/calc.property.test.js",
+            "contentHash": "5000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ],
+        "status": "draft",
+        "execution": {
+          "ranAt": null,
+          "totalTests": null,
+          "failedTests": null,
+          "reportArtifactId": null
+        },
+        "validity": {
+          "knownDefectsDetected": null,
+          "mutantsKilled": null,
+          "mutantsTotal": null,
+          "weakPatternsFound": []
+        },
+        "createdAt": "2026-09-23T00:00:00Z"
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "memory_usage_retrieved_false_rejected",
+      "schema": "V2MemoryUsage",
+      "valid": false,
+      "value": {
+        "id": "mu-1",
+        "projectId": "proj-1",
+        "memoryRecordId": "mem-1",
+        "sessionId": "sess-1",
+        "retrieved": false,
+        "decision": "used",
+        "reason": "复用定位习惯",
+        "outcome": "helped",
+        "usedAt": "2026-09-23T00:00:00Z"
+      },
+      "layer": "shape"
+    },
+    {
+      "name": "memory_usage_valid",
+      "schema": "V2MemoryUsage",
+      "valid": true,
+      "value": {
+        "id": "mu-2",
+        "projectId": "proj-1",
+        "memoryRecordId": "mem-1",
+        "sessionId": "sess-1",
+        "retrieved": true,
+        "decision": "rejected",
+        "reason": "记忆来源版本已过期",
+        "outcome": null,
+        "usedAt": "2026-09-23T00:00:00Z"
+      },
+      "layer": "shape"
+    }
+  ]
+}

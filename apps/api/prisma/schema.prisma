@@ -80,6 +80,18 @@ model Project {
   dataPlugins       DataPlugin[]
   dataResources     DataResource[]
   workflowRuns      WorkflowRun[]
+  v2OracleSpecs     V2OracleSpec[]
+  v2CapabilityManifests V2CapabilityManifest[]
+  v2AdapterInstallations V2AdapterInstallation[]
+  v2HarnessProfiles V2HarnessProfile[]
+  v2WorkflowDefinitions V2WorkflowDefinition[]
+  v2ExecutionSessions V2ExecutionSession[]
+  v2ContextManifests V2ContextManifest[]
+  v2CoverageLedgers V2CoverageLedger[]
+  v2Findings        V2Finding[]
+  v2MemoryUsages    V2MemoryUsage[]
+  v2TestPatches     V2TestPatch[]
+  v2EvaluationTrials V2EvaluationTrial[]
 }
 
 model ProjectMembership {
@@ -1195,4 +1207,285 @@ model GithubDelivery {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([status, updatedAt])
+}
+
+// ============ v2（W01 冻结实体；v2 模式默认关闭，不影响 v1 读写） ============
+
+/// 不可变业务判定契约（DES-03）：APPROVED 后内容不可变。
+model V2OracleSpec {
+  id                  String   @id @default(cuid())
+  projectId           String
+  version             Int
+  status              String   @default("DRAFT")
+  ruleVersionIds      String[]
+  assertions          Json
+  semanticCandidates  Json     @default("[]")
+  coverageDeclarations Json    @default("[]")
+  oracleHash          String
+  supersedesId        String?
+  createdBy           String
+  createdAt           DateTime @default(now())
+  approvedBy          String?
+  approvedAt          DateTime?
+  project             Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, version])
+  @@index([projectId])
+}
+
+/// 能力注册（HAR-01）：Manifest 内容哈希不可变。
+model V2CapabilityManifest {
+  id             String   @id @default(cuid())
+  capabilityId   String
+  version        String
+  manifestHash   String
+  manifest       Json
+  createdBy      String
+  createdAt      DateTime @default(now())
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  projectId      String
+
+  @@unique([capabilityId, version])
+}
+
+/// 安装与授权分离（HAR-01/07）。
+model V2AdapterInstallation {
+  id                String   @id @default(cuid())
+  projectId         String
+  capabilityId      String
+  capabilityVersion String
+  manifestHash      String
+  installedBy       String
+  installedAt       DateTime @default(now())
+  status            String   @default("PENDING_CHECK")
+  endpoint          String?
+  authorization     Json?
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, capabilityId])
+}
+
+/// HarnessProfile 版本化组装（HAR-03）。
+model V2HarnessProfile {
+  id          String    @id @default(cuid())
+  projectId   String
+  key         String
+  version     Int
+  status      String    @default("DRAFT")
+  content     Json
+  contentHash String
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  publishedAt DateTime?
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, key, version])
+}
+
+/// v2 组合图 AST（HAR-02/05）。
+model V2WorkflowDefinition {
+  id          String    @id @default(cuid())
+  projectId   String
+  name        String
+  version     Int
+  status      String    @default("DRAFT")
+  content     Json
+  astHash     String
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  publishedAt DateTime?
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@unique([projectId, name, version])
+}
+
+/// 自主执行循环宿主（LOOP；与 v1 WorkflowRun 只按 id 关联，不双写状态）。
+model V2ExecutionSession {
+  id                String   @id @default(cuid())
+  projectId         String
+  goal              String
+  oracleSpecId      String
+  oracleHash        String
+  profileId         String
+  profileHash       String
+  definitionId      String
+  definitionVersion Int
+  workflowRunId     String?
+  environmentId     String
+  buildId           String
+  status            String   @default("QUEUED")
+  budget            Json
+  usage             Json     @default("{}")
+  terminationReason String?
+  cancelRequestedAt DateTime?
+  pauseRequestedAt  DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, status])
+}
+
+/// 循环节拍（Observe→Plan→Act→Verify→Adapt 每步持久化）。
+model V2StepAttempt {
+  id             String   @id @default(cuid())
+  sessionId      String
+  round          Int
+  phase          String
+  status         String   @default("PENDING")
+  rationale      String?
+  inputRefs      String[] @default([])
+  outputRefs     String[] @default([])
+  progressMarked Boolean?
+  createdAt      DateTime @default(now())
+
+  @@unique([sessionId, round, phase])
+  @@index([sessionId])
+}
+
+/// 调用意图（执行前登记；fencing token 防过期提交）。
+model V2ActionIntent {
+  id                String   @id @default(cuid())
+  sessionId         String
+  stepAttemptId     String
+  capabilityId      String
+  capabilityVersion String
+  inputHash         String
+  idempotencyKey    String
+  fencingToken      String
+  deadline          DateTime
+  createdAt         DateTime @default(now())
+
+  @@unique([sessionId, idempotencyKey])
+  @@index([sessionId])
+}
+
+/// 调用账本（含 UNKNOWN 一等状态；业务结论与技术结果分离）。
+model V2Invocation {
+  id              String   @id @default(cuid())
+  intentId        String
+  attemptNo       Int
+  status          String   @default("PENDING")
+  businessOutcome String?
+  receipt         Json?
+  error           Json?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+
+  @@unique([intentId, attemptNo])
+  @@index([intentId])
+}
+
+/// 观察快照（LOOP-01：观察驱动下一步）。
+model V2Observation {
+  id                  String   @id @default(cuid())
+  sessionId           String
+  round               Int
+  source              String
+  observedUrl         String?
+  evidenceArtifactIds String[] @default([])
+  summary             Json
+  observedAt          DateTime @default(now())
+
+  @@index([sessionId, round])
+}
+
+/// 规划实际消费的上下文账本（CTX-02/04）。
+model V2ContextManifest {
+  id                String   @id @default(cuid())
+  sessionId         String?
+  projectId         String
+  retrievalStrategy String
+  selections        Json
+  budget            Json
+  inputHash         String
+  generatedAt       DateTime @default(now())
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([projectId])
+}
+
+/// 六维覆盖对账（DES-01）。
+model V2CoverageLedger {
+  id           String   @id @default(cuid())
+  projectId    String
+  oracleSpecId String
+  entries      Json
+  updatedAt    DateTime @updatedAt
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, oracleSpecId])
+}
+
+/// v2 结论链（INT-01～03）。
+model V2Finding {
+  id                   String   @id @default(cuid())
+  projectId            String
+  oracleSpecId         String?
+  ruleVersionId        String?
+  status               String   @default("candidate")
+  expected             String
+  actual               String
+  firstFailure         Json
+  hypotheses           Json     @default("[]")
+  minimalReproduction  Json?
+  severity             Json?
+  dedupeKey            String
+  buildId              String
+  role                 String?
+  createdAt            DateTime @default(now())
+  project              Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, dedupeKey])
+}
+
+/// 记忆消费闭环（INT-04）。
+model V2MemoryUsage {
+  id              String   @id @default(cuid())
+  projectId       String
+  memoryRecordId  String
+  sessionId       String
+  retrieved       Boolean  @default(true)
+  decision        String
+  reason          String
+  outcome         String?
+  usedAt          DateTime @default(now())
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, memoryRecordId])
+}
+
+/// 候选测试补丁（CODE-02/04/06）。
+model V2TestPatch {
+  id             String   @id @default(cuid())
+  projectId      String
+  origin         Json
+  repositoryUrl  String
+  commitSha      String
+  files          Json
+  status         String   @default("draft")
+  execution      Json
+  validity       Json
+  createdAt      DateTime @default(now())
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([projectId])
+}
+
+/// 冻结评测记录（W10）。
+model V2EvaluationTrial {
+  id                        String   @id @default(cuid())
+  campaignId                String
+  projectId                 String
+  flowId                    String
+  sessionId                 String?
+  firstResult               String
+  finalResult               String
+  humanInterventionMinutes  Float?
+  costMicros                Int?
+  latencyMs                 Int
+  ranAt                     DateTime @default(now())
+  project                   Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@index([campaignId])
 }

@@ -5,7 +5,15 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import AnyUrl, AwareDatetime, BaseModel, ConfigDict, Field, RootModel
+from pydantic import (
+    AnyUrl,
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    constr,
+)
 
 
 class File(BaseModel):
@@ -330,6 +338,281 @@ class StrategyParams(BaseModel):
     modelBudgetChars: int = Field(..., ge=1000, le=200000)
 
 
+class Expected(RootModel[str]):
+    root: str = Field(..., pattern='^-?\\d+(\\.\\d+)?$')
+
+
+class Unit(RootModel[str]):
+    root: str = Field(None, max_length=64, min_length=1)
+
+
+class AllowedRole(RootModel[str]):
+    root: str = Field(..., max_length=80, min_length=1)
+
+
+class RequiredItem(RootModel[str]):
+    root: str = Field(..., min_length=1)
+
+
+class SecretRef(RootModel[str]):
+    root: str = Field(..., max_length=128, min_length=1)
+
+
+class Permissions(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    network: Literal['environment-allowlist', 'declared-origins-only']
+    declaredOrigins: list[AnyUrl] | None = Field([], max_length=20)
+    secrets: Literal['none', 'declared-refs-only']
+    secretRefs: list[SecretRef] | None = Field([], max_length=20, validate_default=True)
+
+
+class ScopeItem(RootModel[str]):
+    root: str = Field(..., max_length=200, min_length=1)
+
+
+class ModelRoutes(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    generator: str = Field(..., max_length=200, min_length=1)
+    vision: str = Field(..., max_length=200, min_length=1)
+    decision: str = Field(..., max_length=200, min_length=1)
+
+
+class DependsOnItem(RootModel[str]):
+    root: str = Field(..., max_length=200, min_length=1)
+
+
+class Bindings(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    source: Literal['node']
+    nodeId: str = Field(..., max_length=200, min_length=1)
+    path: str = Field(
+        ..., max_length=500, min_length=1, pattern='^[a-zA-Z0-9_.\\\\[\\\\]-]+$'
+    )
+    type: Literal['string', 'number', 'boolean', 'json']
+
+
+class RetryableErrorClass(RootModel[str]):
+    root: str = Field(..., max_length=100, min_length=1)
+
+
+class Retry(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    maxAttempts: int = Field(..., ge=1, le=10)
+    retryableErrorClasses: list[RetryableErrorClass] = Field(..., max_length=20)
+    totalDeadlineMs: int = Field(..., ge=1000, le=600000)
+
+
+class TerminationReason(RootModel[str]):
+    root: str = Field(None, max_length=2000)
+
+
+class MaxCostMicros(RootModel[int]):
+    root: int = Field(..., ge=1)
+
+
+class V2SessionBudget(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    maxWallClockMs: int = Field(..., ge=60000, le=86400000)
+    maxActiveMs: int = Field(..., ge=60000, le=86400000)
+    maxModelCalls: int = Field(..., ge=1, le=10000)
+    maxTokens: int = Field(..., ge=1000, le=100000000)
+    maxToolCalls: int = Field(..., ge=1, le=100000)
+    maxResources: int = Field(..., ge=1, le=10000)
+    maxCostMicros: MaxCostMicros | None
+
+
+class CostKnownMicros(RootModel[int]):
+    root: int = Field(..., ge=0)
+
+
+class V2SessionUsage(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    wallClockMsUsed: int = Field(..., ge=0)
+    activeMsUsed: int = Field(..., ge=0)
+    modelCallsUsed: int = Field(..., ge=0)
+    modelCallsReserved: int = Field(..., ge=0)
+    tokensUsed: int = Field(..., ge=0)
+    tokensReserved: int = Field(..., ge=0)
+    toolCallsUsed: int = Field(..., ge=0)
+    toolCallsReserved: int = Field(..., ge=0)
+    resourcesCreated: int = Field(..., ge=0)
+    costKnownMicros: CostKnownMicros | None
+
+
+class ResourceKey(RootModel[str]):
+    root: str = Field(..., max_length=300, min_length=1)
+
+
+class ExternalRef(RootModel[str]):
+    root: str = Field(..., max_length=500, min_length=1)
+
+
+class OutputHash(RootModel[str]):
+    root: str = Field(None, pattern='^[a-f0-9]{64}$')
+
+
+class Error(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    code: str = Field(..., max_length=100)
+    message: str = Field(..., max_length=2000)
+
+
+class Score(RootModel[float]):
+    root: float = Field(None, ge=0.0, le=1.0)
+
+
+class OmittedRef(RootModel[str]):
+    root: str = Field(..., max_length=500)
+
+
+class Budget(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    tokensMax: int = Field(..., ge=100)
+    tokensUsed: int = Field(..., ge=0)
+    truncated: bool
+    omittedRefs: list[OmittedRef] | None = Field(
+        [], max_length=5000, validate_default=True
+    )
+
+
+class SupportingEvidenceItem(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: Literal[
+        'network', 'console', 'auth_log', 'code_diff', 'observation', 'tool_output'
+    ]
+    ref: str = Field(..., max_length=500, min_length=1)
+
+
+class ContradictingEvidenceItem(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: Literal[
+        'network', 'console', 'auth_log', 'code_diff', 'observation', 'tool_output'
+    ]
+    ref: str = Field(..., max_length=500, min_length=1)
+
+
+class Hypothes(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    text: str = Field(..., max_length=2000, min_length=1)
+    supportingEvidence: list[SupportingEvidenceItem] | None = Field(
+        [], max_length=50, validate_default=True
+    )
+    contradictingEvidence: list[ContradictingEvidenceItem] | None = Field(
+        [], max_length=50, validate_default=True
+    )
+    status: Literal['open', 'supported', 'refuted', 'unknown'] | None = 'open'
+
+
+class Target1(RootModel[str]):
+    root: str = Field(None, max_length=500)
+
+
+class Step2(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    action: str = Field(..., max_length=500, min_length=1)
+    target: Target1 | None = None
+
+
+class Severity(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    level: Literal['blocker', 'critical', 'major', 'minor', 'trivial']
+    basis: str = Field(..., max_length=2000, min_length=1)
+
+
+class Role3(RootModel[str]):
+    root: str = Field(None, max_length=80)
+
+
+class Ref(RootModel[str]):
+    root: str = Field(..., max_length=500, min_length=1)
+
+
+class Origin1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: Literal['approved_rule', 'api_contract', 'approved_property']
+    refs: list[Ref] = Field(..., max_length=100, min_length=1)
+
+
+class File2(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    path: str = Field(..., max_length=500, min_length=1)
+    contentHash: str = Field(..., pattern='^[a-f0-9]{64}$')
+
+
+class TotalTests(RootModel[int]):
+    root: int = Field(None, ge=0)
+
+
+class FailedTests(RootModel[int]):
+    root: int = Field(None, ge=0)
+
+
+class KnownDefectsDetected(RootModel[int]):
+    root: int = Field(None, ge=0)
+
+
+class MutantsKilled(RootModel[int]):
+    root: int = Field(None, ge=0)
+
+
+class MutantsTotal(RootModel[int]):
+    root: int = Field(None, ge=0)
+
+
+class WeakPatternsFoundItem(RootModel[str]):
+    root: str = Field(..., max_length=500)
+
+
+class Validity(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    knownDefectsDetected: KnownDefectsDetected | None = None
+    mutantsKilled: MutantsKilled | None = None
+    mutantsTotal: MutantsTotal | None = None
+    weakPatternsFound: list[WeakPatternsFoundItem] | None = Field(
+        [], max_length=50, validate_default=True
+    )
+
+
+class HumanInterventionMinutes(RootModel[float]):
+    root: float = Field(None, ge=0.0)
+
+
+class CostMicros(RootModel[int]):
+    root: int = Field(None, ge=0)
+
+
 class ExcludedPath(RootModel[str]):
     root: str = Field(..., max_length=1024, min_length=1)
 
@@ -356,7 +639,7 @@ class Totals(BaseModel):
     uncertain: int = Field(..., ge=0)
 
 
-class Capability(BaseModel):
+class Capability1(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -375,7 +658,7 @@ class GoalProposalAgentInput(BaseModel):
         extra='forbid',
     )
     goal: str = Field(..., max_length=4000, min_length=1)
-    capabilities: list[Capability] = Field(..., max_length=200)
+    capabilities: list[Capability1] = Field(..., max_length=200)
     hasDocuments: bool
     environmentConfigured: bool
     promptVersion: Literal['goal-v1']
@@ -499,6 +782,10 @@ class Locator15(BaseModel):
     bbox: list[float] = Field(..., max_length=4, min_length=4)
 
 
+class Role4(RootModel[str]):
+    root: str = Field(..., min_length=1)
+
+
 class Value4(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -536,6 +823,36 @@ class RequestId(RootModel[str]):
     root: str = Field(
         ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
     )
+
+
+class InputSchema(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['object', 'string', 'number', 'integer', 'boolean', 'array']
+    properties: dict[str, InputSchema] | None = None
+    required: list[RequiredItem] | None = Field(None, max_length=100)
+    additionalProperties: Literal[False] | None = None
+    items: InputSchema | None = None
+    minLength: int | None = Field(None, ge=0, le=1000000)
+    maxLength: int | None = Field(None, ge=1, le=10000000)
+    minimum: float | None = None
+    maximum: float | None = None
+    enum: list[str | float | bool] | None = Field(None, max_length=1000)
+    pattern: str | None = Field(None, max_length=500)
+    nullable: bool | None = None
+
+
+class AdditionalProperties1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    source: Literal['node']
+    nodeId: str = Field(..., max_length=200, min_length=1)
+    path: str = Field(
+        ..., max_length=500, min_length=1, pattern='^[a-zA-Z0-9_.\\\\[\\\\]-]+$'
+    )
+    type: Literal['string', 'number', 'boolean', 'json']
 
 
 class DataSpec(BaseModel):
@@ -1245,6 +1562,581 @@ class Output(BaseModel):
     coverage: ChunkCoverageReport
 
 
+class Assertion1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(..., max_length=128, min_length=1)
+    ruleVersionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    kind: Literal['deterministic']
+    operator: Literal[
+        'equals',
+        'not_equals',
+        'greater_than',
+        'less_than',
+        'exists',
+        'not_exists',
+        'visible',
+        'hidden',
+    ]
+    expected: Expected | bool | None
+    unit: Unit | None = None
+    allowedRoles: list[AllowedRole] | None = Field(
+        [], max_length=20, validate_default=True
+    )
+    required: bool | None = True
+
+
+class SemanticCandidate(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(..., max_length=128, min_length=1)
+    ruleVersionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    kind: Literal['semantic_candidate']
+    description: str = Field(..., max_length=2000, min_length=1)
+    expected: None
+
+
+class CoverageDeclaration(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    ruleVersionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    dimension: Literal[
+        'normal', 'boundary', 'permission', 'multi_role', 'state', 'persistence'
+    ]
+    status: Literal['planned', 'blocked', 'not_applicable']
+    reason: str = Field(..., max_length=2000, min_length=1)
+
+
+class V2OracleSpec(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    projectId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    ruleVersionIds: list[RequestId] = Field(..., max_length=500, min_length=1)
+    assertions: list[Assertion1] = Field(..., max_length=2000, min_length=1)
+    semanticCandidates: list[SemanticCandidate] | None = Field(
+        [], max_length=500, validate_default=True
+    )
+    coverageDeclarations: list[CoverageDeclaration] | None = Field(
+        [], max_length=3000, validate_default=True
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    version: int = Field(..., ge=1)
+    status: Literal['DRAFT', 'APPROVED', 'SUPERSEDED'] | None = 'DRAFT'
+    oracleHash: str = Field(..., pattern='^[a-f0-9]{64}$')
+    supersedesId: RequestId | None = None
+    createdBy: str
+    createdAt: AwareDatetime
+    approvedBy: str | None = None
+    approvedAt: AwareDatetime | None = None
+
+
+class InputSchemaModel(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['object', 'string', 'number', 'integer', 'boolean', 'array']
+    properties: dict[str, InputSchema] | None = None
+    required: list[RequiredItem] | None = Field(None, max_length=100)
+    additionalProperties: Literal[False] | None = None
+    items: InputSchema | None = None
+    minLength: int | None = Field(None, ge=0, le=1000000)
+    maxLength: int | None = Field(None, ge=1, le=10000000)
+    minimum: float | None = None
+    maximum: float | None = None
+    enum: list[str | float | bool] | None = Field(None, max_length=1000)
+    pattern: str | None = Field(None, max_length=500)
+    nullable: bool | None = None
+
+
+class V2CapabilityManifest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(..., pattern='^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)+$')
+    version: str = Field(..., pattern='^\\d+\\.\\d+\\.\\d+$')
+    protocolVersion: Literal['aiqa.capability/2']
+    protocol: Literal['local-ts', 'remote-http']
+    entrypointRef: str = Field(..., max_length=500, min_length=1)
+    inputSchema: InputSchemaModel
+    outputSchema: InputSchema
+    effectClass: Literal['READ', 'WRITE', 'CREATE', 'DELETE']
+    permissions: Permissions
+    idempotency: Literal['read_only', 'idempotent', 'reconcilable', 'unsafe_retry']
+    recovery: Literal['read_only', 'idempotent', 'reconcilable', 'unsafe_retry']
+    cancel: Literal['cooperative', 'best_effort', 'unknown']
+    timeoutMsMax: int = Field(..., ge=1000, le=600000)
+    humanName: str = Field(..., max_length=200, min_length=1)
+    description: str | None = Field('', max_length=2000)
+
+
+class Authorization(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    grantedBy: str
+    grantedAt: AwareDatetime
+    scope: list[ScopeItem] = Field(..., max_length=50)
+    revokedBy: str | None = None
+    revokedAt: AwareDatetime | None = None
+
+
+class V2AdapterInstallation(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    projectId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    capabilityId: str
+    capabilityVersion: str
+    manifestHash: str = Field(..., pattern='^[a-f0-9]{64}$')
+    installedBy: str
+    installedAt: AwareDatetime
+    status: Literal['PENDING_CHECK', 'VALIDATED', 'AUTHORIZED', 'REVOKED', 'DISABLED']
+    endpoint: AnyUrl | None = None
+    authorization: Authorization | None = None
+
+
+class Capability(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    capabilityId: str
+    version: str
+    installationId: RequestId | None = None
+
+
+class V2HarnessProfileVersion(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    capabilities: list[Capability] = Field(..., max_length=200, min_length=1)
+    modelRoutes: ModelRoutes
+    verifierPolicy: str = Field(..., max_length=200, min_length=1)
+    memoryPolicy: str = Field(..., max_length=200, min_length=1)
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    projectId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    key: str = Field(..., pattern='^[a-z][a-z0-9-]*$')
+    version: int = Field(..., ge=1)
+    status: (
+        Literal['DRAFT', 'VALIDATED', 'PUBLISHED', 'DEPRECATED', 'DISABLED'] | None
+    ) = 'DRAFT'
+    contentHash: str = Field(..., pattern='^[a-f0-9]{64}$')
+    createdBy: str
+    createdAt: AwareDatetime
+    publishedAt: AwareDatetime | None = None
+
+
+class Bindings1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    source: Literal['input']
+    path: str = Field(
+        ..., max_length=500, min_length=1, pattern='^[a-zA-Z0-9_.\\\\[\\\\]-]+$'
+    )
+    type: Literal['string', 'number', 'boolean', 'json']
+
+
+class Bindings2(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    source: Literal['constant']
+    value: str | float | bool
+    type: Literal['string', 'number', 'boolean', 'json']
+
+
+class Subflow(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    definitionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    version: int = Field(..., ge=1)
+
+
+class V2ExecutionSession(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    projectId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    goal: str = Field(..., max_length=4000, min_length=1)
+    oracleSpecId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    oracleHash: str = Field(..., pattern='^[a-f0-9]{64}$')
+    profileId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    profileHash: str = Field(..., pattern='^[a-f0-9]{64}$')
+    definitionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    definitionVersion: int = Field(..., ge=1)
+    workflowRunId: RequestId | None = None
+    environmentId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    buildId: str = Field(..., max_length=200, min_length=1)
+    status: (
+        Literal[
+            'QUEUED',
+            'PREPARING',
+            'RUNNING',
+            'WAITING_HUMAN',
+            'WAITING_AUTH',
+            'PAUSED',
+            'COMPLETED',
+            'FAILED',
+            'CANCELLED',
+        ]
+        | None
+    ) = 'QUEUED'
+    budget: V2SessionBudget
+    usage: V2SessionUsage
+    terminationReason: TerminationReason | None = None
+    cancelRequestedAt: AwareDatetime | None = None
+    pauseRequestedAt: AwareDatetime | None = None
+    createdAt: AwareDatetime
+    updatedAt: AwareDatetime
+
+
+class V2ActionIntent(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    sessionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    stepAttemptId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    capabilityId: str
+    capabilityVersion: str
+    inputHash: str = Field(..., pattern='^[a-f0-9]{64}$')
+    idempotencyKey: str = Field(..., max_length=200, min_length=8)
+    fencingToken: str = Field(..., max_length=128, min_length=1)
+    deadline: AwareDatetime
+    createdAt: AwareDatetime
+
+
+class V2EffectReceipt(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    intentId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    outcome: Literal['succeeded', 'failed', 'unknown_write', 'cancelled']
+    resourceKeys: list[ResourceKey] | None = Field(
+        [], max_length=100, validate_default=True
+    )
+    externalRefs: list[ExternalRef] | None = Field(
+        [], max_length=100, validate_default=True
+    )
+    outputHash: OutputHash | None = None
+    recordedAt: AwareDatetime
+
+
+class V2Invocation(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    intentId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    attemptNo: int = Field(..., ge=1, le=10)
+    status: (
+        Literal[
+            'PENDING',
+            'CLAIMED',
+            'RUNNING',
+            'SUCCEEDED',
+            'FAILED',
+            'CANCELLED',
+            'UNKNOWN',
+        ]
+        | None
+    ) = 'PENDING'
+    businessOutcome: (
+        Literal['pass', 'fail', 'blocked', 'review', 'not_evaluated', 'unknown'] | None
+    ) = None
+    receipt: V2EffectReceipt | None = None
+    error: Error | None = None
+    startedAt: AwareDatetime | None = None
+    finishedAt: AwareDatetime | None = None
+
+
+class V2ObservationSnapshot(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    sessionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    round: int = Field(..., ge=1)
+    source: Literal['page', 'api', 'tool', 'model']
+    observedUrl: AnyUrl | None = None
+    evidenceArtifactIds: list[RequestId] | None = Field(
+        [], max_length=200, validate_default=True
+    )
+    summary: dict[str, Any]
+    observedAt: AwareDatetime
+
+
+class Selection(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: Literal[
+        'span', 'rule', 'page_clue', 'api_clue', 'memory', 'conflict', 'unparsed_range'
+    ]
+    ref: str = Field(..., max_length=500, min_length=1)
+    documentVersionId: RequestId | None = None
+    score: Score | None = None
+    decision: Literal['selected', 'rejected']
+    reason: str = Field(..., max_length=2000, min_length=1)
+
+
+class V2ContextManifest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    sessionId: RequestId | None = None
+    projectId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    retrievalStrategy: str = Field(..., max_length=200, min_length=1)
+    selections: list[Selection] = Field(..., max_length=5000, min_length=1)
+    budget: Budget
+    inputHash: str = Field(..., pattern='^[a-f0-9]{64}$')
+    generatedAt: AwareDatetime
+
+
+class Entry(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    ruleVersionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    dimension: Literal[
+        'normal', 'boundary', 'permission', 'multi_role', 'state', 'persistence'
+    ]
+    status: Literal['covered', 'blocked', 'not_applicable', 'not_evaluated']
+    evidenceAttemptId: RequestId | None = None
+    reason: str = Field(..., max_length=2000, min_length=1)
+    confirmedBy: str | None = None
+
+
+class V2CoverageLedger(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    projectId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    oracleSpecId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    entries: list[Entry] = Field(..., max_length=6000, min_length=1)
+    updatedAt: AwareDatetime
+
+
+class FirstFailure(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    sessionId: RequestId | None = None
+    attemptId: RequestId | None = None
+    runId: RequestId | None = None
+    evidenceIds: list[RequestId] | None = Field(
+        [], max_length=100, validate_default=True
+    )
+    observedAt: AwareDatetime
+
+
+class MinimalReproduction(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    steps: list[Step2] = Field(..., max_length=100, min_length=1)
+    resourceKeys: list[ResourceKey] | None = Field(
+        [], max_length=100, validate_default=True
+    )
+    verifiedAt: AwareDatetime | None = None
+
+
+class V2Finding(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    projectId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    oracleSpecId: RequestId | None = None
+    ruleVersionId: RequestId | None = None
+    status: (
+        Literal[
+            'candidate',
+            'reproduced',
+            'human_confirmed',
+            'investigating',
+            'fix_verified',
+            'rejected',
+        ]
+        | None
+    ) = 'candidate'
+    expected: str = Field(..., max_length=4000, min_length=1)
+    actual: str = Field(..., max_length=4000, min_length=1)
+    firstFailure: FirstFailure
+    hypotheses: list[Hypothes] | None = Field([], max_length=50, validate_default=True)
+    minimalReproduction: MinimalReproduction | None = None
+    severity: Severity | None = None
+    dedupeKey: str = Field(..., max_length=300, min_length=8)
+    buildId: str = Field(..., max_length=200, min_length=1)
+    role: Role3 | None = None
+    createdAt: AwareDatetime
+
+
+class V2MemoryUsage(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    projectId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    memoryRecordId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    sessionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    retrieved: Literal[True]
+    decision: Literal['used', 'rejected']
+    reason: str = Field(..., max_length=2000, min_length=1)
+    outcome: Literal['helped', 'neutral', 'harmful', 'unknown'] | None = None
+    usedAt: AwareDatetime
+
+
+class Execution(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    ranAt: AwareDatetime | None = None
+    totalTests: TotalTests | None = None
+    failedTests: FailedTests | None = None
+    reportArtifactId: RequestId | None = None
+
+
+class V2TestPatch(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    projectId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    origin: Origin1
+    repositoryUrl: AnyUrl
+    commitSha: str = Field(..., pattern='^[a-f0-9]{40}$')
+    files: list[File2] = Field(..., max_length=500, min_length=1)
+    status: Literal['draft', 'executed', 'validated', 'rejected'] | None = 'draft'
+    execution: Execution
+    validity: Validity
+    createdAt: AwareDatetime
+
+
+class V2EvaluationTrial(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    campaignId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    projectId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    flowId: str = Field(..., max_length=300, min_length=1)
+    sessionId: RequestId | None = None
+    firstResult: Literal[
+        'pass_correct',
+        'fail_correct',
+        'false_positive',
+        'false_negative',
+        'blocked',
+        'error',
+        'unknown',
+    ]
+    finalResult: Literal[
+        'pass_correct',
+        'fail_correct',
+        'false_positive',
+        'false_negative',
+        'blocked',
+        'error',
+        'unknown',
+    ]
+    humanInterventionMinutes: HumanInterventionMinutes | None = None
+    costMicros: CostMicros | None = None
+    latencyMs: int = Field(..., ge=0)
+    ranAt: AwareDatetime
+
+
 class OldFile(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -1377,6 +2269,44 @@ class ItemsModel2(BaseModel):
     extractionQuality: Literal['GOOD', 'LOW', 'UNPARSED'] | None = 'GOOD'
 
 
+class Assertion2(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    description: str = Field(..., min_length=1)
+    kind: Literal[
+        'ui.text',
+        'ui.element',
+        'ui.state',
+        'data.value',
+        'api.response',
+        'download.content',
+        'visual',
+    ]
+    required: bool | None = True
+    ruleVersionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    operator: Literal[
+        'equals',
+        'notEquals',
+        'contains',
+        'notContains',
+        'gt',
+        'gte',
+        'lt',
+        'lte',
+        'matches',
+        'exists',
+        'notExists',
+    ]
+    expected: str | float | bool | None = None
+    unit: str | None = Field(None, min_length=1)
+
+
 class TestCaseModel(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -1391,11 +2321,11 @@ class TestCaseModel(BaseModel):
     title: str = Field(..., min_length=1)
     description: str | None = None
     ruleVersionIds: list[RequestId] = Field(..., min_length=1)
-    roles: list[Role] = Field(..., min_length=1)
+    roles: list[Role4] = Field(..., min_length=1)
     preconditions: list[str] | None = []
     dataSpec: DataSpec | DataSpec1
     steps: list[Step] = Field(..., min_length=1)
-    assertions: list[Assertion] = Field(..., min_length=1)
+    assertions: list[Assertion2] = Field(..., min_length=1)
     cleanup: Cleanup
     priority: Literal['P0', 'P1', 'P2'] | None = 'P1'
     approvalStatus: (
@@ -1464,6 +2394,44 @@ class Value7(BaseModel):
     ref: str = Field(
         ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
     )
+
+
+class AdditionalProperties2(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    source: Literal['input']
+    path: str = Field(
+        ..., max_length=500, min_length=1, pattern='^[a-zA-Z0-9_.\\\\[\\\\]-]+$'
+    )
+    type: Literal['string', 'number', 'boolean', 'json']
+
+
+class AdditionalProperties3(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    source: Literal['constant']
+    value: str | float | bool
+    type: Literal['string', 'number', 'boolean', 'json']
+
+
+class AdditionalProperties(
+    RootModel[AdditionalProperties1 | AdditionalProperties2 | AdditionalProperties3]
+):
+    root: AdditionalProperties1 | AdditionalProperties2 | AdditionalProperties3
+
+
+class Condition(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    left: AdditionalProperties1 | AdditionalProperties2 | AdditionalProperties3
+    operator: Literal['eq', 'ne', 'gt', 'lt', 'exists', 'not_exists']
+    right: (
+        AdditionalProperties1 | AdditionalProperties2 | AdditionalProperties3 | None
+    ) = None
+    onUnknown: Literal['skip', 'fail', 'require_human']
 
 
 class SourceClassificationResponse(BaseModel):
@@ -1724,6 +2692,67 @@ class ChunkingResponse(BaseModel):
     output: Output
 
 
+class Repeat(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    maxIterations: int = Field(..., ge=1, le=1000)
+    exitWhen: Condition | None = None
+
+
+class Map(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    inputSet: AdditionalProperties1 | AdditionalProperties2 | AdditionalProperties3
+    maxItems: int = Field(..., ge=1, le=10000)
+    maxConcurrency: int = Field(..., ge=1, le=2)
+
+
+class Node(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    nodeId: str = Field(..., pattern='^[a-z][a-z0-9-]*$')
+    capabilityId: str = Field(..., max_length=200, min_length=1)
+    capabilityVersion: str = Field(..., pattern='^\\d+\\.\\d+\\.\\d+$')
+    dependsOn: list[DependsOnItem] | None = Field(
+        [], max_length=100, validate_default=True
+    )
+    bindings: (
+        dict[constr(min_length=1, max_length=200), Bindings | Bindings1 | Bindings2]
+        | None
+    ) = Field({}, validate_default=True)
+    condition: Condition | None = None
+    retry: Retry | None = None
+    repeat: Repeat | None = None
+    map: Map | None = None
+    subflow: Subflow | None = None
+    onFailure: Literal['fail', 'skip', 'require_human'] | None = 'fail'
+
+
+class V2WorkflowDefinition(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    name: str = Field(..., max_length=200, min_length=1)
+    description: str | None = Field('', max_length=2000)
+    nodes: list[Node] = Field(..., max_length=200, min_length=1)
+    maxSubflowDepth: int | None = Field(4, ge=1, le=8)
+    id: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    projectId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    version: int = Field(..., ge=1)
+    status: Literal['DRAFT', 'PUBLISHED', 'DEPRECATED'] | None = 'DRAFT'
+    astHash: str = Field(..., pattern='^[a-f0-9]{64}$')
+    createdBy: str
+    createdAt: AwareDatetime
+    publishedAt: AwareDatetime | None = None
+
+
 class MultiFileComparisonInput(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -1921,6 +2950,34 @@ class IntelligenceContracts(BaseModel):
     ChunkCoverageReport_1: ChunkCoverageReport = Field(..., alias='ChunkCoverageReport')
     ChunkingRequest_1: ChunkingRequest = Field(..., alias='ChunkingRequest')
     ChunkingResponse_1: ChunkingResponse = Field(..., alias='ChunkingResponse')
+    V2OracleSpec_1: V2OracleSpec = Field(..., alias='V2OracleSpec')
+    V2CapabilityManifest_1: V2CapabilityManifest = Field(
+        ..., alias='V2CapabilityManifest'
+    )
+    V2AdapterInstallation_1: V2AdapterInstallation = Field(
+        ..., alias='V2AdapterInstallation'
+    )
+    V2HarnessProfileVersion_1: V2HarnessProfileVersion = Field(
+        ..., alias='V2HarnessProfileVersion'
+    )
+    V2WorkflowDefinition_1: V2WorkflowDefinition = Field(
+        ..., alias='V2WorkflowDefinition'
+    )
+    V2ExecutionSession_1: V2ExecutionSession = Field(..., alias='V2ExecutionSession')
+    V2SessionBudget_1: V2SessionBudget = Field(..., alias='V2SessionBudget')
+    V2SessionUsage_1: V2SessionUsage = Field(..., alias='V2SessionUsage')
+    V2ActionIntent_1: V2ActionIntent = Field(..., alias='V2ActionIntent')
+    V2EffectReceipt_1: V2EffectReceipt = Field(..., alias='V2EffectReceipt')
+    V2Invocation_1: V2Invocation = Field(..., alias='V2Invocation')
+    V2ObservationSnapshot_1: V2ObservationSnapshot = Field(
+        ..., alias='V2ObservationSnapshot'
+    )
+    V2ContextManifest_1: V2ContextManifest = Field(..., alias='V2ContextManifest')
+    V2CoverageLedger_1: V2CoverageLedger = Field(..., alias='V2CoverageLedger')
+    V2Finding_1: V2Finding = Field(..., alias='V2Finding')
+    V2MemoryUsage_1: V2MemoryUsage = Field(..., alias='V2MemoryUsage')
+    V2TestPatch_1: V2TestPatch = Field(..., alias='V2TestPatch')
+    V2EvaluationTrial_1: V2EvaluationTrial = Field(..., alias='V2EvaluationTrial')
     MultiFileComparisonInput_1: MultiFileComparisonInput = Field(
         ..., alias='MultiFileComparisonInput'
     )
@@ -1956,3 +3013,6 @@ class IntelligenceContracts(BaseModel):
 
 class Model(RootModel[IntelligenceContracts]):
     root: IntelligenceContracts
+
+
+InputSchema.model_rebuild()
