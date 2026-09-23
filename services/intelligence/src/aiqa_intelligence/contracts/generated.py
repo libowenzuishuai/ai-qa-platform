@@ -613,6 +613,19 @@ class CostMicros(RootModel[int]):
     root: int = Field(None, ge=0)
 
 
+class V2RemoteCapabilityResult(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    status: Literal['SUCCEEDED', 'FAILED', 'CANCELLED']
+    output: Any = None
+    resourceKeys: list[ResourceKey] | None = Field(
+        [], max_length=100, validate_default=True
+    )
+    retryable: bool | None = False
+    error: Error | None = None
+
+
 class ExcludedPath(RootModel[str]):
     root: str = Field(..., max_length=1024, min_length=1)
 
@@ -2137,6 +2150,26 @@ class V2EvaluationTrial(BaseModel):
     ranAt: AwareDatetime
 
 
+class V2CapabilityRpcEnvelope(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    protocolVersion: Literal['aiqa.capability-rpc/2']
+    invocationId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    deadline: AwareDatetime
+    idempotencyKey: str = Field(..., max_length=200, min_length=8)
+
+
+class V2RemoteExecuteRequest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    envelope: V2CapabilityRpcEnvelope
+    input: Any | None = None
+
+
 class OldFile(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -2978,6 +3011,15 @@ class IntelligenceContracts(BaseModel):
     V2MemoryUsage_1: V2MemoryUsage = Field(..., alias='V2MemoryUsage')
     V2TestPatch_1: V2TestPatch = Field(..., alias='V2TestPatch')
     V2EvaluationTrial_1: V2EvaluationTrial = Field(..., alias='V2EvaluationTrial')
+    V2CapabilityRpcEnvelope_1: V2CapabilityRpcEnvelope = Field(
+        ..., alias='V2CapabilityRpcEnvelope'
+    )
+    V2RemoteExecuteRequest_1: V2RemoteExecuteRequest = Field(
+        ..., alias='V2RemoteExecuteRequest'
+    )
+    V2RemoteCapabilityResult_1: V2RemoteCapabilityResult = Field(
+        ..., alias='V2RemoteCapabilityResult'
+    )
     MultiFileComparisonInput_1: MultiFileComparisonInput = Field(
         ..., alias='MultiFileComparisonInput'
     )

@@ -5725,6 +5725,111 @@
       ],
       "additionalProperties": false
     },
+    "V2CapabilityRpcEnvelope": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "type": "string",
+          "const": "aiqa.capability-rpc/2"
+        },
+        "invocationId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "deadline": {
+          "$ref": "#/definitions/PlanProposalInput/properties/testCase/properties/createdAt"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "invocationId",
+        "deadline",
+        "idempotencyKey"
+      ],
+      "additionalProperties": false
+    },
+    "V2RemoteExecuteRequest": {
+      "type": "object",
+      "properties": {
+        "envelope": {
+          "$ref": "#/definitions/V2CapabilityRpcEnvelope"
+        },
+        "input": {}
+      },
+      "required": [
+        "envelope"
+      ],
+      "additionalProperties": false
+    },
+    "V2RemoteCapabilityResult": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "SUCCEEDED",
+            "FAILED",
+            "CANCELLED"
+          ]
+        },
+        "output": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resourceKeys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "maxItems": 100,
+          "default": []
+        },
+        "retryable": {
+          "type": "boolean",
+          "default": false
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "message": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "additionalProperties": false
+    },
     "MultiFileComparisonInput": {
       "type": "object",
       "properties": {
@@ -6745,6 +6850,15 @@
         "V2EvaluationTrial": {
           "$ref": "#/definitions/V2EvaluationTrial"
         },
+        "V2CapabilityRpcEnvelope": {
+          "$ref": "#/definitions/V2CapabilityRpcEnvelope"
+        },
+        "V2RemoteExecuteRequest": {
+          "$ref": "#/definitions/V2RemoteExecuteRequest"
+        },
+        "V2RemoteCapabilityResult": {
+          "$ref": "#/definitions/V2RemoteCapabilityResult"
+        },
         "MultiFileComparisonInput": {
           "$ref": "#/definitions/MultiFileComparisonInput"
         },
@@ -6843,6 +6957,9 @@
         "V2MemoryUsage",
         "V2TestPatch",
         "V2EvaluationTrial",
+        "V2CapabilityRpcEnvelope",
+        "V2RemoteExecuteRequest",
+        "V2RemoteCapabilityResult",
         "MultiFileComparisonInput",
         "MultiFileChangeReport",
         "SnapshotCompareRequest",

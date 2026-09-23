@@ -1,0 +1,24 @@
+{
+  "name": "@ai-qa/adapter-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "v2 \u80fd\u529b\u9002\u914d\u5668 SDK\uff08HAR-01\uff09\uff1aTS \u672c\u5730\u9002\u914d\u5668\u534f\u8bae\u3001Schema \u6821\u9a8c\u3001\u6837\u4f8b",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./samples/http-checker": "./src/samples/http-checker.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "@ai-qa/contracts": "workspace:*"
+  }
+}

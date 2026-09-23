@@ -2,7 +2,7 @@
   "name": "@ai-qa/worker",
   "version": "0.2.0",
   "private": true,
-  "description": "执行 worker：BullMQ 消费、真实浏览器执行、证据落盘、对账与租约",
+  "description": "\u6267\u884c worker\uff1aBullMQ \u6d88\u8d39\u3001\u771f\u5b9e\u6d4f\u89c8\u5668\u6267\u884c\u3001\u8bc1\u636e\u843d\u76d8\u3001\u5bf9\u8d26\u4e0e\u79df\u7ea6",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
@@ -26,7 +26,8 @@
     "fastify": "^5.2.0",
     "playwright": "^1.63.0",
     "tsx": "^4.19.0",
-    "zod": "^3.25.0"
+    "zod": "^3.25.0",
+    "@ai-qa/adapter-sdk": "workspace:*"
   },
   "devDependencies": {
     "@fastify/cookie": "^11.1.2",

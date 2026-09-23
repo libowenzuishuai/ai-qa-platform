@@ -63,6 +63,9 @@ const schemas = {
   V2MemoryUsage: c.MemoryUsage,
   V2TestPatch: c.TestPatch,
   V2EvaluationTrial: c.EvaluationTrial,
+  V2CapabilityRpcEnvelope: c.CapabilityRpcEnvelope,
+  V2RemoteExecuteRequest: c.RemoteExecuteRequest,
+  V2RemoteCapabilityResult: c.RemoteCapabilityResult,
   // R02：快照对比（确定性多文件差异）
   MultiFileComparisonInput: c.MultiFileComparisonInput,
   MultiFileChangeReport: c.MultiFileChangeReport,

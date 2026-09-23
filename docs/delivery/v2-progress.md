@@ -9,7 +9,7 @@
 |---|---|---|---|
 | W00 基线与台账 | VERIFIED | 无 | 本文件 + 需求矩阵 + ADR；基线命令逐项实际运行 |
 | W01 共享契约与迁移 | CODE_READY | W00 | 15 类实体定稿（Oracle/Harness/Graph/Session/Context/Finding 六模块，v2/ 目录）；25 例共享向量（19 shape 双端同判 + 6 semantic TS 权威）；16 张 V2* 表迁移（干净库+旧库重放通过）；contracts 305/305、python 向量 20/20、typecheck 0。VERIFIED 待 W02 起逐表消费（规则 11：只建不消费不算完成） |
-| W02 能力 SDK 与组合内核 | NOT_STARTED | W01 | 注册式安装/授权/版本/调用；两个独立样例；不改核心 dispatcher |
+| W02 能力 SDK 与组合内核 | IN_PROGRESS（Alpha 注册/执行切片 VERIFIED） | W01 | adapter-sdk 包（CapabilityAdapter 协议 + Schema 子集校验器 + 自检）；TS 样例 example.http-read（本地 SDK，白名单/取消/超时）；Python 样例 example.data-reconcile（remote-http 独立进程，describe/execute/cancel）；worker 注册表+调用器（授权/撤权/跨项目/Schema 前后校验/版本哈希匹配）；API 安装/授权/撤销/列表（安装≠授权；清单不可变；撤销后重装=新行）。集成 12/12（真实 DB+真实 HTTP+本地 HTTP 目标）。剩余：组合执行内核（多实例/子流程/循环运行时）、回放、MCP 桥、dry-run |
 | W03 真实上下文与 OracleSpec | NOT_STARTED | W01 | ContextManifest/检索基线/Oracle 冻结；规划消费原文 |
 | W04 持久化自主循环（Alpha 核心） | NOT_STARTED | W02+W03 | Observe→Plan→Act→Verify→Adapt；草稿三构建最小闭环 + 故障矩阵 |
 | W05 浏览器/API/数据 | NOT_STARTED | W04 | DOM+视觉联合观察；复杂交互；交叉核验；Stagehand 对照 ADR |
