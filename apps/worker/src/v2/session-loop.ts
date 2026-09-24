@@ -55,6 +55,9 @@ export async function runDraftSessionLoop(args: SessionLoopInput): Promise<Sessi
   if (args.planner === "python-real" && (!args.intelligence?.url || !args.intelligence?.token))
     throw Object.assign(new Error("python-real 规划器需要智能服务地址与令牌"), { code: "CONFIG_MISSING" });
 
+  // 排队期间被取消：启动即中止（零派发）。
+  if (session.status === "CANCELLED")
+    return { status: "CANCELLED", rounds: 0, verdict: "no_progress", finalTitle: null, draftId: null, reason: "会话在排队期间被取消" };
   const oracleRow = await prisma.v2OracleSpec.findUniqueOrThrow({ where: { id: session.oracleSpecId } });
   const oracle = OracleSpec.safeParse({
     id: oracleRow.id, projectId: oracleRow.projectId, version: oracleRow.version, status: oracleRow.status as "APPROVED",

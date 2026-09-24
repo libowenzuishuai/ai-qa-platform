@@ -290,6 +290,51 @@ it("写后回执前 SIGKILL 真实子进程：重启恢复对账，资源仍 1 �
   }
 }, 60000);
 
+it("故障矩阵：排队中取消——会话 CANCELLED 后循环启动即零派发", async () => {
+  const server = await startDraftServer();
+  const sessionId = await createSession();
+  await env.prisma.v2ExecutionSession.update({
+    where: { id: sessionId },
+    data: { status: "CANCELLED", terminationReason: "用户取消" },
+  });
+  const result = await runDraftSessionLoop({ prisma: env.prisma, sessionId, baseUrl: server.baseUrl, planner: "script" });
+  expect(result.status).toBe("CANCELLED");
+  expect(result.rounds).toBe(0);
+  expect((await server.stats()).drafts).toBe(0); // 零副作用
+  await server.stop();
+});
+
+it("故障矩阵：双 worker 并发认领同一作业——一个执行一个空转，会话只跑一次", async () => {
+  const server = await startDraftServer();
+  const sessionId = await createSession();
+  const job = await env.prisma.job.create({
+    data: {
+      projectId, kind: "V2_SESSION_LOOP", fingerprint: `dual-${randomUUID()}`,
+      status: "QUEUED",
+      request: { sessionId, baseUrl: server.baseUrl, planner: "script" } as never,
+    },
+  });
+  // 两个"worker"并发处理同一作业：CAS 认领（QUEUED→RUNNING）只有一个成功。
+  const { processAgentJob } = await import("../src/agent-job-processor.js");
+  const WorkerConfig = (await import("../src/config.js")).WorkerConfig;
+  const config = WorkerConfig.parse({
+    databaseUrl: env.databaseUrl, redisUrl: "redis://127.0.0.1:6380/0",
+    artifactDir: env.artifactDir, intelligenceBackend: "python",
+    intelligenceUrl: "http://127.0.0.1:1", intelligenceToken: "x", intelligenceTimeoutMs: 5000,
+  });
+  const [a, b] = await Promise.all([
+    processAgentJob(env.prisma, config, job.id),
+    processAgentJob(env.prisma, config, job.id),
+  ]);
+  void a; void b;
+  const finalJob = await env.prisma.job.findUniqueOrThrow({ where: { id: job.id } });
+  expect(finalJob.status).toBe("SUCCEEDED");
+  expect((await server.stats()).drafts).toBe(1); // 只创建一次
+  const session = await env.prisma.v2ExecutionSession.findUniqueOrThrow({ where: { id: sessionId } });
+  expect(session.status).toBe("COMPLETED");
+  await server.stop();
+});
+
 it("三构建同标准连续对照：健康 PASS → 缺陷 FAIL → 修复版沿同一 Oracle PASS", async () => {
   // 同一 Oracle（同一标准）依次跑三个构建。
   const oracleSessionIds: string[] = [];
