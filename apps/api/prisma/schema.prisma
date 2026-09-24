@@ -92,6 +92,7 @@ model Project {
   v2MemoryUsages    V2MemoryUsage[]
   v2TestPatches     V2TestPatch[]
   v2EvaluationTrials V2EvaluationTrial[]
+  v2ReadinessChecks V2ReadinessCheck[]
 }
 
 model ProjectMembership {
@@ -1488,4 +1489,25 @@ model V2EvaluationTrial {
   project                   Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
 
   @@index([campaignId])
+}
+
+/// R1：任务准备检查结果（绑定配置指纹/角色/环境版本，有过期时间；不改旧结果）。
+model V2ReadinessCheck {
+  id                String   @id @default(cuid())
+  projectId         String
+  sessionId         String?
+  /** 绑定的配置指纹（环境版本/角色/所需能力集合等规范化哈希）。 */
+  configFingerprint String
+  role              String?
+  environmentRevision Int
+  /** ready | blocked。 */
+  status            String
+  /** 阻塞项列表：reasonCode/原因/影响/缺什么/负责人角色/下一步/证据。 */
+  blockers          Json     @default("[]")
+  checkedAt         DateTime @default(now())
+  expiresAt         DateTime
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, configFingerprint])
+  @@index([projectId, sessionId])
 }
