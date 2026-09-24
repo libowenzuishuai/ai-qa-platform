@@ -15,6 +15,12 @@
 - 迁移：`20260924010000_v2_readiness`（干净库重放通过）。
 - 评审探针（真实源函数+真实本机 HTTP）：retryFalse=1call+首败保留、repeat=1call、map=2/2、expired=0call、pattern 自检拒+运行时受控、重定向 B=0、`items` 路径通过。
 
+## 本轮补全后状态（2026-09-24 晚，W00–W10 补全轮）
+
+- **新增 VERIFIED 切片**：W05 观察能力（真实 Chromium DOM+截图+交叉核验）；W07 Finding 生命周期（证据门/去重/降级保护/假设分栏）；W08 Python 决策端点（确定性基线）；W02 子流程+dry-run+回放；W04 排队取消+双 worker；W03 OpenAPI 契约线索；W06 定义 AST API；W09 支持矩阵。
+- **最终回归**：typecheck 0 · contracts 305/305 · api 116/116 · worker 175+7skip · web 1/1 · python 398/398。
+- **仍缺（不冒充）**：MCP 桥、画布可视化 UI、视觉写操作、过期租约/SSE 矩阵、多角色、Jev、真实模型语义质量、GitHub App 实测、三授权项目评测（W10 外部门）。
+
 ## 下一轮入口（按 GLM-CONTINUE-W04 R4 及其后续）
 
 1. **R4 遗项（本轮已消掉的部分打勾）**：
