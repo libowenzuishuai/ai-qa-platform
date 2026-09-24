@@ -3,6 +3,10 @@
  * 由 web 服务端转发；浏览器不直连数据库/Redis，也不获取凭据。
  */
 export const API_BASE = process.env.API_BASE_URL ?? "http://127.0.0.1:7300";
+// 每次调用时读取（测试可动态指向 in-process API 实例）。
+function apiBase(): string {
+  return process.env.API_BASE_URL ?? API_BASE;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -19,7 +23,7 @@ export async function api<T = unknown>(
   path: string,
   init: { method?: string; body?: unknown; sid?: string | undefined } = {},
 ): Promise<{ status: number; data: T }> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${apiBase()}${path}`, {
     method: init.method ?? "GET",
     headers: {
       "content-type": "application/json",

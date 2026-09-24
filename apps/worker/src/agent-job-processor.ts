@@ -4,6 +4,7 @@ import { loadCompletedChunks } from "../../api/src/chunk-results.js";
 import {runChangeReview} from "./change-review-job.js";
 import { runSnapshotDiff } from "./snapshot-diff-job.js";
 import { runDocumentChunk, runChunkExtract } from "./chunk-jobs.js";
+import { runDraftSessionLoop } from "./v2/session-loop.js";
 import { runLoginCheck } from './login-check-job.js';
 import { runDataJob } from './data-plugin-job.js';
 import { processProductJob } from "./product-jobs.js";
@@ -182,6 +183,18 @@ export async function processAgentJob(
       await runChunkBatch(prisma,job,config);
     } else if(job.kind === "CHUNK_EXTRACT") {
       await runChunkExtract(prisma,store,job,config,commitJob);
+    } else if(job.kind === "V2_SESSION_LOOP") {
+      const request = job.request as { sessionId: string; baseUrl: string; planner: "script"; maxRounds?: number };
+      const result = await runDraftSessionLoop({
+        prisma, sessionId: request.sessionId, baseUrl: request.baseUrl,
+        planner: request.planner, maxRounds: request.maxRounds,
+      });
+      await commitJob(prisma, job, async (tx) => {
+        await tx.job.update({
+          where: { id: job.id },
+          data: { status: "SUCCEEDED", result: { ...result } as never, finishedAt: new Date() },
+        });
+      });
     } else if(job.kind === "LOGIN_CHECK") {
       await runLoginCheck(prisma,store,job,commitJob,controller.signal);
     } else if(["DATA_PREPARE","DATA_CLEANUP","DATA_INSPECT"].includes(job.kind)){

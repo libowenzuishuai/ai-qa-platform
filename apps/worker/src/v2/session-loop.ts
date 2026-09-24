@@ -1,5 +1,6 @@
-import type { PrismaClient } from "@prisma/client";
+
 import { randomUUID, createHash } from "node:crypto";
+import type { PrismaClient } from "@prisma/client";
 import { OracleSpec, type OracleAssertion } from "@ai-qa/contracts";
 import { invokeCapability } from "./capability-invoker.js";
 
@@ -90,7 +91,7 @@ export async function runDraftSessionLoop(args: SessionLoopInput): Promise<Sessi
     const metaResult = await dispatch(prisma, session, args, {
       op: "meta", baseUrl: args.baseUrl,
     }, `round-${round}-observe`, "observe");
-    if (!isSuccess(metaResult)) return terminal("FAILED", round, "fail", draftId, `观察失败：${metaResult.error?.message}`);
+    if (!isSuccess(metaResult)) return await terminal(prisma, sessionId, "FAILED", round, "fail", draftId, `观察失败：${metaResult.error?.message}`);
     const meta = (metaResult.output as { meta?: { routes?: { renameDraft?: string } } }).meta;
     const renamePath = meta?.routes?.renameDraft ?? "/api/drafts/:id/rename";
     await prisma.v2Observation.create({
@@ -111,13 +112,13 @@ export async function runDraftSessionLoop(args: SessionLoopInput): Promise<Sessi
         planned = { op: recoverOp, rationale: "恢复对账：按原幂等键重放未回执写入" };
       else {
         // 未知逻辑写入类型：无法安全重放（不盲目重做）——暂停人工核对。
-        return terminal("FAILED", round, "fail", draftId, `存在无法识别的未回执写入（幂等键 ${pendingIntents[0]!.idempotencyKey}）：转人工核对`);
+        return await terminal(prisma, sessionId, "FAILED", round, "fail", draftId, `存在无法识别的未回执写入（幂等键 ${pendingIntents[0]!.idempotencyKey}）：转人工核对`);
       }
     } else if (!draftId) {
       planned = { op: "create", rationale: "无草稿：创建（幂等键=会话键）" };
     } else {
       const current = await fetchDraft(prisma, session, args, draftId, round);
-      if (!current) return terminal("FAILED", round, "fail", draftId, `草稿 ${draftId} 不可读`);
+      if (!current) return await terminal(prisma, sessionId, "FAILED", round, "fail", draftId, `草稿 ${draftId} 不可读`);
       observed = { renamePath, draft: current };
       if (current.title === targetTitle) {
         planned = { op: "get", rationale: "已改名：重新读取核验持久化" };
@@ -128,7 +129,7 @@ export async function runDraftSessionLoop(args: SessionLoopInput): Promise<Sessi
         if (equivalent === lastEquivalent) equivalentCount += 1;
         else { lastEquivalent = equivalent; equivalentCount = 1; }
         if (equivalentCount >= 3)
-          return terminal("FAILED", round, "fail", draftId, current.title, "三次等价无进展：改名已执行而标题未变（业务失败，不自修复）");
+          return await terminal(prisma, sessionId, "FAILED", round, "fail", draftId, current.title, "三次等价无进展：改名已执行而标题未变（业务失败，不自修复）");
       }
     }
     await persistAttempt(prisma, sessionId, round, "plan", planned.rationale);
@@ -205,7 +206,7 @@ export async function runDraftSessionLoop(args: SessionLoopInput): Promise<Sessi
         }
         continue;
       }
-      return terminal("FAILED", round, "fail", draftId, `动作失败：${actResult.error?.code} ${actResult.error?.message}`);
+      return await terminal(prisma, sessionId, "FAILED", round, "fail", draftId, `动作失败：${actResult.error?.code} ${actResult.error?.message}`);
     }
 
     const out = actResult.output as { kind: string; draft?: { id: string; title: string } | null };
@@ -223,7 +224,7 @@ export async function runDraftSessionLoop(args: SessionLoopInput): Promise<Sessi
     const fresh = observed?.draft?.id === draftId && observed.draft
       ? observed.draft
       : await fetchDraft(prisma, session, args, draftId!, round);
-    if (!fresh) return terminal("FAILED", round, "fail", draftId, "验证读取失败");
+    if (!fresh) return await terminal(prisma, sessionId, "FAILED", round, "fail", draftId, "验证读取失败");
     await prisma.v2Observation.create({
       data: { sessionId, round, source: "tool", observedUrl: args.baseUrl, evidenceArtifactIds: [], summary: { draft: fresh } as never },
     });
@@ -231,17 +232,17 @@ export async function runDraftSessionLoop(args: SessionLoopInput): Promise<Sessi
     await persistAttempt(prisma, sessionId, round, "verify", `实际「${fresh.title}」 vs 期望「${targetTitle}」→ ${verdict}`);
 
     if (verdict === "pass")
-      return terminal("COMPLETED", round, "pass", draftId, fresh.title, "目标达成（标准判定通过）");
+      return await terminal(prisma, sessionId, "COMPLETED", round, "pass", draftId, fresh.title, "目标达成（标准判定通过）");
 
     // 业务 FAIL：不自修复（缺陷构建必须 FAIL），但有界无进展检测防死循环。
     const equivalent = `fail:${fresh.title}`;
     if (equivalent === lastEquivalent) equivalentCount += 1;
     else { lastEquivalent = equivalent; equivalentCount = 1; }
     if (equivalentCount >= 3)
-      return terminal("FAILED", round, "fail", draftId, fresh.title, "三次等价无进展：业务失败（标准未达成，不自修复）");
+      return await terminal(prisma, sessionId, "FAILED", round, "fail", draftId, fresh.title, "三次等价无进展：业务失败（标准未达成，不自修复）");
     // 重新改名一次（有界：无进展计数到 3 即停）。
   }
-  return terminal("FAILED", maxRounds, "no_progress", draftId, null, "轮次上限耗尽（有界停止）");
+  return await terminal(prisma, sessionId, "FAILED", maxRounds, "no_progress", draftId, null, "轮次上限耗尽（有界停止）");
 }
 
 // ---------- helpers ----------
@@ -322,13 +323,23 @@ function hashOf(value: unknown): number {
   return hash;
 }
 
-function terminal(
+async function terminal(
+  prisma: PrismaClient, sessionId: string,
   status: SessionLoopResult["status"], rounds: number, verdict: SessionLoopResult["verdict"],
   draftId: string | null, finalTitleOrReason: string | null, reasonText?: string,
-): SessionLoopResult {
+): Promise<SessionLoopResult> {
+  const termination = `${reasonText ?? finalTitleOrReason ?? ""}`;
+  await prisma.v2ExecutionSession.updateMany({
+    where: { id: sessionId, status: { notIn: ["COMPLETED", "FAILED", "CANCELLED"] } },
+    data: { status: status === "COMPLETED" ? "COMPLETED" : "FAILED", terminationReason: termination },
+  }).catch(() => undefined);
   return {
     status, rounds, verdict, draftId,
     finalTitle: verdict === "pass" || verdict === "fail" ? finalTitleOrReason : null,
-    reason: reasonText ?? finalTitleOrReason ?? "",
+    reason: termination,
   };
 }
+
+
+
+

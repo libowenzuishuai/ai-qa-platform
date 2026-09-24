@@ -2,23 +2,27 @@
   "name": "@ai-qa/web",
   "version": "0.1.0",
   "private": true,
-  "description": "最小运行页面（阶段 1）：登录、启动运行、进度、取消、报告与证据。SSR 仅调用平台 API。",
+  "description": "\u6700\u5c0f\u8fd0\u884c\u9875\u9762\uff08\u9636\u6bb5 1\uff09\uff1a\u767b\u5f55\u3001\u542f\u52a8\u8fd0\u884c\u3001\u8fdb\u5ea6\u3001\u53d6\u6d88\u3001\u62a5\u544a\u4e0e\u8bc1\u636e\u3002SSR \u4ec5\u8c03\u7528\u5e73\u53f0 API\u3002",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "build": "tsc -p tsconfig.build.json",
     "start:dist": "node dist/server.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.0",
     "@fastify/formbody": "^8.0.2",
     "fastify": "^5.2.0",
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "@ai-qa/adapter-sdk": "workspace:*",
+    "@ai-qa/contracts": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
   }
 }

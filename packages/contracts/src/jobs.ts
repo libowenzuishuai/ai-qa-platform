@@ -21,7 +21,7 @@ import { DocumentFormat, ParseStatus } from "./document.js";
  * 不内联 bundle/draft 大对象。
  */
 
-export const JobKind = z.enum(["DOCUMENT_PARSE", "RULE_EXTRACTION", "CASE_GENERATION", "WEB_OBSERVATION", "PLAN_PROPOSAL", "REPO_DISCOVERY", "LOGIN_CHECK", "DATA_PREPARE", "DATA_CLEANUP", "DATA_INSPECT", "CHANGE_REVIEW", "SNAPSHOT_DIFF", "DOCUMENT_CHUNK", "CHUNK_EXTRACT", "CHUNK_BATCH", "GOAL_PROPOSAL", "EXPLORATION"]);
+export const JobKind = z.enum(["DOCUMENT_PARSE", "RULE_EXTRACTION", "CASE_GENERATION", "WEB_OBSERVATION", "PLAN_PROPOSAL", "REPO_DISCOVERY", "LOGIN_CHECK", "DATA_PREPARE", "DATA_CLEANUP", "DATA_INSPECT", "CHANGE_REVIEW", "SNAPSHOT_DIFF", "DOCUMENT_CHUNK", "CHUNK_EXTRACT", "CHUNK_BATCH", "GOAL_PROPOSAL", "EXPLORATION", "V2_SESSION_LOOP"]);
 export type JobKind = z.infer<typeof JobKind>;
 
 export const JobStatus = z.enum(["QUEUED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED"]);
@@ -122,6 +122,7 @@ export const JobEnvelope = z.discriminatedUnion("kind", [
   JobEnvelopeBase.extend({kind:z.literal("DOCUMENT_CHUNK"),result:z.object({documentVersionId:EntityId,manifestHash:z.string(),chunkCount:z.number().int()}).nullable()}),
   JobEnvelopeBase.extend({kind:z.literal("CHUNK_BATCH"),result:z.object({documentVersionId:EntityId,completed:z.number().int()}).nullable()}),
   JobEnvelopeBase.extend({kind:z.literal("CHUNK_EXTRACT"),result:z.object({chunkRowId:EntityId,chunkId:z.string(),status:z.string()}).nullable()}),
+  JobEnvelopeBase.extend({kind:z.literal("V2_SESSION_LOOP"),result:z.object({status:z.string(),rounds:z.number().int(),verdict:z.string(),draftId:z.string().nullable(),reason:z.string()}).nullable()}),
   JobEnvelopeBase.extend({kind:z.literal("LOGIN_CHECK"),result:z.object({loginPreparationId:EntityId,result:LoginCheckResult}).nullable()}),
   ...(["DATA_PREPARE","DATA_CLEANUP","DATA_INSPECT"] as const).map(kind=>JobEnvelopeBase.extend({kind:z.literal(kind),result:z.object({resourceIds:z.array(EntityId),status:z.string()}).nullable()})),
   JobEnvelopeBase.extend({ kind: z.literal("WEB_OBSERVATION"), result: z.object({ artifactId: EntityId, bindingCount: z.number().int() }).nullable() }),

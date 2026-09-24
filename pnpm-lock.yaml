@@ -96,6 +96,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@ai-qa/adapter-sdk':
+        specifier: workspace:*
+        version: link:../../packages/adapter-sdk
+      '@ai-qa/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@fastify/cookie':
         specifier: ^11.0.0
         version: 11.1.2
@@ -115,6 +121,9 @@ importers:
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@22.20.3)(jiti@2.7.0)(tsx@4.23.13)
 
   apps/worker:
     dependencies:
