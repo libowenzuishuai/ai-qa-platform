@@ -126,6 +126,12 @@
 | W04 python-real 规划器 | `feat(W04)` loop-planner | python agent 4/4 + worker 通道 2/2（真实 Python 进程；mock 无回放受控失败、零业务副作用） |
 | W08 决策基线 | `feat(W08)` 契约+基线 | 4/4（命中选择/无命中回退/平局不猜/归一分值） |
 | W07 记忆闭环 | `feat(W07)` memory-usages | 3/3（跨项目拒/过期不能 used/used+outcome 账本） |
+| W05 观察与交叉核验 | `feat(W05)` web-observe | worker 2/2（真实 Chromium：DOM testid+截图 sha256 落盘；歧义拒绝；缺陷构建 UI 假成功检出） |
+| W06 定义 API | `feat(W06)` definitions | 3/3（环拒保存/AST 幂等升版/发布哈希防篡改） |
+| W02 子流程+回放 | `feat(W02)` executor | 3/3（内联展开真执行/dry-run 0 请求/replay 缺记录失败不回退） |
+| W04 故障矩阵补 | `test(W04)` | loop 11/11（排队取消零派发、双 worker 单资源、三构建同标准） |
+| W03 OpenAPI 线索 | `feat(W03)` apiContract | 7/7（PATCH 改名选中/healthz 拒绝） |
+| W09 支持矩阵 | `docs/v2-support-matrix.md` | 逐面声明+未验如实标注 |
 | R3 最小旅程 | `feat(R2/R3)` + `test(R3)` 浏览器旅程 | web 1/1（SSR）；browser journey 1/1（真实 Chromium：1440 空态/表单键盘提交/COMPLETED/详情、390 详情、无横向溢出；截图 ×4 已入库 docs/evidence/v2-ui/） |
 | R2 故障矩阵扩展 | `test(R2)` 三构建+矩阵 | loop 9/9（三构建同 oracleHash 连续对照；动作前退出资源 0→1；重复投递幂等资源仍 1；运行中撤权循环 FAILED） |
 
