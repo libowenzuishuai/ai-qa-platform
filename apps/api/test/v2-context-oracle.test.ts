@@ -276,6 +276,16 @@ it("Context：紧预算不越界；检索无命中如实阻断", async () => {
   expect(noHit.json().message).toContain("检索无选中项");
 });
 
+it("R0.6 sessionId 不存在/跨项目拒绝；未声明 sessionId 校验生效", async () => {
+  const bad = await inject("POST", `/api/v2/projects/${projectId}/context-manifests`, {
+    query: "审批",
+    documentVersionIds: [documentVersionId],
+    sessionId: "sess-not-exist",
+  });
+  expect(bad.statusCode).toBe(422);
+  expect(bad.json().message).toContain("sessionId");
+});
+
 it("Context：未批准规则的来源关联拒绝", async () => {
   const res = await inject("POST", `/api/v2/projects/${projectId}/context-manifests`, {
     query: "审批",

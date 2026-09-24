@@ -2200,6 +2200,9 @@ class RuleRef(BaseModel):
     ruleVersionId: str = Field(
         ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
     )
+    documentVersionId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
     sourceSpanIds: list[RequestId] = Field(..., min_length=1)
 
 

@@ -40,6 +40,14 @@ export function registerV2ContextRoutes(app: FastifyInstance, prisma: PrismaClie
       .strict()
       .parse(req.body);
 
+    // R0.6：sessionId 存在性/同项目校验。
+    if (body.sessionId) {
+      const session = await prisma.v2ExecutionSession.findFirst({
+        where: { id: body.sessionId, projectId },
+      });
+      if (!session) throw new ApiError("VALIDATION_ERROR", "sessionId 不存在或不属于本项目");
+    }
+
     // 服务端装载（浏览器只传 id；归属/解析状态/校验和复用 v1 防线）。
     const store = new (await import("@ai-qa/artifact-store")).ArtifactStore(config.artifactDir ?? process.env.AIQA_ARTIFACT_DIR ?? "data/artifacts");
     const bundles = [];
@@ -49,7 +57,7 @@ export function registerV2ContextRoutes(app: FastifyInstance, prisma: PrismaClie
     }
 
     // 批准规则来源引用（权威路径）。
-    const ruleRefs: Array<{ ruleVersionId: string; sourceSpanIds: string[] }> = [];
+    const ruleRefs: Array<{ ruleVersionId: string; documentVersionId: string; sourceSpanIds: string[] }> = [];
     if (body.ruleVersionIds.length) {
       const rules = await prisma.ruleVersion.findMany({
         where: { id: { in: body.ruleVersionIds }, rule: { projectId }, reviewStatus: "APPROVED" },
@@ -62,7 +70,7 @@ export function registerV2ContextRoutes(app: FastifyInstance, prisma: PrismaClie
           .parse(rule.sources);
         for (const source of sources) {
           if (body.documentVersionIds.includes(source.documentVersionId))
-            ruleRefs.push({ ruleVersionId: rule.id, sourceSpanIds: source.sourceSpanIds });
+            ruleRefs.push({ ruleVersionId: rule.id, documentVersionId: source.documentVersionId, sourceSpanIds: source.sourceSpanIds });
         }
       }
     }
@@ -101,24 +109,44 @@ export function registerV2ContextRoutes(app: FastifyInstance, prisma: PrismaClie
     if (parsed.data.invocations.length)
       throw new ApiError("MODEL_OUTPUT_INVALID", "确定性检索不应产生模型调用");
 
-    // 服务端组装：预算估算（选中项字符数/4）+ 截断对账（omitted 必须记录）。
-    const selections = parsed.data.output.selections.map((s) => ({
-      kind: s.kind === "unparsed_range" ? ("unparsed_range" as const) : ("span" as const),
-      ref: s.ref,
-      documentVersionId: s.documentVersionId,
-      score: s.score,
-      decision: s.decision,
-      reason: s.reason,
-    }));
-    const spanText = new Map(bundles.flatMap((b) => b.spans.map((s) => [s.id, s.quotedText ?? ""])));
+    // R0.6：检索响应与已装载来源对账——引用必须真实存在、不重复、
+    // 质量不可升级（UNPARSED 不能被标为 span 选中）。
+    const loadedKeys = new Set(bundles.flatMap((b) => b.spans.map((s) => `${b.documentVersionId}:${s.id}`)));
+    const loadedUnparsed = new Set(bundles.flatMap((b) => b.spans.filter((s) => s.extractionQuality === "UNPARSED").map((s) => `${b.documentVersionId}:${s.id}`)));
+    const spanText = new Map(bundles.flatMap((b) => b.spans.map((s) => [`${b.documentVersionId}:${s.id}`, s.quotedText ?? ""])));
+    const problems: string[] = [];
+    const seenKeys = new Set<string>();
+    const selections: typeof parsed.data.output.selections = [];
+    for (const sel of parsed.data.output.selections) {
+      const key = `${sel.documentVersionId}:${sel.ref}`;
+      if (!loadedKeys.has(key)) {
+        problems.push(`检索返回了未装载的来源：${key}`);
+        continue;
+      }
+      if (seenKeys.has(key)) {
+        problems.push(`检索返回重复来源：${key}`);
+        continue;
+      }
+      seenKeys.add(key);
+      if (sel.decision === "selected" && sel.kind === "span" && loadedUnparsed.has(key))
+        problems.push(`质量升级拒绝：${key} 是 UNPARSED，不能作为选中 span`);
+      selections.push(sel);
+    }
+    if (problems.length)
+      throw new ApiError("MODEL_OUTPUT_INVALID", "检索输出与已装载来源对账失败", { problems: problems.slice(0, 10) });
+
+    // R0.6：预算估算——保守上界口径（中文≈1字1token、混合取 chars/2 上取整），
+    // 不是精确 tokenizer；实际模型请求哈希在 W04 规划器单独记录。
+    const estimateTokens = (text: string) => Math.max(1, Math.ceil(text.length / 2));
     let tokensUsed = 0;
     const omittedRefs: string[] = [];
     const finalSelections = selections.map((selection) => {
       if (selection.decision === "rejected") return selection;
-      const cost = Math.ceil((spanText.get(selection.ref) ?? "").length / 4);
+      const key = `${selection.documentVersionId}:${selection.ref}`;
+      const cost = estimateTokens(spanText.get(key) ?? "");
       if (tokensUsed + cost > body.tokensMax) {
-        omittedRefs.push(selection.ref);
-        return { ...selection, decision: "rejected" as const, reason: `上下文预算截断（累计 ${tokensUsed + cost} > ${body.tokensMax}）` };
+        omittedRefs.push(key);
+        return { ...selection, decision: "rejected" as const, reason: `上下文预算截断（估算 ${tokensUsed + cost} > ${body.tokensMax}）` };
       }
       tokensUsed += cost;
       return selection;

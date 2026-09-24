@@ -5962,6 +5962,9 @@
               "ruleVersionId": {
                 "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
               },
+              "documentVersionId": {
+                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+              },
               "sourceSpanIds": {
                 "type": "array",
                 "items": {
@@ -5972,6 +5975,7 @@
             },
             "required": [
               "ruleVersionId",
+              "documentVersionId",
               "sourceSpanIds"
             ],
             "additionalProperties": false

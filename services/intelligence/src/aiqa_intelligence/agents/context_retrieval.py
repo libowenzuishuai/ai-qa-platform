@@ -54,17 +54,23 @@ def retrieve(data: dict) -> dict:
     rule_refs = data.get("ruleRefs") or []
     max_selected = int(data.get("maxSelected", 50))
 
-    # 来源关联：规则引用的 span 直接入选（权威）。
-    authoritative: dict[str, set[str]] = {}
+    # R0.6（V2-R06）：权威集合用复合键 (documentVersionId, spanId)——
+    # 不同文档的同名 spanId 不互相授权；规则来源只对声明的文档生效。
+    authoritative: dict[tuple[str, str], set[str]] = {}
     for rule in rule_refs:
+        rule_dv = rule.get("documentVersionId")
         for span_id in rule.get("sourceSpanIds", []):
-            authoritative.setdefault(span_id, set()).add(rule["ruleVersionId"])
+            authoritative.setdefault((rule_dv, span_id), set()).add(rule["ruleVersionId"])
 
     scored: list[dict] = []
     for bundle in data.get("documentVersions", []):
         version_id = bundle["documentVersionId"]
-        kinds = {b["id"]: b.get("kind", "paragraph") for b in bundle.get("blocks", [])}
-        for index, span in enumerate(bundle.get("spans", [])):
+        # block↔span 关联：按 Bundle.add 的同序不变量（同索引），显式校验长度一致。
+        blocks = bundle.get("blocks", [])
+        spans = bundle.get("spans", [])
+        if len(blocks) != len(spans):
+            raise ValueError(f"bundle {version_id} 的 blocks({len(blocks)}) 与 spans({len(spans)}) 数量不一致")
+        for index, span in enumerate(spans):
             ref = span["id"]
             quality = span.get("extractionQuality", "GOOD")
             text = span.get("quotedText")
@@ -75,12 +81,10 @@ def retrieve(data: dict) -> dict:
                     "reason": "未解析片段：不能作为规划依据，转人工/后续处理",
                 })
                 continue
-            block_kind = None
-            if index < len(bundle.get("blocks", [])):
-                block_kind = bundle["blocks"][index].get("kind")
+            block_kind = blocks[index].get("kind") if index < len(blocks) else None
             kw = _keyword_score(query, text)
             weight = _structure_weight(block_kind, quality)
-            if ref in authoritative:
+            if (version_id, ref) in authoritative:
                 score = min(1.0, 0.8 + 0.2 * kw)
                 reason = "批准规则来源关联（权威）" + ("；关键词命中" if kw > 0 else "")
             else:

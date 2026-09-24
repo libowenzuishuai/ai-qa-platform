@@ -14,6 +14,8 @@ export const ContextRetrievalInput = z.object({
   /** 批准规则来源引用（权威路径：其 span 直接入选）。 */
   ruleRefs: z.array(z.object({
     ruleVersionId: EntityId,
+    /** R0.6：来源片段所属文档版本（复合键的一半；跨文档同名 span 不互授权）。 */
+    documentVersionId: EntityId,
     sourceSpanIds: z.array(EntityId).min(1),
   }).strict()).max(500).default([]),
   maxSelected: z.number().int().min(1).max(500).default(50),
