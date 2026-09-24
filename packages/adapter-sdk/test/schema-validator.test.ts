@@ -53,7 +53,7 @@ describe("R0.7 Schema 自检", () => {
 });
 
 describe("R0.7 值路径与普通字段名", () => {
-  const schema = {
+  const schema: import("@ai-qa/contracts").JsonSchemaSubset = {
     type: "object",
     additionalProperties: false,
     required: ["items", "response"],
