@@ -27,7 +27,8 @@
     "playwright": "^1.63.0",
     "tsx": "^4.19.0",
     "zod": "^3.25.0",
-    "@ai-qa/adapter-sdk": "workspace:*"
+    "@ai-qa/adapter-sdk": "workspace:*",
+    "@fastify/formbody": "^8.0.2"
   },
   "devDependencies": {
     "@fastify/cookie": "^11.1.2",

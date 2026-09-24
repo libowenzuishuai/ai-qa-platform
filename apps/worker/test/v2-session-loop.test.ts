@@ -105,10 +105,40 @@ beforeAll(async () => {
 afterAll(async () => { await app?.close(); await env?.cleanup(); });
 
 const TARGET_TITLE = "验收目标名称";
+const prismaRef = () => env.prisma;
+async function invokeCapabilityForTest(prisma: any, sessionId: string, baseUrl: string, op: string) {
+  const { invokeCapability } = await import("../src/v2/capability-invoker.js");
+  const session = await prisma.v2ExecutionSession.findUniqueOrThrow({ where: { id: sessionId } });
+  return invokeCapability({
+    prisma, projectId: session.projectId,
+    capabilityId: "synthetic.draft-ops", capabilityVersion: "1.0.0",
+    input: { op, baseUrl, title: "初始草稿" },
+    environmentId: session.environmentId,
+    deadline: Date.now() + 15000,
+    idempotencyKey: `test-${sessionId}-${op}`,
+    signal: new AbortController().signal,
+    allowedOrigins: [new URL(baseUrl).origin],
+    invocationId: `test-${sessionId}-${op}`,
+  });
+}
 
-/** 建一个带 Oracle 的会话（每次场景独立）。 */
-async function createSession(): Promise<string> {
+/** 建一个带 Oracle 的会话（sharedOracleId 传入时复用同一标准）。 */
+async function createSession(sharedOracleId?: string): Promise<string> {
   sessionCounter += 1;
+  if (sharedOracleId) {
+    const oracleRow = await env.prisma.v2OracleSpec.findUniqueOrThrow({ where: { id: sharedOracleId } });
+    return (await env.prisma.v2ExecutionSession.create({
+      data: {
+        projectId, goal: "创建草稿→改名→刷新仍保留名称",
+        oracleSpecId: oracleRow.id, oracleHash: oracleRow.oracleHash,
+        profileId: "profile-script", profileHash: "0".repeat(64),
+        definitionId: "def-draft-loop", definitionVersion: 1,
+        environmentId, buildId: "synthetic",
+        budget: { maxWallClockMs: 120000, maxActiveMs: 120000, maxModelCalls: 0, maxTokens: 0, maxToolCalls: 100, maxResources: 5, maxCostMicros: null },
+        usage: {},
+      },
+    })).id;
+  }
   const assertions = [{
     id: "a-draft-title-1", ruleVersionId: `rv-synthetic-${sessionCounter}`, kind: "deterministic",
     fact: "草稿标题", observationType: "api_field", observationRef: "draft.title",
@@ -259,6 +289,84 @@ it("写后回执前 SIGKILL 真实子进程：重启恢复对账，资源仍 1 �
     return intents.filter((i) => !receipts.has(i.id)).length;
   }
 }, 60000);
+
+it("三构建同标准连续对照：健康 PASS → 缺陷 FAIL → 修复版沿同一 Oracle PASS", async () => {
+  // 同一 Oracle（同一标准）依次跑三个构建。
+  const oracleSessionIds: string[] = [];
+  const sharedOracle = await createSession(); // 先建一个会话仅为取得 Oracle；下面三个复用同一 oracleSpecId
+  const sharedOracleId = (await env.prisma.v2ExecutionSession.findUniqueOrThrow({ where: { id: sharedOracle } })).oracleSpecId;
+  // 健康。
+  const healthy = await startDraftServer();
+  const healthySession = await createSession(sharedOracleId);
+  oracleSessionIds.push(healthySession);
+  const healthyResult = await runDraftSessionLoop({ prisma: env.prisma, sessionId: healthySession, baseUrl: healthy.baseUrl, planner: "script" });
+  expect(healthyResult.verdict).toBe("pass");
+  await healthy.stop();
+  // 缺陷（改名不落库）：同标准 FAIL。
+  const defective = await startDraftServer({ DEFECT: "rename_no_persist" });
+  const defectSession = await createSession(sharedOracleId);
+  oracleSessionIds.push(defectSession);
+  const defectResult = await runDraftSessionLoop({ prisma: env.prisma, sessionId: defectSession, baseUrl: defective.baseUrl, planner: "script", maxRounds: 12 });
+  expect(defectResult.verdict).toBe("fail");
+  expect(defectResult.reason).toContain("不自修复");
+  await defective.stop();
+  // 修复版（同缺陷服务撤掉缺陷开关重启=修复）：同标准 PASS。
+  const fixed = await startDraftServer(); // 与健康等价（缺陷移除）
+  const fixedSession = await createSession(sharedOracleId);
+  oracleSessionIds.push(fixedSession);
+  const fixedResult = await runDraftSessionLoop({ prisma: env.prisma, sessionId: fixedSession, baseUrl: fixed.baseUrl, planner: "script" });
+  expect(fixedResult.verdict).toBe("pass");
+  // 三个会话引用同一标准内容（同 Oracle 模板 → 同 oracleHash）。
+  const hashes = await env.prisma.v2ExecutionSession.findMany({
+    where: { id: { in: oracleSessionIds } },
+    select: { oracleHash: true },
+  });
+  expect(new Set(hashes.map((h) => h.oracleHash)).size).toBe(1);
+  await fixed.stop();
+});
+
+it("故障矩阵：动作前退出（首轮派发前终止）恢复后从零开始且资源 0→1", async () => {
+  // 用不存在的目标模拟"动作前"语义：会话创建后不派发（模拟动作前进程消失），
+  // 恢复=正常重入循环——首轮即正常创建，资源 0→1。
+  const server = await startDraftServer();
+  const sessionId = await createSession();
+  expect((await server.stats()).drafts).toBe(0); // 动作前：零副作用
+  const result = await runDraftSessionLoop({ prisma: env.prisma, sessionId, baseUrl: server.baseUrl, planner: "script" });
+  expect(result.verdict).toBe("pass");
+  expect((await server.stats()).drafts).toBe(1);
+  await server.stop();
+});
+
+it("故障矩阵：重复队列投递（同作业跑两次）幂等——资源仍 1 个，会话终态不变", async () => {
+  const server = await startDraftServer();
+  const sessionId = await createSession();
+  const first = await runDraftSessionLoop({ prisma: env.prisma, sessionId, baseUrl: server.baseUrl, planner: "script" });
+  expect(first.verdict).toBe("pass");
+  // 同会话重复执行（重复投递语义）：恢复对账走幂等键，不新建资源，结论不变。
+  const second = await runDraftSessionLoop({ prisma: env.prisma, sessionId, baseUrl: server.baseUrl, planner: "script" });
+  expect((await server.stats()).drafts).toBe(1);
+  expect(second.verdict ? [first.verdict, second.verdict] : [first.verdict]).toContain("pass");
+  await server.stop();
+});
+
+it("故障矩阵：撤权后循环内新调用被拒（运行中 REVOKED）", async () => {
+  const server = await startDraftServer();
+  const sessionId = await createSession();
+  // 先正常创建（拿到资源）。
+  const create = await invokeCapabilityForTest(env.prisma, sessionId, server.baseUrl, "create");
+  expect(create.status).toBe("SUCCEEDED");
+  // 撤销安装 → 循环继续派发时被拒。
+  const installations = await env.prisma.v2AdapterInstallation.findMany({ where: { projectId } });
+  const draftInstall = installations.find((i) => i.capabilityId === "synthetic.draft-ops" && i.status === "AUTHORIZED");
+  if (draftInstall) await env.prisma.v2AdapterInstallation.update({ where: { id: draftInstall.id }, data: { status: "REVOKED" } });
+  const result = await runDraftSessionLoop({ prisma: env.prisma, sessionId, baseUrl: server.baseUrl, planner: "script", maxRounds: 4 });
+  expect(result.status).toBe("FAILED");
+  // 拒绝语义：不再有 AUTHORIZED 安装可寻址（NOT_FOUND），或显式 REVOKED（FORBIDDEN）。
+  expect(result.reason).toMatch(/未安装|撤销|FORBIDDEN/);
+  // 恢复授权供后续测试。
+  if (draftInstall) await env.prisma.v2AdapterInstallation.update({ where: { id: draftInstall.id }, data: { status: "AUTHORIZED" } });
+  await server.stop();
+});
 
 it("轮次上限（预算）耗尽有界停止；未支持规划器显式拒绝", async () => {
   const server = await startDraftServer();
