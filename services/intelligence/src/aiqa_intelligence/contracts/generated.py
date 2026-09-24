@@ -638,6 +638,69 @@ class Score1(RootModel[float]):
     root: float = Field(..., ge=0.0, le=1.0)
 
 
+class Expected2(RootModel[str]):
+    root: str = Field(..., max_length=2000)
+
+
+class OracleAssertion(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    observationType: Literal[
+        'ui_text', 'ui_visible', 'api_field', 'api_status', 'db_value'
+    ]
+    observationRef: str = Field(..., max_length=300)
+    operator: str = Field(..., max_length=40)
+    expected: Expected2 | bool | None
+
+
+class RenamePath(RootModel[str]):
+    root: str = Field(..., max_length=300)
+
+
+class Draft(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(..., max_length=200)
+    title: str = Field(..., max_length=500)
+
+
+class Observation1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    renamePath: RenamePath | None
+    draft: Draft | None
+
+
+class ContextExcerptItem(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    spanId: str
+    text: str = Field(..., max_length=2000)
+
+
+class Params(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    title: str | None = Field(None, max_length=500)
+    renamePath: str | None = Field(None, max_length=300)
+
+
+class LoopPlannerOutput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    action: Literal[
+        'create_draft', 'rename_draft', 'get_draft', 'observe_only', 'done', 'blocked'
+    ]
+    params: Params | None = Field({}, validate_default=True)
+    rationale: str = Field(..., max_length=2000, min_length=1)
+
+
 class ExcludedPath(RootModel[str]):
     root: str = Field(..., max_length=1024, min_length=1)
 
@@ -2240,6 +2303,20 @@ class ContextRetrievalOutput(BaseModel):
     selections: list[Selection1] = Field(..., max_length=10000, min_length=1)
 
 
+class LoopPlannerInput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    goal: str = Field(..., max_length=4000, min_length=1)
+    oracleAssertions: list[OracleAssertion] = Field(..., max_length=100, min_length=1)
+    observation: Observation1
+    contextManifestId: RequestId | None = None
+    contextExcerpt: list[ContextExcerptItem] | None = Field(
+        [], max_length=50, validate_default=True
+    )
+    promptVersion: Literal['loop-planner-v1']
+
+
 class OldFile(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -2882,6 +2959,32 @@ class ContextRetrievalResponse(BaseModel):
     output: ContextRetrievalOutput
 
 
+class LoopPlannerRequest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    timeoutMs: int = Field(..., ge=1000, le=600000)
+    input: LoopPlannerInput
+
+
+class LoopPlannerResponse(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    invocations: list[InvocationRecord]
+    output: LoopPlannerOutput
+
+
 class MultiFileComparisonInput(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -3128,6 +3231,10 @@ class IntelligenceContracts(BaseModel):
     ContextRetrievalOutput_1: ContextRetrievalOutput = Field(
         ..., alias='ContextRetrievalOutput'
     )
+    LoopPlannerRequest_1: LoopPlannerRequest = Field(..., alias='LoopPlannerRequest')
+    LoopPlannerResponse_1: LoopPlannerResponse = Field(..., alias='LoopPlannerResponse')
+    LoopPlannerInput_1: LoopPlannerInput = Field(..., alias='LoopPlannerInput')
+    LoopPlannerOutput_1: LoopPlannerOutput = Field(..., alias='LoopPlannerOutput')
     MultiFileComparisonInput_1: MultiFileComparisonInput = Field(
         ..., alias='MultiFileComparisonInput'
     )

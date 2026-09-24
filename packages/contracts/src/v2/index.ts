@@ -7,3 +7,4 @@ export * from "./context.js";
 export * from "./finding.js";
 export * from "./remote.js";
 export * from "./context-retrieval.js";
+export * from "./loop-planner.js";

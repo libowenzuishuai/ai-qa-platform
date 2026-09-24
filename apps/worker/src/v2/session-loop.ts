@@ -24,8 +24,10 @@ export interface SessionLoopInput {
   sessionId: string;
   /** 合成系统 baseUrl（操作层输入）。 */
   baseUrl: string;
-  /** 规划器标识：script（确定性）| python-real（未在本切片实现，显式拒绝）。 */
-  planner: "script";
+  /** 规划器：script（确定性内核验证）| python-real（模型通道，服务端校验护栏）。 */
+  planner: "script" | "python-real";
+  /** python-real 所需的智能服务连接（script 忽略）。 */
+  intelligence?: { url: string; token: string };
   /** 有界轮次上限（防无进展空转）。 */
   maxRounds?: number;
   /** 进程内 kill 钩子（真实 kill 测试由子进程 SIGKILL 完成，不经过本参数）。 */
@@ -50,8 +52,8 @@ interface ObservedState {
 export async function runDraftSessionLoop(args: SessionLoopInput): Promise<SessionLoopResult> {
   const { prisma, sessionId } = args;
   const session = await prisma.v2ExecutionSession.findUniqueOrThrow({ where: { id: sessionId } });
-  if (args.planner !== "script")
-    throw Object.assign(new Error("本切片仅实现 script 规划器；python-real 是后续切片（不冒充）"), { code: "UNSUPPORTED" });
+  if (args.planner === "python-real" && (!args.intelligence?.url || !args.intelligence?.token))
+    throw Object.assign(new Error("python-real 规划器需要智能服务地址与令牌"), { code: "CONFIG_MISSING" });
 
   const oracleRow = await prisma.v2OracleSpec.findUniqueOrThrow({ where: { id: session.oracleSpecId } });
   const oracle = OracleSpec.safeParse({
@@ -101,9 +103,40 @@ export async function runDraftSessionLoop(args: SessionLoopInput): Promise<Sessi
       },
     });
 
-    // ===== 2) Plan（script 规划器：确定性状态机；不读答案/缺陷开关）=====
+    // ===== 2) Plan（script=确定性状态机；python-real=模型提议+护栏）=====
     // 恢复优先：先补未回执的逻辑写入（幂等键不变 → 服务端返回既有资源）。
     let planned: { op: "create" | "rename" | "get"; rationale: string };
+    let realPlannerActive = false;
+    if (args.planner === "python-real" && pendingIntents.length === 0) {
+      realPlannerActive = true;
+      const oracleAssertion = assertion as unknown as Record<string, unknown>;
+      const planResult = await callRealPlanner(args, {
+        goal: session.goal,
+        oracleAssertions: [{
+          observationType: oracleAssertion.observationType,
+          observationRef: oracleAssertion.observationRef,
+          operator: oracleAssertion.operator,
+          expected: oracleAssertion.expected,
+        }],
+        observation: { renamePath, draft: observed?.draft ?? null },
+        contextManifestId: null,
+        contextExcerpt: [],
+        promptVersion: "loop-planner-v1",
+      });
+      if (planResult.action === "blocked")
+        return terminal(prisma, sessionId, "FAILED", round, "fail", draftId, `规划器阻塞：${planResult.rationale}`);
+      if (planResult.action === "create_draft" || !draftId) {
+        planned = { op: "create", rationale: planResult.rationale };
+      } else if (planResult.action === "rename_draft") {
+        // 护栏：模型提议的 title 必须等于标准 expected（不得改标准）。
+        if (planResult.params?.title !== undefined && planResult.params.title !== String(assertion.expected))
+          throw Object.assign(new Error(`规划器提议的 title 与标准不符：拒绝`), { code: "MODEL_OUTPUT_INVALID" });
+        planned = { op: "rename", rationale: planResult.rationale };
+      } else {
+        // done/observe_only/get_draft：读回核验（目标是否达成由 verifier 判定，不信模型）。
+        planned = { op: "get", rationale: planResult.rationale };
+      }
+    } else
     if (pendingIntents.length > 0) {
       // 逻辑写入类型从幂等键后缀恢复（键=executionKey:op——R0.4 身份分离约定）。
       const recoverOp = pendingIntents[0]!.idempotencyKey.endsWith(":create") ? "create"
@@ -246,6 +279,35 @@ export async function runDraftSessionLoop(args: SessionLoopInput): Promise<Sessi
 }
 
 // ---------- helpers ----------
+
+/** python-real 规划调用：真实 HTTP 到智能服务；输出过契约+护栏。 */
+async function callRealPlanner(
+  args: SessionLoopInput,
+  input: Record<string, unknown>,
+): Promise<{ action: string; rationale: string; params?: { title?: string; renamePath?: string } }> {
+  const { LoopPlannerRequest, LoopPlannerResponse } = await import("@ai-qa/contracts");
+  const request = LoopPlannerRequest.parse({
+    schemaVersion: "1.0",
+    requestId: `loop-plan-${Date.now().toString(36)}`,
+    mode: "real",
+    timeoutMs: 120000,
+    input,
+  });
+  const response = await fetch(new URL("/v2/loop/plan", args.intelligence!.url), {
+    method: "POST", redirect: "error",
+    headers: { "content-type": "application/json", authorization: `Bearer ${args.intelligence!.token}` },
+    body: JSON.stringify(request),
+    signal: AbortSignal.timeout(120000),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw Object.assign(new Error(`规划服务失败：${(body as { message?: string }).message ?? response.status}`), { code: "DEPENDENCY_UNAVAILABLE" });
+  }
+  const parsed = LoopPlannerResponse.safeParse(await response.json());
+  if (!parsed.success)
+    throw Object.assign(new Error("规划输出不符合契约"), { code: "MODEL_OUTPUT_INVALID" });
+  return parsed.data.output as never;
+}
 
 function isSuccess(r: { status: string }) {
   return r.status === "SUCCEEDED";

@@ -5,6 +5,7 @@ import { EntityId } from "./common.js";
 import { DocumentFormat, ParsedDocumentBundle } from "./document.js";
 import { ChunkingInput, ChunkingOutput } from "./chunking.js";
 import { ContextRetrievalInput, ContextRetrievalOutput } from "./v2/context-retrieval.js";
+import { LoopPlannerInput, LoopPlannerOutput } from "./v2/loop-planner.js";
 import { SnapshotDiffInput, SnapshotDiffReport } from "./snapshot-diff.js";
 import { RuleExtractionInput, RuleExtractionOutput } from "./agent-rule.js";
 import { CaseGenerationInput, CaseGenerationOutput } from "./agent-case.js";
@@ -49,6 +50,9 @@ export const PlanProposalResponse = responseBase.extend({ output: PlanProposalOu
 
 export const SourceClassificationRequest = requestBase.extend({ input: SourceClassificationInput });
 export const SourceClassificationResponse = responseBase.extend({ output: SourceClassificationOutput });
+
+export const LoopPlannerRequest = requestBase.extend({ input: LoopPlannerInput });
+export const LoopPlannerResponse = responseBase.extend({ output: LoopPlannerOutput });
 
 export const ContextRetrievalRequest = requestBase.extend({ input: ContextRetrievalInput });
 export const ContextRetrievalResponse = responseBase.extend({ output: ContextRetrievalOutput });

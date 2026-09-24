@@ -70,6 +70,10 @@ const schemas = {
   ContextRetrievalResponse: c.ContextRetrievalResponse,
   ContextRetrievalInput: c.ContextRetrievalInput,
   ContextRetrievalOutput: c.ContextRetrievalOutput,
+  LoopPlannerRequest: c.LoopPlannerRequest,
+  LoopPlannerResponse: c.LoopPlannerResponse,
+  LoopPlannerInput: c.LoopPlannerInput,
+  LoopPlannerOutput: c.LoopPlannerOutput,
   // R02：快照对比（确定性多文件差异）
   MultiFileComparisonInput: c.MultiFileComparisonInput,
   MultiFileChangeReport: c.MultiFileChangeReport,

@@ -6069,6 +6069,252 @@
       ],
       "additionalProperties": false
     },
+    "LoopPlannerRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "mode": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+        },
+        "timeoutMs": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+        },
+        "input": {
+          "$ref": "#/definitions/LoopPlannerInput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "timeoutMs",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "LoopPlannerResponse": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "mode": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+        },
+        "invocations": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+        },
+        "output": {
+          "$ref": "#/definitions/LoopPlannerOutput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "invocations",
+        "output"
+      ],
+      "additionalProperties": false
+    },
+    "LoopPlannerInput": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "oracleAssertions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "observationType": {
+                "type": "string",
+                "enum": [
+                  "ui_text",
+                  "ui_visible",
+                  "api_field",
+                  "api_status",
+                  "db_value"
+                ]
+              },
+              "observationRef": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "operator": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "expected": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "observationType",
+              "observationRef",
+              "operator",
+              "expected"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 100
+        },
+        "observation": {
+          "type": "object",
+          "properties": {
+            "renamePath": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "draft": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "maxLength": 200
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 500
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "renamePath",
+            "draft"
+          ],
+          "additionalProperties": false
+        },
+        "contextManifestId": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "contextExcerpt": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "spanId": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "spanId",
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 50,
+          "default": []
+        },
+        "promptVersion": {
+          "type": "string",
+          "const": "loop-planner-v1"
+        }
+      },
+      "required": [
+        "goal",
+        "oracleAssertions",
+        "observation",
+        "promptVersion"
+      ],
+      "additionalProperties": false
+    },
+    "LoopPlannerOutput": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "create_draft",
+            "rename_draft",
+            "get_draft",
+            "observe_only",
+            "done",
+            "blocked"
+          ]
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "renamePath": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "additionalProperties": false,
+          "default": {}
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "action",
+        "rationale"
+      ],
+      "additionalProperties": false
+    },
     "MultiFileComparisonInput": {
       "type": "object",
       "properties": {
@@ -7110,6 +7356,18 @@
         "ContextRetrievalOutput": {
           "$ref": "#/definitions/ContextRetrievalOutput"
         },
+        "LoopPlannerRequest": {
+          "$ref": "#/definitions/LoopPlannerRequest"
+        },
+        "LoopPlannerResponse": {
+          "$ref": "#/definitions/LoopPlannerResponse"
+        },
+        "LoopPlannerInput": {
+          "$ref": "#/definitions/LoopPlannerInput"
+        },
+        "LoopPlannerOutput": {
+          "$ref": "#/definitions/LoopPlannerOutput"
+        },
         "MultiFileComparisonInput": {
           "$ref": "#/definitions/MultiFileComparisonInput"
         },
@@ -7215,6 +7473,10 @@
         "ContextRetrievalResponse",
         "ContextRetrievalInput",
         "ContextRetrievalOutput",
+        "LoopPlannerRequest",
+        "LoopPlannerResponse",
+        "LoopPlannerInput",
+        "LoopPlannerOutput",
         "MultiFileComparisonInput",
         "MultiFileChangeReport",
         "SnapshotCompareRequest",

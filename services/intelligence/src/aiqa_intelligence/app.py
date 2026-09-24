@@ -12,6 +12,7 @@ from .agents.service import AgentPipelines
 from .agents.planner import propose_plan, classify_sources
 from .agents.goal import propose_goal
 from .agents.context_retrieval import retrieve as retrieve_context
+from .agents.loop_planner import plan_next
 from .doc_ingestion.service import DocumentParser
 from .doc_ingestion.chunking import ChunkLimit, chunk_bundle, coverage_report
 from .source_changes import compare_snapshots
@@ -144,6 +145,7 @@ def create_app(
             "snapshot": "SnapshotCompare",
             "goal": "GoalProposalAgent",
             "context": "ContextRetrieval",
+            "loop_plan": "LoopPlanner",
         }
         name = names[operation]
         validate_shape(name + "Request", wire)
@@ -210,6 +212,7 @@ def create_app(
             "snapshot": compare_snapshot,
             "goal": propose_goal,
             "context": retrieve_context_agent,
+            "loop_plan": plan_next,
         }
         try:
             output = await asyncio.wait_for(
@@ -262,6 +265,10 @@ def create_app(
     @app.post("/v2/context/retrieve")
     async def context_route(request: Request):
         return await invoke(request, "context")
+
+    @app.post("/v2/loop/plan")
+    async def loop_plan(request: Request):
+        return await invoke(request, "loop_plan")
 
     @app.post("/v1/goals/propose")
     async def goal(request: Request):

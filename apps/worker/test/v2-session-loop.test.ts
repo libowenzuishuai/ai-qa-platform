@@ -377,9 +377,10 @@ it("轮次上限（预算）耗尽有界停止；未支持规划器显式拒绝"
     prisma: env.prisma, sessionId, baseUrl: server.baseUrl, planner: "script", maxRounds: 1,
   });
   expect(["FAILED", "NO_PROGRESS"]).toContain(result.status);
+  // python-real 无配置 → CONFIG_MISSING（受控拒绝，不静默回退 script）。
   await expect(runDraftSessionLoop({
     prisma: env.prisma, sessionId: await createSession(), baseUrl: server.baseUrl,
-    planner: "python-real" as never,
-  })).rejects.toMatchObject({ message: expect.stringContaining("script") });
+    planner: "python-real",
+  })).rejects.toMatchObject({ code: "CONFIG_MISSING" });
   await server.stop();
 });
