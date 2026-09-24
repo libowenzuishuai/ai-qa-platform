@@ -31,6 +31,7 @@ import { registerV2ReadinessRoutes } from "./routes-v2-readiness.js";
 import { registerV2SessionRoutes } from "./routes-v2-sessions.js";
 import { registerV2MemoryRoutes } from "./routes-v2-memory.js";
 import { registerV2FindingRoutes } from "./routes-v2-findings.js";
+import { registerV2DefinitionRoutes } from "./routes-v2-definitions.js";
 import { sendApiError } from "./errors.js";
 
 const config = loadConfig();
@@ -107,6 +108,7 @@ export async function buildServer() {
   registerV2SessionRoutes(app,prisma,agentJobsQueue);
   registerV2MemoryRoutes(app,prisma);
   registerV2FindingRoutes(app,prisma);
+  registerV2DefinitionRoutes(app,prisma);
   registerV2ContextRoutes(app,prisma,{
     intelligenceUrl: process.env.AIQA_INTELLIGENCE_URL,
     intelligenceToken: process.env.AIQA_INTELLIGENCE_TOKEN,
