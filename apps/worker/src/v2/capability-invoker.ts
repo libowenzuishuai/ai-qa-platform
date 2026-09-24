@@ -26,6 +26,11 @@ export interface InvokeInput {
   capabilityId: string;
   capabilityVersion: string;
   input: unknown;
+  /** R0.1：固定环境与角色（不是"项目最新环境"）。 */
+  environmentId?: string;
+  role?: string;
+  /** 本次调用的动作范围（任务批准∩安装授权∩平台策略在调用方求交集后传入）。 */
+  actionScope?: string[];
   /** 调用上下文约束。 */
   deadline: number;
   idempotencyKey: string;
@@ -61,17 +66,48 @@ export async function invokeCapability(args: InvokeInput): Promise<CapabilityRes
         orderBy: { installedAt: "desc" },
       });
   if (!installation) return fail("NOT_FOUND", "能力未安装或不属于本项目");
-  if (installation.status === "REVOKED") return fail("FORBIDDEN", "能力授权已撤销，拒绝新调用");
-  if (installation.status === "DISABLED") return fail("FORBIDDEN", "能力已禁用，拒绝新调用");
-  if (installation.status !== "AUTHORIZED") return fail("FORBIDDEN", `能力状态为 ${installation.status}（未授权）`);
+  // R0.1：锁内复核（读取在事务外可能已被并发撤销）。
+  const fresh = await args.prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "V2AdapterInstallation" WHERE id=${installation.id} FOR UPDATE`;
+    return tx.v2AdapterInstallation.findUniqueOrThrow({ where: { id: installation.id } });
+  });
+  if (fresh.status === "REVOKED") return fail("FORBIDDEN", "能力授权已撤销，拒绝新调用");
+  if (fresh.status === "DISABLED") return fail("FORBIDDEN", "能力已禁用，拒绝新调用");
+  if (fresh.status !== "AUTHORIZED") return fail("FORBIDDEN", `能力状态为 ${fresh.status}（未授权）`);
+  // R0.1：动作范围交集——任务批准范围 ∩ 安装授予权限；空交集拒绝。
+  const grantedScope = (((fresh.authorization ?? {}) as { scope?: string[] }).scope ?? []);
+  if (grantedScope.length === 0) return fail("FORBIDDEN", "安装缺少授权范围记录，拒绝调用");
+  if (args.actionScope && args.actionScope.length > 0) {
+    const overlap = args.actionScope.filter((a) => grantedScope.includes(a));
+    if (overlap.length === 0)
+      return fail("FORBIDDEN", `动作范围与授权无交集（请求 ${args.actionScope.join(",")}，授权 ${grantedScope.join(",")}）`);
+  }
 
   // Manifest 固定版本（安装哈希与注册表一致才可执行）。
   const manifestRow = await args.prisma.v2CapabilityManifest.findUnique({
     where: { capabilityId_version: { capabilityId: args.capabilityId, version: args.capabilityVersion } },
   });
-  if (!manifestRow || manifestRow.manifestHash !== installation.manifestHash)
+  if (!manifestRow || manifestRow.manifestHash !== fresh.manifestHash)
     return fail("CONFLICT", "安装记录与能力清单版本/哈希不一致");
-  const manifest = CapabilityManifest.parse(manifestRow.manifest);
+  let manifest: CapabilityManifest;
+  try {
+    manifest = CapabilityManifest.parse(manifestRow.manifest);
+  } catch {
+    return fail("CONFLICT", "能力清单内容不符合契约（数据库中的清单可能被篡改）");
+  }
+  // R0.1：数据库 Manifest 重算内容哈希（防两列被单独篡改）。
+  const { computeManifestHash } = await import("@ai-qa/contracts");
+  if (computeManifestHash(manifest) !== manifestRow.manifestHash)
+    return fail("CONFLICT", "能力清单内容哈希与登记值不一致（拒绝执行）");
+  // R0.1：本地适配器注册的 manifest/协议必须与安装完全一致（防同名适配器劫持远程安装）。
+  const localAdapter = resolveLocal(args.capabilityId, args.capabilityVersion);
+  if (localAdapter && manifest.protocol !== "local-ts")
+    return fail("CONFLICT", `本地适配器与协议 ${manifest.protocol} 的安装不一致（拒绝本地执行）`);
+  if (localAdapter) {
+    const registered = localAdapter.adapter.manifest;
+    if (computeManifestHash(registered) !== manifestRow.manifestHash)
+      return fail("CONFLICT", "本地适配器清单与安装哈希不一致（拒绝执行）");
+  }
 
   // 输入 Schema 校验（执行前拦截）。
   const inputCheck = validateCapabilityInput(manifest, args.input);
@@ -85,14 +121,25 @@ export async function invokeCapability(args: InvokeInput): Promise<CapabilityRes
     signal: args.signal,
     deadline: Date.now() + timeoutMs,
     resolveSecret: async (ref) => {
-      // 凭据引用解析：环境 secretRefs + makeCredentialResolver（明文只给适配器）。
+      // R0.1：清单未声明任何 secretRef 时，一律拒绝（secrets=none 不能解析秘密）。
+      if (manifest.permissions.secrets === "none" || manifest.permissions.secretRefs.length === 0)
+        throw new Error(`能力清单未声明任何凭据引用，拒绝解析：${ref}`);
+      if (!manifest.permissions.secretRefs.includes(ref))
+        throw new Error(`凭据引用未在清单声明：${ref}`);
+      // R0.1：固定环境（传入 environmentId 或回退项目唯一环境），不取"最新"。
       const { makeCredentialResolver } = await import("../credentials.js");
-      const environment = await args.prisma.environment.findFirst({
-        where: { projectId: args.projectId },
-        orderBy: { revision: "desc" },
-        select: { secretRefs: true },
-      });
-      const resolver = makeCredentialResolver((environment?.secretRefs ?? {}) as SecretRefs);
+      const environment = args.environmentId
+        ? await args.prisma.environment.findFirst({
+            where: { id: args.environmentId, projectId: args.projectId },
+            select: { secretRefs: true, revision: true },
+          })
+        : await args.prisma.environment.findFirst({
+            where: { projectId: args.projectId },
+            orderBy: { revision: "desc" },
+            select: { secretRefs: true, revision: true },
+          });
+      if (!environment) throw new Error(`固定环境不存在或不可用：${args.environmentId ?? "(项目无环境)"}`);
+      const resolver = makeCredentialResolver((environment.secretRefs ?? {}) as SecretRefs);
       const value = resolver(ref);
       if (value === undefined) throw new Error(`凭据引用未配置：${ref}`);
       return value;
@@ -102,7 +149,7 @@ export async function invokeCapability(args: InvokeInput): Promise<CapabilityRes
   };
 
   let result: CapabilityResult;
-  const local = resolveLocal(args.capabilityId, args.capabilityVersion);
+  const local = localAdapter;
   if (local) {
     result = await local.adapter.execute(args.input, ctx);
   } else if (manifest.protocol === "remote-http") {

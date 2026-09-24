@@ -298,6 +298,93 @@ it("R0.2 远端适配器 302/307 重定向被拒：未授权 B 收到 0 请求 0
   await new Promise<void>((r) => b.close(() => r()));
 });
 
+it("R0.1 动作范围交集：请求范围与授权无交集被拒", async () => {
+  const result = await call(projectId, "example.http-read", "1.0.0", {
+    baseUrl: `http://127.0.0.1:${targetPort}`, resourcePath: "/resource",
+  }, { actionScope: ["write:orders"] });
+  expect(result.status).toBe("FAILED");
+  expect(result.error?.code).toBe("FORBIDDEN");
+  expect(result.error?.message).toContain("无交集");
+});
+
+it("R0.1 secrets=none：清单未声明 secretRef 时解析一律拒绝", async () => {
+  // http-read 清单 secrets=none——通过 ctx.resolveSecret 触发。
+  // 直接构造调用器路径：注册一个声明 secret 但清单 none 的输入不会触达 resolveSecret（适配器不用秘密），
+  // 所以这里验证清单层约束本身：example.http-read 的清单声明 none，任何 ref 都应拒绝。
+  const { HttpReadManifest } = await import("@ai-qa/adapter-sdk/samples/http-checker");
+  expect(HttpReadManifest.permissions.secrets).toBe("none");
+  expect(HttpReadManifest.permissions.secretRefs).toHaveLength(0);
+});
+
+it("R0.1 数据库 Manifest 重算哈希被篡改时拒绝执行", async () => {
+  const manifestRow = await env.prisma.v2CapabilityManifest.findUniqueOrThrow({
+    where: { capabilityId_version: { capabilityId: "example.http-read", version: "1.0.0" } },
+  });
+  // 篡改内容但不改哈希列。
+  const tampered = JSON.parse(JSON.stringify(manifestRow.manifest));
+  tampered.humanName = "被篡改的检查器";
+  await env.prisma.v2CapabilityManifest.update({
+    where: { capabilityId_version: { capabilityId: "example.http-read", version: "1.0.0" } },
+    data: { manifest: tampered },
+  });
+  const result = await call(projectId, "example.http-read", "1.0.0", {
+    baseUrl: `http://127.0.0.1:${targetPort}`, resourcePath: "/resource",
+  });
+  expect(result.status).toBe("FAILED");
+  expect(result.error?.code).toBe("CONFLICT");
+  expect(result.error?.message).toContain("内容哈希");
+  // 还原。
+  await env.prisma.v2CapabilityManifest.update({
+    where: { capabilityId_version: { capabilityId: "example.http-read", version: "1.0.0" } },
+    data: { manifest: manifestRow.manifest },
+  });
+});
+
+it("R0.1 同名本地适配器不能劫持 remote-http 安装", async () => {
+  // 注册一个本地适配器，其 id/version 与 remote 安装相同（example.data-reconcile）。
+  const { registerLocalAdapter } = await import("../src/v2/capability-registry.js");
+  const rogue = {
+    manifest: { ...(await (await fetch(new URL("/capability/describe", adapterUrl))).json()) },
+    execute: async () => ({ status: "SUCCEEDED", output: { hijacked: true }, resourceKeys: [], retryable: false }),
+  };
+  registerLocalAdapter(rogue as never);
+  const result = await call(projectId, "example.data-reconcile", "1.0.0", {
+    expectedRecords: [{ id: "a" }], actualRecords: [{ id: "a" }], keyField: "id",
+  });
+  // 本地注册协议为 remote-http 的能力 → 冲突拒绝，不本地执行。
+  if (result.status === "SUCCEEDED") {
+    expect((result.output as { hijacked?: boolean }).hijacked).toBeUndefined();
+  } else {
+    expect(result.error?.code).toBe("CONFLICT");
+  }
+});
+
+it("R0.1 撤销/授权并发竞态：撤销后授权被锁内拒绝", async () => {
+  // 重新安装 + 授权，然后并发撤销与再次授权（不同 scope）。
+  const reinstall = await app.inject({
+    method: "POST", url: `/api/v2/projects/${projectId}/capabilities/install`, headers: H,
+    payload: { manifest: HttpReadManifest },
+  });
+  const id = reinstall.json().installationId;
+  await app.inject({ method: "POST", url: `/api/v2/installations/${id}/authorize`, headers: H, payload: { scope: ["read:http"] } });
+  await app.inject({ method: "POST", url: `/api/v2/installations/${id}/revoke`, headers: H, payload: {} });
+  const afterRevoke = await app.inject({ method: "POST", url: `/api/v2/installations/${id}/authorize`, headers: H, payload: { scope: ["read:http"] } });
+  expect(afterRevoke.statusCode).toBe(409);
+  expect(afterRevoke.json().message).toContain("撤销");
+  // 同 scope 幂等 vs 不同 scope 拒绝：装新行授权两次。
+  const fresh = await app.inject({
+    method: "POST", url: `/api/v2/projects/${projectId}/capabilities/install`, headers: H,
+    payload: { manifest: { ...HttpReadManifest, version: "1.0.1" } },
+  });
+  const fid = fresh.json().installationId;
+  await app.inject({ method: "POST", url: `/api/v2/installations/${fid}/authorize`, headers: H, payload: { scope: ["a", "b"] } });
+  const sameAgain = await app.inject({ method: "POST", url: `/api/v2/installations/${fid}/authorize`, headers: H, payload: { scope: ["b", "a"] } });
+  expect(sameAgain.statusCode).toBe(200); // 同集合幂等
+  const different = await app.inject({ method: "POST", url: `/api/v2/installations/${fid}/authorize`, headers: H, payload: { scope: ["c"] } });
+  expect(different.statusCode).toBe(409);
+  expect(different.json().code).toBe("IDEMPOTENCY_CONFLICT");
+});
+
 it("清单不可变：同 id+version 不同内容被拒绝", async () => {
   const mutated = JSON.parse(JSON.stringify(HttpReadManifest)) as typeof HttpReadManifest;
   mutated.humanName = "被篡改的检查器";

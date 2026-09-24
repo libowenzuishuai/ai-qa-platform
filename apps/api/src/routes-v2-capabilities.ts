@@ -101,7 +101,19 @@ export function registerV2CapabilityRoutes(app: FastifyInstance, prisma: PrismaC
     return prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "V2AdapterInstallation" WHERE id=${id} FOR UPDATE`;
       const fresh = await tx.v2AdapterInstallation.findUniqueOrThrow({ where: { id } });
-      if (fresh.status === "AUTHORIZED") return fresh; // 幂等
+      // R0.1：锁内再拒 REVOKED（事务外检查存在撤销/授权竞态）。
+      if (fresh.status === "REVOKED")
+        throw new ApiError("CONFLICT", "已撤销的安装不能直接恢复授权，请重新安装");
+      if (fresh.status !== "VALIDATED" && fresh.status !== "AUTHORIZED")
+        throw new ApiError("CONFLICT", `状态为 ${fresh.status}，不可授权`);
+      if (fresh.status === "AUTHORIZED") {
+        // 幂等按指纹区分：同 scope 幂等返回；不同 scope 是异体请求，拒绝。
+        const existingScope = ((fresh.authorization ?? {}) as { scope?: string[] }).scope ?? [];
+        const sameScope = existingScope.length === body.scope.length && body.scope.every((x) => existingScope.includes(x));
+        if (!sameScope)
+          throw new ApiError("IDEMPOTENCY_CONFLICT", "该安装已按不同 scope 授权；如需变更先撤销再重新授权");
+        return fresh;
+      }
       const updated = await tx.v2AdapterInstallation.update({
         where: { id },
         data: {
