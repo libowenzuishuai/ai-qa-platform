@@ -1,6 +1,7 @@
 # v2.0 交付进度台账
 
 创建：2026-09-23 · 分支：`v2/autonomous-qa`（基线 `main@5adb49c`，执行代码基线 `214b89c`）
+R0 修复轮：2026-09-24（定向评审 V2-R01～08 全部修复；见需求矩阵"R0 修复回填"）
 
 状态取值：NOT_STARTED / IN_PROGRESS / CODE_READY / VERIFIED / EXTERNAL_BLOCKED。
 历史 975 项平台检查是 1.0 记录，不作为 2.0 现状；本轮基线以本文件记录的实际运行为准。
@@ -9,8 +10,8 @@
 |---|---|---|---|
 | W00 基线与台账 | VERIFIED | 无 | 本文件 + 需求矩阵 + ADR；基线命令逐项实际运行 |
 | W01 共享契约与迁移 | CODE_READY | W00 | 15 类实体定稿（Oracle/Harness/Graph/Session/Context/Finding 六模块，v2/ 目录）；25 例共享向量（19 shape 双端同判 + 6 semantic TS 权威）；16 张 V2* 表迁移（干净库+旧库重放通过）；contracts 305/305、python 向量 20/20、typecheck 0。VERIFIED 待 W02 起逐表消费（规则 11：只建不消费不算完成） |
-| W02 能力 SDK 与组合内核 | IN_PROGRESS（Alpha 注册/执行切片 VERIFIED） | W01 | adapter-sdk 包（CapabilityAdapter 协议 + Schema 子集校验器 + 自检）；TS 样例 example.http-read（本地 SDK，白名单/取消/超时）；Python 样例 example.data-reconcile（remote-http 独立进程，describe/execute/cancel）；worker 注册表+调用器（授权/撤权/跨项目/Schema 前后校验/版本哈希匹配）；API 安装/授权/撤销/列表（安装≠授权；清单不可变；撤销后重装=新行）。集成 12/12（真实 DB+真实 HTTP+本地 HTTP 目标）。组合执行内核 VERIFIED（graph-executor：依赖拓扑序+失败/跳过/人工传播、typed binding 三源解析、三值条件 onUnknown 分支、有界 map 并发≤2 逐项对账、repeat 上限、retry 限错误分类保留首败、同能力多实例输出隔离、取消传播；集成 8/8 真实 DB+HTTP）。剩余：子流程运行时、回放/dry-run、MCP 桥、HAR-05 画布 |
-| W03 真实上下文与 OracleSpec | CODE_READY→核心 VERIFIED | W01 | OracleSpec API（批准规则→确定性断言冻结→oracleHash→批准不可变→同内容幂等→supersede 链→读取哈希复验）；Python keyword-structural-v1 检索基线（bigram 关键词×结构权重×规则来源权威路径，selected/rejected+分数+原因）+ /v2/context/retrieve；ContextManifest API（服务端装载→真实检索→预算估算→截断 omitted 对账→inputHash 落库）；集成 5/5（真实 DB+真实 Python）。剩余：OpenAPI/设计图线索（CTX-05）、跨块关系审计（CTX-06）、六维覆盖运行时接线（DES-01 与 W04 联动） |
+| W02 能力 SDK 与组合内核 | IN_PROGRESS（注册/执行/组合内核修复后 VERIFIED；子流程/回放/MCP 未做） | W01 | adapter-sdk 包（CapabilityAdapter 协议 + Schema 子集校验器 + 自检）；TS 样例 example.http-read（本地 SDK，白名单/取消/超时）；Python 样例 example.data-reconcile（remote-http 独立进程，describe/execute/cancel）；worker 注册表+调用器（授权/撤权/跨项目/Schema 前后校验/版本哈希匹配）；API 安装/授权/撤销/列表（安装≠授权；清单不可变；撤销后重装=新行）。集成 12/12（真实 DB+真实 HTTP+本地 HTTP 目标）。组合执行内核 VERIFIED（graph-executor：依赖拓扑序+失败/跳过/人工传播、typed binding 三源解析、三值条件 onUnknown 分支、有界 map 并发≤2 逐项对账、repeat 上限、retry 限错误分类保留首败、同能力多实例输出隔离、取消传播；集成 8/8 真实 DB+HTTP）。剩余：子流程运行时、回放/dry-run、MCP 桥、HAR-05 画布 |
+| W03 真实上下文与 OracleSpec | IN_PROGRESS（检索/Oracle 修复后核心 VERIFIED；规划消费接线在 W04） | W01 | OracleSpec API（批准规则→确定性断言冻结→oracleHash→批准不可变→同内容幂等→supersede 链→读取哈希复验）；Python keyword-structural-v1 检索基线（bigram 关键词×结构权重×规则来源权威路径，selected/rejected+分数+原因）+ /v2/context/retrieve；ContextManifest API（服务端装载→真实检索→预算估算→截断 omitted 对账→inputHash 落库）；集成 5/5（真实 DB+真实 Python）。剩余：OpenAPI/设计图线索（CTX-05）、跨块关系审计（CTX-06）、六维覆盖运行时接线（DES-01 与 W04 联动） |
 | W04 持久化自主循环（Alpha 核心） | NOT_STARTED | W02+W03 | Observe→Plan→Act→Verify→Adapt；草稿三构建最小闭环 + 故障矩阵 |
 | W05 浏览器/API/数据 | NOT_STARTED | W04 | DOM+视觉联合观察；复杂交互；交叉核验；Stagehand 对照 ADR |
 | W06 工作台与组合设计器 | NOT_STARTED | W04 | 实时控制台/缺陷卡/画布+表单同 AST/三个真实预设 |

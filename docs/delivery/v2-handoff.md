@@ -5,7 +5,7 @@
 ## 当前状态
 
 - **分支**：`v2/autonomous-qa`（已推送 origin；基线 `main@5adb49c`）
-- **当前 HEAD**：`a6bdf3d`（W03）；工作树干净，无未提交修改，无运行中进程
+- **当前 HEAD**：见 `git log -1`（R0 修复轮后持续前移）；W03 执行代码 `a6bdf3d`，交接文档提交 `2c240fa`，其后为 R0 修复系列提交（代码与文档 SHA 分别记录，不用文档提交冒充执行代码），无未提交修改，无运行中进程
 - **工作包**：W00 VERIFIED · W01 CODE_READY（向量/迁移 VERIFIED，待 W02+ 消费全部表）
   · W02 Alpha 切片 VERIFIED（SDK 注册/执行 + 组合内核；子流程/回放/MCP 未做）
   · W03 核心 VERIFIED（Oracle + 检索基线 + ContextManifest）；W04–W10 NOT_STARTED

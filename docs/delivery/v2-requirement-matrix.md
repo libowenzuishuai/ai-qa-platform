@@ -101,13 +101,27 @@
 | OPS-03 | P0 | 生产镜像/迁移/备份恢复/升级全链已验（r04 记录） | 2.0 新实体纳入同链验证 | PARTIAL |
 | OPS-04 | P1 | 证据保留/失效降级（evidence-retention） | 审计/配额/用量统计；受限数据不形成永久公开链接 | PARTIAL |
 
-## 汇总
+## 汇总（R0.8 修正：程序化统计 57 行）
 
-- SATISFIED：0（2.0 尚无一项以 2.0 语义验收）
-- PARTIAL：33（有 1.0 基础，按 2.0 语义扩展并补验收）
-- GAP：19（2.0 新增能力）
+- SATISFIED：0（2.0 尚无一项以 2.0 语义完整验收）
+- PARTIAL：35（有 1.0 基础，按 2.0 语义扩展并补验收）
+- GAP：21（2.0 新增能力）
 - EXTERNAL_BLOCKED：1（OPS-02 真实回传）
-- UNKNOWN：0
+- 合计 57 = PRD 全部 ID（此前误记 33+19+1=53，已按行重数修正）
+
+## R0 修复回填（2026-09-24，定向评审 V2-R01～08）
+
+| 评审项 | 修复提交 | 验证 |
+|---|---|---|
+| V2-R01 授权/安装/秘密 | `fix(R0.1)`（锁内复核/范围交集/清单重哈希/本地劫持拒绝/秘密声明边界/授权指纹） | worker sdk 18/18（真实 DB 反例：范围无交集、篡改哈希、劫持、撤销竞态、同异体授权） |
+| V2-R02 重定向边界 | `fix(R0.2/3/4/7)`（redirect:error 全通道+32MiB 上限） | 真实 A→B 接收站：B 0 请求 0 载荷（探针+套件 13/13） |
+| V2-R03 重试/首败/截止/未知 | 同上（nodeDeadline/零派发/UNKNOWN 语义/首败保留） | 探针 6 项全转正；graph-executor 8/8 |
+| V2-R04 循环/记账/身份 | 同上（repeat 先出果再判退/map 全批记账/executionKey 幂等键/subflow 显式拒绝） | 探针+套件 |
+| V2-R05 Oracle 映射 | `fix(R0.5)`（结构化映射必填/未映射→待澄清/六维批准门/supersede 原子） | api 5/5（真实 DB：无映射 422、缺维 422、数值类型反例、supersede 链） |
+| V2-R06 上下文复合键 | `fix(R0.6)`（(dv,spanId) 复合键/对账/保守预算/sessionId 校验） | python 3/3 + api 6/6（双文档同名 span 反例） |
+| V2-R07 Schema 自检 | `fix(R0.2/3/4/7)`（pattern 编译/深度/闭包/区间/绑定路径类转义） | adapter-sdk 9/9；探针 invalidPattern ok:false、bindingShape items:true |
+| V2-R08 台账精度 | 本提交（57 行重数/状态拆分/SHA 区分） | 本文件 + v2-progress |
+
 
 ## 兼容矩阵与样本清单（W00 冻结起点）
 
