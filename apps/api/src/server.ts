@@ -29,6 +29,7 @@ import { registerV2OracleRoutes } from "./routes-v2-oracle.js";
 import { registerV2ContextRoutes } from "./routes-v2-context.js";
 import { registerV2ReadinessRoutes } from "./routes-v2-readiness.js";
 import { registerV2SessionRoutes } from "./routes-v2-sessions.js";
+import { registerV2MemoryRoutes } from "./routes-v2-memory.js";
 import { sendApiError } from "./errors.js";
 
 const config = loadConfig();
@@ -103,6 +104,7 @@ export async function buildServer() {
   registerV2OracleRoutes(app,prisma);
   registerV2ReadinessRoutes(app,prisma);
   registerV2SessionRoutes(app,prisma,agentJobsQueue);
+  registerV2MemoryRoutes(app,prisma);
   registerV2ContextRoutes(app,prisma,{
     intelligenceUrl: process.env.AIQA_INTELLIGENCE_URL,
     intelligenceToken: process.env.AIQA_INTELLIGENCE_TOKEN,
