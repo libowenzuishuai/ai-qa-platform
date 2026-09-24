@@ -194,6 +194,9 @@ importers:
       '@ai-qa/contracts':
         specifier: workspace:*
         version: link:../contracts
+      playwright:
+        specifier: ^1.63.0
+        version: 1.63.0
     devDependencies:
       '@types/node':
         specifier: ^22.10.0

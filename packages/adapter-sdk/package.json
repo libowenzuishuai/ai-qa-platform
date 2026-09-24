@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./samples/http-checker": "./src/samples/http-checker.ts",
-    "./samples/draft-ops": "./src/samples/draft-ops.ts"
+    "./samples/draft-ops": "./src/samples/draft-ops.ts",
+    "./samples/web-observe": "./src/samples/web-observe.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -20,6 +21,8 @@
     "vitest": "^3.0.0"
   },
   "dependencies": {
-    "@ai-qa/contracts": "workspace:*"
-  }
+    "@ai-qa/contracts": "workspace:*",
+    "playwright": "^1.63.0"
+  },
+  "peerDependencies": {}
 }

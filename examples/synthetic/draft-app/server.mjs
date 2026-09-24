@@ -66,6 +66,17 @@ const server = http.createServer((req, res) => {
       if (idem) drafts.set(`idem:${idem}`, draft);
       return json(201, { draft });
     }
+    // W05：HTML 页面（DOM 观察 + 截图对象）。
+    let ui;
+    if ((ui = url.pathname.match(/^\/ui\/drafts\/([^/]+)$/)) && req.method === "GET") {
+      const draft = drafts.get(ui[1]);
+      if (!draft) { res.writeHead(404, { "content-type": "text/html" }); res.end("<h1>not found</h1>"); return; }
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>草稿详情</title></head>
+<body><main><h1 data-testid="draft-title">${String(draft.title).replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]))}</h1>
+<p data-testid="draft-id">${draft.id}</p></main></body></html>`);
+      return;
+    }
     let m;
     if ((m = url.pathname.match(/^\/api\/drafts\/([^/]+)$/)) && req.method === "GET") {
       const draft = drafts.get(m[1]);
