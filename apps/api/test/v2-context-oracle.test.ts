@@ -276,6 +276,28 @@ it("Context：紧预算不越界；检索无命中如实阻断", async () => {
   expect(noHit.json().message).toContain("检索无选中项");
 });
 
+it("W03 OpenAPI 契约线索：命中查询的 endpoint 选中、无关拒绝", async () => {
+  const res = await inject("POST", `/api/v2/projects/${projectId}/context-manifests`, {
+    query: "草稿改名",
+    documentVersionIds: [documentVersionId],
+    openapiJson: {
+      paths: {
+        "/api/drafts": { post: { operationId: "createDraft", summary: "创建草稿" } },
+        "/api/drafts/{id}/title": { patch: { operationId: "renameDraft", summary: "改名草稿" } },
+        "/healthz": { get: { operationId: "health", summary: "健康检查" } },
+      },
+    },
+  });
+  expect(res.statusCode).toBe(202);
+  const body = res.json();
+  const detail = await inject("GET", `/api/v2/context-manifests/${body.contextManifestId}`);
+  const selections = detail.json().selections as Array<{ ref: string; decision: string }>;
+  const renameClue = selections.find((x) => x.ref.includes("PATCH /api/drafts/{id}/title"));
+  expect(renameClue?.decision).toBe("selected");
+  const healthClue = selections.find((x) => x.ref.includes("GET /healthz"));
+  expect(healthClue?.decision).toBe("rejected");
+});
+
 it("R0.6 sessionId 不存在/跨项目拒绝；未声明 sessionId 校验生效", async () => {
   const bad = await inject("POST", `/api/v2/projects/${projectId}/context-manifests`, {
     query: "审批",

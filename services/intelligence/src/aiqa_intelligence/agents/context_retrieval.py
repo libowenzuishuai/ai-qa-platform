@@ -102,6 +102,20 @@ def retrieve(data: dict) -> dict:
                     "score": round(score, 4), "decision": "selected", "reason": reason,
                 })
 
+    # W03（CTX-05）：OpenAPI 契约线索 → api_clue selections（有来源；不升硬标准）。
+    for endpoint in data.get("apiContract") or []:
+        target = (endpoint.get("operationId") or endpoint.get("path") or "").strip()
+        if not target:
+            continue
+        kw = _keyword_score(query, f"{endpoint.get('path','')} {endpoint.get('summary','')}")
+        scored.append({
+            "kind": "span", "ref": f"api:{endpoint['method'].upper()} {endpoint['path']}",
+            "documentVersionId": "api-contract",
+            "score": round(max(kw, 0.3), 4),
+            "decision": "selected" if kw > 0 else "rejected",
+            "reason": (f"OpenAPI 契约线索（关键词 {kw:.2f}）" if kw > 0 else "OpenAPI 契约线索：与查询无关键词关联"),
+        })
+
     # 预算：按分数降序保留 maxSelected；被挤出的转为 rejected（截断对账）。
     selected = [s for s in scored if s["decision"] == "selected"]
     rejected = [s for s in scored if s["decision"] == "rejected"]

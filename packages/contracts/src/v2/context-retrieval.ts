@@ -19,6 +19,13 @@ export const ContextRetrievalInput = z.object({
     sourceSpanIds: z.array(EntityId).min(1),
   }).strict()).max(500).default([]),
   maxSelected: z.number().int().min(1).max(500).default(50),
+  /** W03（CTX-05）：OpenAPI 提取的接口契约线索（候选上下文，不升硬标准）。 */
+  apiContract: z.array(z.object({
+    method: z.enum(["get", "post", "put", "patch", "delete"]),
+    path: z.string().min(1).max(500),
+    operationId: z.string().max(300).optional(),
+    summary: z.string().max(1000).optional(),
+  }).strict()).max(200).default([]),
 }).strict();
 export type ContextRetrievalInput = z.infer<typeof ContextRetrievalInput>;
 

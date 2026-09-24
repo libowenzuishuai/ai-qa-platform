@@ -36,9 +36,22 @@ export function registerV2ContextRoutes(app: FastifyInstance, prisma: PrismaClie
         tokensMax: z.number().int().min(100).max(200_000).default(20_000),
         maxSelected: z.number().int().min(1).max(500).default(50),
         sessionId: z.string().optional(),
+        /** W03（CTX-05）：OpenAPI JSON——服务端提取 endpoint 线索进检索。 */
+        openapiJson: z.unknown().optional(),
       })
       .strict()
       .parse(req.body);
+      const apiContract: Array<{ method: "get" | "post" | "put" | "patch" | "delete"; path: string; operationId?: string; summary?: string }> = [];
+      if (body.openapiJson !== undefined) {
+        const spec = body.openapiJson as { paths?: Record<string, Record<string, { operationId?: string; summary?: string }>> };
+        for (const [path, methods] of Object.entries(spec.paths ?? {})) {
+          for (const [method, op] of Object.entries(methods ?? {})) {
+            if (!["get", "post", "put", "patch", "delete"].includes(method)) continue;
+            apiContract.push({ method: method as "get", path: path.slice(0, 500), operationId: op?.operationId?.slice(0, 300), summary: op?.summary?.slice(0, 1000) });
+          }
+        }
+        if (apiContract.length > 200) throw new ApiError("VALIDATION_ERROR", `OpenAPI 线索超过上限（${apiContract.length} > 200）`);
+      }
 
     // R0.6：sessionId 存在性/同项目校验。
     if (body.sessionId) {
@@ -88,6 +101,7 @@ export function registerV2ContextRoutes(app: FastifyInstance, prisma: PrismaClie
         documentVersions: bundles,
         ruleRefs,
         maxSelected: body.maxSelected,
+        apiContract,
       },
     });
     let remote: unknown;
@@ -112,6 +126,9 @@ export function registerV2ContextRoutes(app: FastifyInstance, prisma: PrismaClie
     // R0.6：检索响应与已装载来源对账——引用必须真实存在、不重复、
     // 质量不可升级（UNPARSED 不能被标为 span 选中）。
     const loadedKeys = new Set(bundles.flatMap((b) => b.spans.map((s) => `${b.documentVersionId}:${s.id}`)));
+    const apiClueKeys = new Set(parsed.data.output.selections
+      .filter((x) => x.documentVersionId === "api-contract")
+      .map((x) => `api-contract:${x.ref}`));
     const loadedUnparsed = new Set(bundles.flatMap((b) => b.spans.filter((s) => s.extractionQuality === "UNPARSED").map((s) => `${b.documentVersionId}:${s.id}`)));
     const spanText = new Map(bundles.flatMap((b) => b.spans.map((s) => [`${b.documentVersionId}:${s.id}`, s.quotedText ?? ""])));
     const problems: string[] = [];
@@ -119,7 +136,7 @@ export function registerV2ContextRoutes(app: FastifyInstance, prisma: PrismaClie
     const selections: typeof parsed.data.output.selections = [];
     for (const sel of parsed.data.output.selections) {
       const key = `${sel.documentVersionId}:${sel.ref}`;
-      if (!loadedKeys.has(key)) {
+      if (!loadedKeys.has(key) && !apiClueKeys.has(key)) {
         problems.push(`检索返回了未装载的来源：${key}`);
         continue;
       }

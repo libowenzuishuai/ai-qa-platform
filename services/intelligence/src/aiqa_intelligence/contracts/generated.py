@@ -634,6 +634,16 @@ class V2RemoteCapabilityResult(BaseModel):
     error: Error | None = None
 
 
+class ApiContractItem(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    method: Literal['get', 'post', 'put', 'patch', 'delete']
+    path: str = Field(..., max_length=500, min_length=1)
+    operationId: str | None = Field(None, max_length=300)
+    summary: str | None = Field(None, max_length=1000)
+
+
 class Score1(RootModel[float]):
     root: float = Field(..., ge=0.0, le=1.0)
 
@@ -2330,6 +2340,9 @@ class ContextRetrievalInput(BaseModel):
     )
     ruleRefs: list[RuleRef] | None = Field([], max_length=500, validate_default=True)
     maxSelected: int | None = Field(50, ge=1, le=500)
+    apiContract: list[ApiContractItem] | None = Field(
+        [], max_length=200, validate_default=True
+    )
 
 
 class Selection1(BaseModel):
