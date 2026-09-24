@@ -24,8 +24,9 @@ export interface CapabilityContext {
 }
 
 export interface CapabilityResult {
-  /** 技术结果（SUCCEEDED 的工具可承载业务 FAIL）。 */
-  status: "SUCCEEDED" | "FAILED" | "CANCELLED";
+  /** 技术结果（SUCCEEDED 的工具可承载业务 FAIL）。
+   * UNKNOWN：写入效果不明（超时/断连且无对账结果）——先 reconcile，不得盲目重试。 */
+  status: "SUCCEEDED" | "FAILED" | "CANCELLED" | "UNKNOWN";
   /** 结构化输出（必须通过 manifest.outputSchema 校验）。 */
   output: unknown;
   /** 外部资源台账键（写操作必填）。 */
@@ -61,17 +62,46 @@ export function validateCapabilityOutput(
 }
 
 /** Schema 自检：声明子集内的字段组合必须自身合法（安装校验用）。 */
-export function selfCheckSchema(schema: JsonSchemaSubset): SchemaValidation {
+const MAX_SCHEMA_DEPTH = 16;
+
+export function selfCheckSchema(schema: JsonSchemaSubset, depth = 0, path = "$"): SchemaValidation {
   const problems: string[] = [];
+  if (depth > MAX_SCHEMA_DEPTH) {
+    problems.push(`${path}: Schema 嵌套深度超过 ${MAX_SCHEMA_DEPTH}`);
+    return { ok: false, problems };
+  }
+  // 不支持的关键字显式拒绝是自检职责之外的（TS 类型已限定子集），
+  // 但 pattern 合法性必须在安装时编译验证，否则运行时抛 SyntaxError。
+  if (schema.pattern !== undefined) {
+    try {
+      // eslint-disable-next-line no-new
+      new RegExp(schema.pattern);
+    } catch {
+      problems.push(`${path}: pattern 不合法（无法编译）：${JSON.stringify(schema.pattern)}`);
+    }
+  }
   if (schema.type === "array" && !schema.items)
-    problems.push("array schema 缺少 items");
+    problems.push(`${path}: array schema 缺少 items`);
   if (schema.type === "object") {
-    for (const [key, child] of Object.entries(schema.properties ?? {})) {
-      const nested = selfCheckSchema(child);
-      problems.push(...nested.problems.map((p) => `properties.${key}: ${p}`));
+    const props = schema.properties ?? {};
+    for (const required of schema.required ?? []) {
+      if (!(required in props))
+        problems.push(`${path}: required 字段 ${required} 未在 properties 中声明（闭包）`);
+    }
+    for (const [key, child] of Object.entries(props)) {
+      const nested = selfCheckSchema(child, depth + 1, `${path}.properties.${key}`);
+      problems.push(...nested.problems);
     }
   }
   if (schema.type === "integer" && schema.minimum !== undefined && !Number.isInteger(schema.minimum))
-    problems.push("integer 的 minimum 必须是整数");
+    problems.push(`${path}: integer 的 minimum 必须是整数`);
+  if (schema.type === "integer" && schema.maximum !== undefined && !Number.isInteger(schema.maximum))
+    problems.push(`${path}: integer 的 maximum 必须是整数`);
+  if (schema.minimum !== undefined && schema.maximum !== undefined && schema.minimum > schema.maximum)
+    problems.push(`${path}: minimum ${schema.minimum} > maximum ${schema.maximum}（区间矛盾）`);
+  if (schema.minLength !== undefined && schema.maxLength !== undefined && schema.minLength > schema.maxLength)
+    problems.push(`${path}: minLength ${schema.minLength} > maxLength ${schema.maxLength}`);
+  if (schema.items)
+    problems.push(...selfCheckSchema(schema.items, depth + 1, `${path}.items`).problems);
   return { ok: problems.length === 0, problems };
 }

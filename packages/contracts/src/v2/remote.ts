@@ -24,7 +24,7 @@ export const RemoteExecuteRequest = z.object({
 export type RemoteExecuteRequest = z.infer<typeof RemoteExecuteRequest>;
 
 export const RemoteCapabilityResult = z.object({
-  status: z.enum(["SUCCEEDED", "FAILED", "CANCELLED"]),
+  status: z.enum(["SUCCEEDED", "FAILED", "CANCELLED", "UNKNOWN"]),
   output: z.unknown().nullable(),
   resourceKeys: z.array(z.string().min(1).max(300)).max(100).default([]),
   retryable: z.boolean().default(false),

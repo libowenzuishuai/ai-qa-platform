@@ -141,15 +141,32 @@ async function invokeRemote(
     idempotencyKey: args.idempotencyKey,
   });
   try {
+    // R0.2（V2-R02）：控制面服务地址固定为安装 endpoint；默认拒绝重定向
+    // （302/307/308 一律断连，不做逐跳跟随——控制面不允许被引到未登记地址）。
     const response = await fetch(new URL("/capability/execute", base), {
       method: "POST",
+      redirect: "error",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ envelope, input: args.input }),
       signal: AbortSignal.any([AbortSignal.timeout(timeoutMs), args.signal]),
     });
     if (!response.ok)
       return { status: "FAILED", output: null, resourceKeys: [], retryable: false, error: { code: "DEPENDENCY_UNAVAILABLE", message: `远程适配器返回 ${response.status}` } };
-    const parsed = RemoteCapabilityResult.safeParse(await response.json());
+    // 响应大小上限：32 MiB（防异常适配器倾倒导致 worker 挂起）。
+    const MAX_REMOTE_BODY = 32 * 1024 * 1024;
+    const lengthHeader = Number(response.headers.get("content-length") ?? "0");
+    if (Number.isFinite(lengthHeader) && lengthHeader > MAX_REMOTE_BODY)
+      return { status: "FAILED", output: null, resourceKeys: [], retryable: false, error: { code: "MODEL_OUTPUT_INVALID", message: "远程适配器响应超过大小上限" } };
+    const text = await response.text();
+    if (text.length > MAX_REMOTE_BODY)
+      return { status: "FAILED", output: null, resourceKeys: [], retryable: false, error: { code: "MODEL_OUTPUT_INVALID", message: "远程适配器响应超过大小上限" } };
+    let json: unknown;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      return { status: "FAILED", output: null, resourceKeys: [], retryable: false, error: { code: "MODEL_OUTPUT_INVALID", message: "远程适配器响应不是合法 JSON" } };
+    }
+    const parsed = RemoteCapabilityResult.safeParse(json);
     if (!parsed.success)
       return { status: "FAILED", output: null, resourceKeys: [], retryable: false, error: { code: "MODEL_OUTPUT_INVALID", message: "远程适配器结果不符合协议" } };
     return {
@@ -163,7 +180,7 @@ async function invokeRemote(
     if (args.signal.aborted) {
       // 尽力通知远端取消（失败不掩盖取消事实）。
       void fetch(new URL("/capability/cancel", base), {
-        method: "POST", headers: { "content-type": "application/json" },
+        method: "POST", redirect: "error", headers: { "content-type": "application/json" },
         body: JSON.stringify({ invocationId: args.invocationId }),
         signal: AbortSignal.timeout(3000),
       }).catch(() => undefined);
@@ -171,7 +188,11 @@ async function invokeRemote(
     }
     const name = error instanceof Error ? error.name : String(error);
     if (name === "TimeoutError" || name === "AbortError")
-      return { status: "FAILED", output: null, resourceKeys: [], retryable: true, error: { code: "MODEL_TIMEOUT", message: "远程适配器超时（副作用未知）" } };
+      // R0.3（V2-R03）：远程超时副作用未知——写效果归 UNKNOWN（先对账再决定），
+      // 只读效果由 recovery=read_only 声明可安全重试。
+      return manifest.effectClass === "READ" && manifest.recovery === "read_only"
+        ? { status: "FAILED", output: null, resourceKeys: [], retryable: true, error: { code: "MODEL_TIMEOUT", message: "远程适配器超时（只读，可重试）" } }
+        : { status: "UNKNOWN", output: null, resourceKeys: [], retryable: false, error: { code: "MODEL_TIMEOUT", message: "远程适配器超时（写入效果未知，先对账）" } };
     return { status: "FAILED", output: null, resourceKeys: [], retryable: false, error: { code: "DEPENDENCY_UNAVAILABLE", message: `远程适配器不可达：${name}` } };
   }
 }

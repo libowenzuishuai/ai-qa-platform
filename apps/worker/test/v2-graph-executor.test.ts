@@ -101,6 +101,7 @@ function run(definition: WorkflowDefinitionContent, taskInput: Record<string, un
     prisma: env.prisma, projectId, definition, taskInput,
     deadline: Date.now() + 20000, signal: new AbortController().signal,
     allowedOrigins: [base().baseUrl],
+    executionKey: "test-exec-graph",
   });
 }
 
@@ -246,6 +247,7 @@ it("取消：signal 中止后图标记 cancelled 且不再执行后续节点", a
     taskInput: { baseUrl: base().baseUrl },
     deadline: Date.now() + 5000, signal: controller.signal,
     allowedOrigins: [base().baseUrl],
+    executionKey: "test-exec-graph",
   });
   expect(result.status).toBe("cancelled");
 });

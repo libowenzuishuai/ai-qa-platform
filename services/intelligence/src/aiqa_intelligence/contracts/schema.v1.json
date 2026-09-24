@@ -3981,7 +3981,7 @@
                           "type": "string",
                           "minLength": 1,
                           "maxLength": 500,
-                          "pattern": "^[a-zA-Z0-9_.\\\\[\\\\]-]+$"
+                          "pattern": "^[a-zA-Z0-9_.\\[\\]-]+$"
                         },
                         "type": {
                           "type": "string",
@@ -4012,7 +4012,7 @@
                           "type": "string",
                           "minLength": 1,
                           "maxLength": 500,
-                          "pattern": "^[a-zA-Z0-9_.\\\\[\\\\]-]+$"
+                          "pattern": "^[a-zA-Z0-9_.\\[\\]-]+$"
                         },
                         "type": {
                           "$ref": "#/definitions/V2WorkflowDefinition/properties/nodes/items/properties/bindings/additionalProperties/anyOf/0/properties/type"
@@ -5778,7 +5778,8 @@
           "enum": [
             "SUCCEEDED",
             "FAILED",
-            "CANCELLED"
+            "CANCELLED",
+            "UNKNOWN"
           ]
         },
         "output": {

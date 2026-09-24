@@ -396,7 +396,7 @@ class Bindings(BaseModel):
     source: Literal['node']
     nodeId: str = Field(..., max_length=200, min_length=1)
     path: str = Field(
-        ..., max_length=500, min_length=1, pattern='^[a-zA-Z0-9_.\\\\[\\\\]-]+$'
+        ..., max_length=500, min_length=1, pattern='^[a-zA-Z0-9_.\\[\\]-]+$'
     )
     type: Literal['string', 'number', 'boolean', 'json']
 
@@ -621,7 +621,7 @@ class V2RemoteCapabilityResult(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    status: Literal['SUCCEEDED', 'FAILED', 'CANCELLED']
+    status: Literal['SUCCEEDED', 'FAILED', 'CANCELLED', 'UNKNOWN']
     output: Any = None
     resourceKeys: list[ResourceKey] | None = Field(
         [], max_length=100, validate_default=True
@@ -871,7 +871,7 @@ class AdditionalProperties1(BaseModel):
     source: Literal['node']
     nodeId: str = Field(..., max_length=200, min_length=1)
     path: str = Field(
-        ..., max_length=500, min_length=1, pattern='^[a-zA-Z0-9_.\\\\[\\\\]-]+$'
+        ..., max_length=500, min_length=1, pattern='^[a-zA-Z0-9_.\\[\\]-]+$'
     )
     type: Literal['string', 'number', 'boolean', 'json']
 
@@ -1775,7 +1775,7 @@ class Bindings1(BaseModel):
     )
     source: Literal['input']
     path: str = Field(
-        ..., max_length=500, min_length=1, pattern='^[a-zA-Z0-9_.\\\\[\\\\]-]+$'
+        ..., max_length=500, min_length=1, pattern='^[a-zA-Z0-9_.\\[\\]-]+$'
     )
     type: Literal['string', 'number', 'boolean', 'json']
 
@@ -2487,7 +2487,7 @@ class AdditionalProperties2(BaseModel):
     )
     source: Literal['input']
     path: str = Field(
-        ..., max_length=500, min_length=1, pattern='^[a-zA-Z0-9_.\\\\[\\\\]-]+$'
+        ..., max_length=500, min_length=1, pattern='^[a-zA-Z0-9_.\\[\\]-]+$'
     )
     type: Literal['string', 'number', 'boolean', 'json']
 

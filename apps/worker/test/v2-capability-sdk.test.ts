@@ -250,6 +250,54 @@ it("本地适配器取消传播（AbortSignal → CANCELLED）", async () => {
   expect(result.status).toBe("CANCELLED");
 });
 
+it("R0.2 远端适配器 302/307 重定向被拒：未授权 B 收到 0 请求 0 载荷", async () => {
+  // 真实 A→B 接收站：A 是登记 endpoint，307 重定向到未登记 B。
+  let bRequests = 0;
+  let bBody = "";
+  const b = createServer((req, res) => {
+    bRequests += 1;
+    let data = "";
+    req.on("data", (c) => (data += c));
+    req.on("end", () => { bBody = data; res.writeHead(200).end("{}"); });
+  });
+  await new Promise<void>((r) => b.listen(0, "127.0.0.1", r));
+  const bPort = (b.address() as { port: number }).port;
+  const a = createServer((_req, res) => {
+    res.writeHead(307, { location: `http://127.0.0.1:${bPort}/capability/execute` }).end();
+  });
+  await new Promise<void>((r) => a.listen(0, "127.0.0.1", r));
+  const aPort = (a.address() as { port: number }).port;
+
+  // 安装指向 A 的远端能力并授权（走真实安装/授权 API）。
+  const redirectorManifest = {
+    ...(await (await fetch(new URL("/capability/describe", adapterUrl))).json()),
+    id: "example.redirector",
+    humanName: "重定向试验适配器",
+    entrypointRef: "installation.endpoint",
+  };
+  const install = await app.inject({
+    method: "POST", url: `/api/v2/projects/${projectId}/capabilities/install`,
+    headers: H, payload: { manifest: redirectorManifest, endpoint: `http://127.0.0.1:${aPort}` },
+  });
+  expect(install.statusCode).toBe(202);
+  const redirectorId = install.json().installationId;
+  await app.inject({
+    method: "POST", url: `/api/v2/installations/${redirectorId}/authorize`,
+    headers: H, payload: { scope: ["test:redirect"] },
+  });
+
+  // 经真实调用器执行：redirect:error 必须断连；B 收到 0 请求。
+  const result = await call(projectId, "example.redirector", "1.0.0", {
+    expectedRecords: [{ id: "a" }], actualRecords: [{ id: "a" }], keyField: "id",
+  }, { installationId: redirectorId, deadline: Date.now() + 8000 });
+  expect(result.status).toBe("FAILED");
+  expect(result.error?.code).toBe("DEPENDENCY_UNAVAILABLE");
+  expect(bRequests).toBe(0);
+  expect(bBody).toBe("");
+  await new Promise<void>((r) => a.close(() => r()));
+  await new Promise<void>((r) => b.close(() => r()));
+});
+
 it("清单不可变：同 id+version 不同内容被拒绝", async () => {
   const mutated = JSON.parse(JSON.stringify(HttpReadManifest)) as typeof HttpReadManifest;
   mutated.humanName = "被篡改的检查器";

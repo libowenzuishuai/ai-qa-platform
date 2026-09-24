@@ -22,12 +22,12 @@ export const Binding = z.discriminatedUnion("source", [
   z.object({
     source: z.literal("node"),
     nodeId: z.string().min(1).max(200),
-    path: z.string().min(1).max(500).regex(/^[a-zA-Z0-9_.\\[\\]-]+$/, "输出路径只允许标识符与数组下标"),
+    path: z.string().min(1).max(500).regex(/^[a-zA-Z0-9_.\[\]-]+$/, "输出路径只允许标识符与数组下标"),
     type: TypeRef,
   }).strict(),
   z.object({
     source: z.literal("input"),
-    path: z.string().min(1).max(500).regex(/^[a-zA-Z0-9_.\\[\\]-]+$/),
+    path: z.string().min(1).max(500).regex(/^[a-zA-Z0-9_.\[\]-]+$/),
     type: TypeRef,
   }).strict(),
   z.object({

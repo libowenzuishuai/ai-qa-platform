@@ -28,13 +28,21 @@ export interface GraphExecutionInput {
   deadline: number;
   signal: AbortSignal;
   allowedOrigins: string[];
+  /** 执行命名空间（session/execution id）：幂等键与调用身份据此隔离（R0.4）。 */
+  executionKey: string;
 }
 
 export interface NodeRunRecord {
   nodeId: string;
-  status: "completed" | "skipped" | "failed" | "require_human" | "cancelled";
+  status: "completed" | "skipped" | "failed" | "require_human" | "cancelled" | "unknown_write";
   output: unknown;
   attempts: number;
+  /** 首败错误（重试成功也保留；R0.3）。 */
+  firstError?: { code: string; message: string };
+  /** 首败发生的 attempt 序号（1 起）。 */
+  firstFailureAttempt?: number;
+  /** 节点实际截止时间戳（任务/节点/能力最早者）。 */
+  nodeDeadline?: number;
   /** map/repeat 的逐项结果（对账依据）。 */
   items?: Array<{ key: string; status: string; output: unknown }>;
   error?: { code: string; message: string };
@@ -55,6 +63,15 @@ export async function executeGraph(args: GraphExecutionInput): Promise<GraphExec
   let firstFailure: NodeRunRecord | null = null;
   let sequence = 0;
   let status: GraphExecutionResult["status"] = "completed";
+
+  // 未实现模式显式拒绝（R0.4）：subflow 尚未实现，不能静默按普通节点执行。
+  const unsupported = args.definition.nodes.find((n) => n.subflow);
+  if (unsupported)
+    return {
+      status: "failed",
+      nodes: [],
+      firstFailure: { nodeId: unsupported.nodeId, status: "failed", output: null, attempts: 0, error: { code: "UNSUPPORTED", message: `节点 ${unsupported.nodeId} 使用未实现的 subflow 模式` } },
+    };
 
   const byId = new Map(args.definition.nodes.map((n) => [n.nodeId, n]));
   const ordered = topoOrder(args.definition);
@@ -112,11 +129,11 @@ export async function executeGraph(args: GraphExecutionInput): Promise<GraphExec
     records.set(node.nodeId, record);
     if (record.status === "completed") outputs.set(node.nodeId, record.output);
     else if (record.status === "failed") {
-      if (!firstFailure) firstFailure = record;
+      if (!firstFailure) firstFailure = record; // 首个失败（含 firstError 首败证据）
       if (node.onFailure === "fail") { status = "failed"; }
       else if (node.onFailure === "require_human") { status = "require_human"; break; }
       // onFailure=skip：记录失败但不阻断后续（后续节点经 checkDependencies 传播 skip）。
-    } else if (record.status === "require_human") { status = "require_human"; break; }
+    } else if (record.status === "require_human" || record.status === "unknown_write") { status = "require_human"; break; }
     else if (record.status === "cancelled") { status = "cancelled"; break; }
   }
 
@@ -165,28 +182,40 @@ async function runNode(
   outputs: Map<string, unknown>,
   nextId: () => number,
 ): Promise<NodeRunRecord> {
-  // repeat：有界迭代。
+  // 节点开始时间与节点截止：实际截止取任务/节点/能力最早者（R0.3）。
+  const nodeStartedAt = Date.now();
+  const nodeDeadline = node.retry
+    ? Math.min(args.deadline, nodeStartedAt + node.retry.totalDeadlineMs)
+    : args.deadline;
+
+  // repeat：有界迭代——本轮输出先入账，再用当前轮结果判断退出（R0.4）。
   if (node.repeat) {
     const items: NodeRunRecord["items"] = [];
     let lastOutput: unknown = null;
     for (let i = 0; i < node.repeat.maxIterations; i += 1) {
-      if (args.signal.aborted) return { nodeId: node.nodeId, status: "cancelled", output: null, attempts: i, items };
-      const round = await invokeOnce(node, args, outputs, nextId, { iteration: i });
+      if (args.signal.aborted || Date.now() >= nodeDeadline)
+        return { nodeId: node.nodeId, status: args.signal.aborted ? "cancelled" : "failed", output: null, attempts: i, items, error: args.signal.aborted ? undefined : { code: "BUDGET_EXCEEDED", message: "repeat 到达节点截止" } };
+      const round = await invokeOnce(node, args, outputs, nextId, { iteration: i, nodeDeadline });
       items.push({ key: `iteration-${i}`, status: round.status, output: round.output });
-      lastOutput = round.output;
       if (round.status !== "completed")
         return { nodeId: node.nodeId, status: round.status, output: null, attempts: i + 1, items, error: round.error };
+      lastOutput = round.output;
+      outputs.set(node.nodeId, round.output); // 先让本轮输出可见
       if (node.repeat.exitWhen) {
         const verdict = evaluateCondition(node.repeat.exitWhen, outputs, args.taskInput);
         if (verdict === "true") break;
+        // UNKNOWN 按策略处理：fail → 失败；skip→继续迭代；require_human → 暂停。
+        if (verdict === "unknown" && node.repeat.exitWhen.onUnknown === "fail")
+          return { nodeId: node.nodeId, status: "failed", output: null, attempts: i + 1, items, error: { code: "CONDITION_UNKNOWN", message: "repeat 退出条件未知，onUnknown=fail" } };
+        if (verdict === "unknown" && node.repeat.exitWhen.onUnknown === "require_human")
+          return { nodeId: node.nodeId, status: "require_human", output: null, attempts: i + 1, items, error: { code: "CONDITION_UNKNOWN", message: "repeat 退出条件未知，需人工" } };
       }
-      // 把迭代输出暴露给后续条件（iteration 输出挂在节点输出上）。
-      outputs.set(node.nodeId, round.output);
     }
-    return { nodeId: node.nodeId, status: "completed", output: lastOutput, attempts: items.length, items };
+    // 达到上限但目标未满足 ≠ 业务通过：输出不含 goalMet 标记（由 verifier 独立判定）。
+    return { nodeId: node.nodeId, status: "completed", output: lastOutput, attempts: items.length, items, nodeDeadline };
   }
 
-  // map：有限集 + 并发≤2 + 逐项对账。
+  // map：同批全部记账后再决定是否继续（R0.4）。
   if (node.map) {
     const set = resolveBinding(node.map.inputSet, outputs, args.taskInput);
     if (!Array.isArray(set))
@@ -195,49 +224,76 @@ async function runNode(
       return { nodeId: node.nodeId, status: "failed", output: null, attempts: 0, error: { code: "VALIDATION_ERROR", message: `map 输入集 ${set.length} 超过上限 ${node.map.maxItems}` } };
     const items: NodeRunRecord["items"] = [];
     const concurrency = Math.min(node.map.maxConcurrency, 2);
-    for (let start = 0; start < set.length; start += concurrency) {
-      if (args.signal.aborted) return { nodeId: node.nodeId, status: "cancelled", output: null, attempts: items.length, items };
+    let firstError: { code: string; message: string } | undefined;
+    let stopped: "failed" | "cancelled" | "require_human" | null = null;
+    for (let start = 0; start < set.length && !stopped; start += concurrency) {
+      if (args.signal.aborted) { stopped = "cancelled"; break; }
+      if (Date.now() >= nodeDeadline) { stopped = "failed"; firstError ??= { code: "BUDGET_EXCEEDED", message: "map 到达节点截止" }; break; }
       const batch = set.slice(start, start + concurrency);
-      const settled = await Promise.all(batch.map((item) =>
-        invokeOnce(node, args, outputs, nextId, { mapItem: item }).then((r) => ({ item, r }))));
-      for (const { item, r } of settled) {
-        items.push({ key: JSON.stringify(item), status: r.status, output: r.output });
-        if (r.status !== "completed")
-          return { nodeId: node.nodeId, status: r.status, output: null, attempts: items.length, items, error: r.error };
+      // 同批并发发出；全部落定并逐项记账后才决定下一批（已发生副作用不漏账）。
+      const settled = await Promise.allSettled(batch.map((item, indexInBatch) =>
+        invokeOnce(node, args, outputs, nextId, { mapItem: item, mapIndex: start + indexInBatch, nodeDeadline })
+          .then((r) => ({ item, index: start + indexInBatch, r }))));
+      for (const entry of settled) {
+        if (entry.status === "rejected") {
+          // 适配器自身抛出异常（不应发生，但按受控失败记账）。
+          items.push({ key: `item-${(entry as PromiseRejectedResult).reason?.index ?? items.length}`, status: "failed", output: null });
+          firstError ??= { code: "INTERNAL", message: String((entry as PromiseRejectedResult).reason).slice(0, 200) };
+          stopped = "failed";
+          continue;
+        }
+        const { item, index, r } = entry.value;
+        // 用稳定实例 ID（索引）区分重复值。
+        items.push({ key: `item-${index}`, status: r.status, output: r.output });
+        if (r.status !== "completed") {
+          firstError ??= r.error ?? { code: "MAP_ITEM_FAILED", message: `map 第 ${index} 项失败` };
+          if (r.status === "cancelled") stopped = "cancelled";
+          else if (r.status === "require_human") stopped = "require_human";
+          else stopped = "failed";
+        }
       }
     }
-    return { nodeId: node.nodeId, status: "completed", output: { itemCount: items.length }, attempts: items.length, items };
+    // 空 map：completed 但 itemCount=0（覆盖缺口由 verifier/report 层呈现）。
+    if (stopped)
+      return { nodeId: node.nodeId, status: stopped, output: null, attempts: items.length, items, error: firstError, nodeDeadline };
+    return { nodeId: node.nodeId, status: "completed", output: { itemCount: items.length }, attempts: items.length, items, nodeDeadline };
   }
 
-  // retry：仅限声明错误分类；首败保留在 attempts 记录中。
+  // retry：错误分类∩retryable∩效果类型；首败保留（成功不擦除）；截止零派发（R0.3）。
   const maxAttempts = node.retry?.maxAttempts ?? 1;
   let firstError: { code: string; message: string } | undefined;
+  let firstFailureAttempt = 0;
   let attempt = 0;
   let last: InvokeOutcome | undefined;
   for (; attempt < maxAttempts; attempt += 1) {
     if (args.signal.aborted)
-      return { nodeId: node.nodeId, status: "cancelled", output: null, attempts: attempt, error: firstError };
-    last = await invokeOnce(node, args, outputs, nextId, { attempt });
-    if (last.status === "completed") return { nodeId: node.nodeId, status: "completed", output: last.output, attempts: attempt + 1 };
-    if (!firstError && last.error) firstError = last.error;
-    const retryableClass = node.retry?.retryableErrorClasses.includes(last.error?.code ?? "") ?? false;
-    // 继续重试条件：可重试错误分类 + 未到节点总截止。
-    if (!(last.status === "failed" && retryableClass)) break;
-    const retryDeadline = (node.retry?.totalDeadlineMs ?? 0);
-    if (Date.now() + retryDeadline > args.deadline + retryDeadline) break; // 恒不触发；保留 deadline 语义位
+      return { nodeId: node.nodeId, status: "cancelled", output: null, attempts: attempt, firstError, error: firstError };
+    if (Date.now() >= nodeDeadline)
+      return { nodeId: node.nodeId, status: "failed", output: null, attempts: attempt, firstError, error: firstError ?? { code: "BUDGET_EXCEEDED", message: "节点截止前停止派发" } };
+    last = await invokeOnce(node, args, outputs, nextId, { attempt, nodeDeadline });
+    if (last.status === "completed") {
+      // 重试成功也保留首败证据（R0.3）。
+      return { nodeId: node.nodeId, status: "completed", output: last.output, attempts: attempt + 1, firstError, nodeDeadline };
+    }
+    if (!firstError && last.error) { firstError = last.error; firstFailureAttempt = attempt + 1; }
+    const errorClassAllowed = node.retry?.retryableErrorClasses.includes(last.error?.code ?? "") ?? false;
+    if (last.status !== "failed" || !errorClassAllowed) break;
+    // 写效果的 FAILED 不可盲目重试：调用器已把写超时归入 UNKNOWN 语义（R0.3），
+    // 到达这里的 failed 均为声明可重试类；节点截止在循环顶检查。
   }
   const outcome: InvokeOutcome = last ?? { status: "failed", output: null, error: firstError };
-  return { nodeId: node.nodeId, status: outcome.status, output: null, attempts: attempt + 1, error: firstError ?? outcome.error };
+  return { nodeId: node.nodeId, status: outcome.status, output: null, attempts: attempt + 1, firstError, firstFailureAttempt, error: firstError ?? outcome.error, nodeDeadline };
 }
 
 type InvokeOutcome =
   | { status: "completed"; output: unknown; error?: undefined }
-  | { status: "failed" | "cancelled" | "require_human"; output: null; error?: { code: string; message: string } };
+  | { status: "failed" | "cancelled" | "require_human" | "unknown_write"; output: null; error?: { code: string; message: string } };
 
-function toOutcome(result: { status: "SUCCEEDED" | "FAILED" | "CANCELLED"; output: unknown; error?: { code: string; message: string } }): InvokeOutcome {
+function toOutcome(result: { status: "SUCCEEDED" | "FAILED" | "CANCELLED" | "UNKNOWN"; output: unknown; error?: { code: string; message: string } }): InvokeOutcome {
   if (result.status === "SUCCEEDED") return { status: "completed", output: result.output };
   if (result.status === "CANCELLED") return { status: "cancelled", output: null, error: result.error };
-  // 技术失败按 onFailure 策略在节点层处理；require_human 目前由条件/传播触发。
+  // R0.3：UNKNOWN（写入效果不明）暂停等待对账/人工，不进普通 failed 重试路径。
+  if (result.status === "UNKNOWN") return { status: "unknown_write", output: null, error: result.error };
   return { status: "failed", output: null, error: result.error };
 }
 
@@ -246,9 +302,12 @@ async function invokeOnce(
   args: GraphExecutionInput,
   outputs: Map<string, unknown>,
   nextId: () => number,
-  ctxHint: { iteration?: number; mapItem?: unknown; attempt?: number },
+  ctxHint: { iteration?: number; mapItem?: unknown; mapIndex?: number; attempt?: number; nodeDeadline?: number },
 ): Promise<InvokeOutcome> {
-  // 绑定解析（mapItem 可被 map.inputSet 之外的参数引用……当前按完整绑定解析）。
+  // 调用前截止：过期零派发（R0.3）。
+  const effectiveDeadline = Math.min(ctxHint.nodeDeadline ?? Number.MAX_SAFE_INTEGER, args.deadline);
+  if (Date.now() >= effectiveDeadline)
+    return { status: "failed", output: null, error: { code: "BUDGET_EXCEEDED", message: "调用前已达截止，零派发" } };
   const input: Record<string, unknown> = {};
   for (const [param, binding] of Object.entries(node.bindings)) {
     if (ctxHint.mapItem !== undefined && binding.source === "input" && binding.path === "$item") {
@@ -258,17 +317,24 @@ async function invokeOnce(
     input[param] = resolveBinding(binding, outputs, args.taskInput);
   }
   const id = nextId();
+  // 业务幂等键与调用身份分离（R0.4）：幂等键=执行命名空间+节点+逻辑项（不含 attempt，
+  // 重试复用同一键协作目标端去重）；invocationId=每次物理调用唯一。
+  const logicalKey = ctxHint.mapIndex !== undefined
+    ? `${args.executionKey}:${node.nodeId}:map-${ctxHint.mapIndex}`
+    : ctxHint.iteration !== undefined
+      ? `${args.executionKey}:${node.nodeId}:iter-${ctxHint.iteration}`
+      : `${args.executionKey}:${node.nodeId}`;
   return toOutcome(await invokeCapability({
     prisma: args.prisma,
     projectId: args.projectId,
     capabilityId: node.capabilityId,
     capabilityVersion: node.capabilityVersion,
     input,
-    deadline: args.deadline,
-    idempotencyKey: `graph-${node.nodeId}-${id}-${ctxHint.attempt ?? ctxHint.iteration ?? 0}-key`,
+    deadline: effectiveDeadline,
+    idempotencyKey: logicalKey,
     signal: args.signal,
     allowedOrigins: args.allowedOrigins,
-    invocationId: `graph-inv-${id}`,
+    invocationId: `${args.executionKey}-inv-${id}`,
   }));
 }
 

@@ -78,8 +78,16 @@ function check(value: unknown, schema: JsonSchemaSubset, path: string, problems:
       problems.push(`${path}: 长度 ${text.length} < minLength ${schema.minLength}`);
     if (schema.maxLength !== undefined && text.length > schema.maxLength)
       problems.push(`${path}: 长度 ${text.length} > maxLength ${schema.maxLength}`);
-    if (schema.pattern !== undefined && !new RegExp(schema.pattern).test(text))
-      problems.push(`${path}: 不匹配模式 ${schema.pattern}`);
+    if (schema.pattern !== undefined) {
+      // R0.7：pattern 本身非法时受控报错，不让异常穿透使作业悬挂
+      //（安装自检已拦截；这里是运行时兜底）。
+      try {
+        if (!new RegExp(schema.pattern).test(text))
+          problems.push(`${path}: 不匹配模式 ${schema.pattern}`);
+      } catch {
+        problems.push(`${path}: 模式自身不合法（运行时兜底拦截）：${schema.pattern}`);
+      }
+    }
   }
   if (expected === "number" || expected === "integer") {
     const num = value as number;
