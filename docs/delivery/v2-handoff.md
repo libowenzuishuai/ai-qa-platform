@@ -8,18 +8,21 @@
 - **工作树干净**；无运行中进程；评审探针 7/7 期望值达成（`docs/delivery/evidence/v2-w03-review-probe.mts`，其 Prisma 替身已随加固接口维护）。
 - **轮次**：W00 VERIFIED · W01 CODE_READY · W02 修复后核心 VERIFIED（子流程/回放/MCP 未做）· W03 修复后核心 VERIFIED · **R0（V2-R01～08）全部修复+反例回归** · **R1 readiness VERIFIED** · **R2 W04 script 切片 VERIFIED（含真实 SIGKILL 恢复）** · **R3 最小旅程 API+SSR VERIFIED**。
 
-## 本轮验证快照（全部实际运行）
+## 本轮验证快照（全部实际运行；R2/R3 补全后更新）
 
-- typecheck 0；contracts 305/305；api 105/105；worker 157+7skip（v2 相关 33/33：SDK 18+图 8+循环 5+会话 API 2）；web 1/1（新增 vitest）；python 390/390。
+- typecheck 0；contracts 305/305；api 105/105；worker 162+7skip（v2：SDK 18+图 8+循环 9（三构建/动作前退出/重复投递/撤权）+会话 API 2+浏览器旅程 1）；web 1/1；python 390/390。
+- 浏览器截图 ×4：`docs/evidence/v2-ui/{desktop-list-empty,desktop-list-completed,desktop-detail,mobile-detail}.png`（真实 Chromium 1440/390，无横向溢出）。
 - 迁移：`20260924010000_v2_readiness`（干净库重放通过）。
 - 评审探针（真实源函数+真实本机 HTTP）：retryFalse=1call+首败保留、repeat=1call、map=2/2、expired=0call、pattern 自检拒+运行时受控、重定向 B=0、`items` 路径通过。
 
 ## 下一轮入口（按 GLM-CONTINUE-W04 R4 及其后续）
 
-1. **R4 遗项**：
-   - 浏览器 1440/390 真实截图与交互验收（`/space/:id/autonomous`、`/v2/sessions/:id`）——页面逻辑已由 web 1/1 测试覆盖，但截图与键盘/焦点检查未做；
-   - 故障矩阵扩展：双 worker 并发、重复队列投递、过期租约、排队中/模型等待中/写后取消、SSE 断线重连（v2 事件目前无 SSE，列表页轮询即可先交付）、过期观察、证据丢失、运行中撤权；
-   - `python-real` 规划器接线（A2-04：intelligence-client + promptVersion 固定 + 双层校验；先做 wire 契约 LoopPlannerInput/Output）。
+1. **R4 遗项（本轮已消掉的部分打勾）**：
+   - ✅ 浏览器 1440/390 截图与交互（真实 Chromium 旅程+四张截图）；
+   - ✅ 三构建同标准连续对照、动作前退出、重复投递、运行中撤权；
+   - ❌ 双 worker 并发抢占、过期租约、排队中/模型等待中取消、SSE 断线重连（v2 事件暂无 SSE）、过期观察、证据丢失；
+   - ❌ `python-real` 规划器接线（A2-04：先做 wire 契约 LoopPlannerInput/Output）；
+   - ❌ 快速开始端口预检/关于环境说明页（R3 第 6 点）。
 2. **Alpha 门判定**（按 PRD）：两个独立 SDK 适配器 ✓（http-read + data-reconcile，且新增 draft-ops）＋完整反馈循环 ✓（script 切片）＋标准不变 ✓（oracleHash 全程未变+测试）＋恢复正确 ✓（SIGKILL+幂等对账）＋v1 兼容 ✓（回归全绿）。**但 Alpha 宣称要求"确定性/脚本驱动内核验证"与"真实模型驱动效果"分开报告**——后者未验（无真实模型调用），故只能说"script 内核 Alpha 达成、真实模型语义未验"。
 3. **W05～W10** 按原 ROADMAP；W02 剩余（子流程运行时、回放、MCP、画布）不阻塞 W05。
 
