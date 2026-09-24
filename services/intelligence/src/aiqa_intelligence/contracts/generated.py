@@ -346,6 +346,10 @@ class Expected1(RootModel[str]):
     root: str = Field(..., max_length=2000, min_length=1)
 
 
+class Precondition(RootModel[str]):
+    root: str = Field(None, max_length=1000)
+
+
 class Unit(RootModel[str]):
     root: str = Field(None, max_length=64, min_length=1)
 
@@ -862,6 +866,10 @@ class InputSchema(BaseModel):
     enum: list[str | float | bool] | None = Field(None, max_length=1000)
     pattern: str | None = Field(None, max_length=500)
     nullable: bool | None = None
+
+
+class Field0(RootModel[str]):
+    root: str = Field(..., pattern='^-?\\d+(\\.\\d+)?$')
 
 
 class AdditionalProperties1(BaseModel):
@@ -1592,6 +1600,11 @@ class Assertion1(BaseModel):
         ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
     )
     kind: Literal['deterministic']
+    fact: str = Field(..., max_length=500, min_length=1)
+    observationType: Literal[
+        'ui_text', 'ui_visible', 'api_field', 'api_status', 'db_value'
+    ]
+    observationRef: str = Field(..., max_length=300, min_length=1)
     operator: Literal[
         'equals',
         'not_equals',
@@ -1603,7 +1616,9 @@ class Assertion1(BaseModel):
         'hidden',
     ]
     expected: Expected | bool | Expected1 | None
+    precondition: Precondition | None = None
     unit: Unit | None = None
+    tolerance: Field0 | None = None
     allowedRoles: list[AllowedRole] | None = Field(
         [], max_length=20, validate_default=True
     )

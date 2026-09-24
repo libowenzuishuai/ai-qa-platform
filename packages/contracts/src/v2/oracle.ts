@@ -14,6 +14,9 @@ import { createHash } from "node:crypto";
  * 引用闭包在服务端创建时校验，契约层冻结形状。
  */
 
+/** R0.5：观测类型——业务事实如何被程序化读取（页面文本/可见性/API 字段/状态码/数据库值）。 */
+export const OracleObservationType = z.enum(["ui_text", "ui_visible", "api_field", "api_status", "db_value"]);
+
 export const OracleAssertion = z.object({
   /** 断言稳定 ID（Oracle 内唯一）。 */
   id: z.string().min(1).max(128),
@@ -21,15 +24,34 @@ export const OracleAssertion = z.object({
   ruleVersionId: EntityId,
   /** 确定性断言：期望值/运算符/单位全部冻结。 */
   kind: z.literal("deterministic"),
+  /** 被测业务事实（如"采购单状态文本"）；不是页面 selector（那是操作层）。 */
+  fact: z.string().min(1).max(500),
+  /** 观测类型：如何读取事实。 */
+  observationType: OracleObservationType,
+  /** 观测定位引用（如 API 字段名 / UI 元素业务名；不含实现 selector）。 */
+  observationRef: z.string().min(1).max(300),
   operator: z.enum(["equals", "not_equals", "greater_than", "less_than", "exists", "not_exists", "visible", "hidden"]),
   /** 期望值：数值断言用十进制字符串；文本断言（ui.text equals）用受长度约束的原文。 */
   expected: z.union([DecimalString, z.boolean(), z.string().min(1).max(2000), z.null()]),
+  /** 适用前提（如"金额超过 5000 元时"）；空=无条件。 */
+  precondition: z.string().max(1000).nullable().default(null),
   unit: z.string().min(1).max(64).nullable().default(null),
+  /** 数值容差（十进制；仅数值比较）。 */
+  tolerance: DecimalString.nullable().default(null),
   /** 允许的角色（权限断言的依据，不可扩大）。 */
   allowedRoles: z.array(z.string().min(1).max(80)).max(20).default([]),
   /** 是否为必需断言（缺失即不能 PASS）。 */
   required: z.boolean().default(true),
-}).strict();
+}).strict().superRefine((a, ctx) => {
+  // 运算符与期望值类型一致性（R0.5 验收：金额/布尔/存在性正反例）。
+  const numericOps = ["greater_than", "less_than"];
+  if (numericOps.includes(a.operator) && !/^-?\d+(\.\d+)?$/.test(String(a.expected)))
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["expected"], message: `${a.operator} 要求十进制数值期望` });
+  if (["equals", "not_equals"].includes(a.operator) && a.expected === null)
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["expected"], message: `${a.operator} 需要 expected（用 exists/not_exists 表达存在性）` });
+  if (a.tolerance !== null && !numericOps.concat(["equals"]).includes(a.operator))
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["tolerance"], message: "容差仅适用于数值比较" });
+});
 export type OracleAssertion = z.infer<typeof OracleAssertion>;
 
 /** 视觉/语义候选断言：不确定，只能进 REVIEW，不能单独判 PASS。 */
@@ -83,6 +105,27 @@ export const OracleSpec = OracleSpecContent.extend({
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["assertions"], message: "至少一条必需断言（空 Oracle 不能判 PASS）" });
   if (spec.status === "APPROVED" && (!spec.approvedBy || !spec.approvedAt))
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["approvedBy"], message: "APPROVED 必须记录批准人与时间" });
+  // R0.5：断言 ID 唯一。
+  const ids = new Set<string>();
+  for (const a of spec.assertions) {
+    if (ids.has(a.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["assertions"], message: `断言 ID 重复：${a.id}` });
+    ids.add(a.id);
+  }
+  if (spec.status === "APPROVED") {
+    // 批准时：每规则至少一条断言或有 blocked/not_applicable 依据（不能静默缺测）。
+    for (const ruleId of spec.ruleVersionIds) {
+      const hasAssertion = spec.assertions.some((a) => a.ruleVersionId === ruleId);
+      const declared = spec.coverageDeclarations.filter((c) => c.ruleVersionId === ruleId);
+      if (!hasAssertion && !declared.some((c) => c.status === "blocked" || c.status === "not_applicable"))
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["assertions"], message: `规则 ${ruleId} 无断言且无 blocked/not_applicable 声明（不能批准）` });
+      // 六维齐全：normal/boundary/permission/multi_role/state/persistence 每维必有声明。
+      const dims = new Set(declared.map((c) => c.dimension));
+      for (const dim of ["normal", "boundary", "permission", "multi_role", "state", "persistence"] as const) {
+        if (!dims.has(dim))
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["coverageDeclarations"], message: `规则 ${ruleId} 缺 ${dim} 维度覆盖声明（不能批准）` });
+      }
+    }
+  }
 });
 export type OracleSpec = z.infer<typeof OracleSpec>;
 

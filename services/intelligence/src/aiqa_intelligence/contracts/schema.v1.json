@@ -3242,6 +3242,26 @@
                 "type": "string",
                 "const": "deterministic"
               },
+              "fact": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "observationType": {
+                "type": "string",
+                "enum": [
+                  "ui_text",
+                  "ui_visible",
+                  "api_field",
+                  "api_status",
+                  "db_value"
+                ]
+              },
+              "observationRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
               "operator": {
                 "type": "string",
                 "enum": [
@@ -3274,12 +3294,35 @@
                   }
                 ]
               },
+              "precondition": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
               "unit": {
                 "anyOf": [
                   {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "tolerance": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/V2OracleSpec/properties/assertions/items/properties/expected/anyOf/0"
                   },
                   {
                     "type": "null"
@@ -3306,6 +3349,9 @@
               "id",
               "ruleVersionId",
               "kind",
+              "fact",
+              "observationType",
+              "observationRef",
               "operator",
               "expected"
             ],

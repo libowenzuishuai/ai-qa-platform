@@ -192,7 +192,9 @@ describe("W01 状态迁移与哈希", () => {
       ruleVersionIds: ["rv-2", "rv-1"],
       assertions: [{
         id: "a-1", ruleVersionId: "rv-1", kind: "deterministic", operator: "equals",
-        expected: "5000", unit: "元", allowedRoles: [], required: true,
+        fact: "审批单状态文本", observationType: "ui_text", observationRef: "审批单状态元素",
+        expected: "5000", precondition: null, unit: "元", tolerance: null,
+        allowedRoles: [], required: true,
       }],
       semanticCandidates: [],
       coverageDeclarations: [],

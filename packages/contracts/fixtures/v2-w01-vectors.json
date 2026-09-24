@@ -25,16 +25,51 @@
             "allowedRoles": [
               "applicant"
             ],
-            "required": true
+            "required": true,
+            "fact": "审批单状态文本",
+            "observationType": "ui_text",
+            "observationRef": "审批单状态元素",
+            "precondition": null,
+            "tolerance": null
           }
         ],
         "semanticCandidates": [],
         "coverageDeclarations": [
           {
             "ruleVersionId": "rv-1",
+            "dimension": "normal",
+            "status": "planned",
+            "reason": "初始生成"
+          },
+          {
+            "ruleVersionId": "rv-1",
             "dimension": "boundary",
             "status": "planned",
-            "reason": "金额边界需验证"
+            "reason": "初始生成"
+          },
+          {
+            "ruleVersionId": "rv-1",
+            "dimension": "permission",
+            "status": "planned",
+            "reason": "初始生成"
+          },
+          {
+            "ruleVersionId": "rv-1",
+            "dimension": "multi_role",
+            "status": "planned",
+            "reason": "初始生成"
+          },
+          {
+            "ruleVersionId": "rv-1",
+            "dimension": "state",
+            "status": "planned",
+            "reason": "初始生成"
+          },
+          {
+            "ruleVersionId": "rv-1",
+            "dimension": "persistence",
+            "status": "planned",
+            "reason": "初始生成"
           }
         ],
         "oracleHash": "a77b0f7bd5e5a0e9d3cecc8ee0dbbb8f7ff5f7461e2c8bbf7f85ee7bb50b4aa1",
@@ -89,7 +124,12 @@
             "expected": "1",
             "unit": null,
             "allowedRoles": [],
-            "required": true
+            "required": true,
+            "fact": "审批单状态文本",
+            "observationType": "ui_text",
+            "observationRef": "审批单状态元素",
+            "precondition": null,
+            "tolerance": null
           }
         ],
         "semanticCandidates": [],
@@ -123,7 +163,12 @@
             "expected": "",
             "unit": null,
             "allowedRoles": [],
-            "required": true
+            "required": true,
+            "fact": "审批单状态文本",
+            "observationType": "ui_text",
+            "observationRef": "审批单状态元素",
+            "precondition": null,
+            "tolerance": null
           }
         ],
         "semanticCandidates": [],
