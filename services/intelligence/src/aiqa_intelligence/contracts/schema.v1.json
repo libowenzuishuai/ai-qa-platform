@@ -6315,6 +6315,199 @@
       ],
       "additionalProperties": false
     },
+    "DecisionRequestInput": {
+      "type": "object",
+      "properties": {
+        "question": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "context": {
+                "type": "string",
+                "maxLength": 2000,
+                "default": ""
+              }
+            },
+            "required": [
+              "id",
+              "label"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 2,
+          "maxItems": 20
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "choose",
+            "score",
+            "classify"
+          ]
+        }
+      },
+      "required": [
+        "question",
+        "options",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "DecisionResult": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "choose",
+            "score",
+            "classify"
+          ]
+        },
+        "selectedOptionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "category": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rawConfidence": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fallbackUsed": {
+          "type": "boolean",
+          "default": false
+        },
+        "fallbackReason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "DecisionRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "mode": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+        },
+        "timeoutMs": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+        },
+        "input": {
+          "$ref": "#/definitions/DecisionRequestInput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "timeoutMs",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "DecisionResponse": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+        },
+        "requestId": {
+          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+        },
+        "mode": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+        },
+        "invocations": {
+          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+        },
+        "output": {
+          "$ref": "#/definitions/DecisionResult"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "invocations",
+        "output"
+      ],
+      "additionalProperties": false
+    },
     "MultiFileComparisonInput": {
       "type": "object",
       "properties": {
@@ -7368,6 +7561,18 @@
         "LoopPlannerOutput": {
           "$ref": "#/definitions/LoopPlannerOutput"
         },
+        "DecisionRequestInput": {
+          "$ref": "#/definitions/DecisionRequestInput"
+        },
+        "DecisionResult": {
+          "$ref": "#/definitions/DecisionResult"
+        },
+        "DecisionRequest": {
+          "$ref": "#/definitions/DecisionRequest"
+        },
+        "DecisionResponse": {
+          "$ref": "#/definitions/DecisionResponse"
+        },
         "MultiFileComparisonInput": {
           "$ref": "#/definitions/MultiFileComparisonInput"
         },
@@ -7477,6 +7682,10 @@
         "LoopPlannerResponse",
         "LoopPlannerInput",
         "LoopPlannerOutput",
+        "DecisionRequestInput",
+        "DecisionResult",
+        "DecisionRequest",
+        "DecisionResponse",
         "MultiFileComparisonInput",
         "MultiFileChangeReport",
         "SnapshotCompareRequest",

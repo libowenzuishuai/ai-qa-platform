@@ -74,6 +74,10 @@ const schemas = {
   LoopPlannerResponse: c.LoopPlannerResponse,
   LoopPlannerInput: c.LoopPlannerInput,
   LoopPlannerOutput: c.LoopPlannerOutput,
+  DecisionRequestInput: c.DecisionRequestInput,
+  DecisionResult: c.DecisionResult,
+  DecisionRequest: c.DecisionRequest,
+  DecisionResponse: c.DecisionResponse,
   // R02：快照对比（确定性多文件差异）
   MultiFileComparisonInput: c.MultiFileComparisonInput,
   MultiFileChangeReport: c.MultiFileChangeReport,

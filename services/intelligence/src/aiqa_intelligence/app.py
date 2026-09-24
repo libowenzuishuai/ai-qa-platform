@@ -13,6 +13,7 @@ from .agents.planner import propose_plan, classify_sources
 from .agents.goal import propose_goal
 from .agents.context_retrieval import retrieve as retrieve_context
 from .agents.loop_planner import plan_next
+from .agents.decision import decide as decide_baseline
 from .doc_ingestion.service import DocumentParser
 from .doc_ingestion.chunking import ChunkLimit, chunk_bundle, coverage_report
 from .source_changes import compare_snapshots
@@ -45,6 +46,13 @@ async def chunk_document(typed_input, context):
     # 匿名 Output 模型经 ChunkingResponse 注解取用（生成器会为嵌套类型去重命名）。
     output_model = models.ChunkingResponse.model_fields["output"].annotation
     return output_model.model_validate({"manifest": manifest, "coverage": coverage})
+
+
+async def decide_agent(typed_input, context):
+    """确定性决策基线（INT-06）：不调用模型；无命中/平局回退。"""
+    data = typed_input.model_dump(mode="json", exclude_unset=True)
+    result = models.DecisionResponse.model_fields["output"].annotation.model_validate(decide_baseline(data))
+    return result
 
 
 async def retrieve_context_agent(typed_input, context):
@@ -146,6 +154,7 @@ def create_app(
             "goal": "GoalProposalAgent",
             "context": "ContextRetrieval",
             "loop_plan": "LoopPlanner",
+            "decide": "Decision",
         }
         name = names[operation]
         validate_shape(name + "Request", wire)
@@ -213,6 +222,7 @@ def create_app(
             "goal": propose_goal,
             "context": retrieve_context_agent,
             "loop_plan": plan_next,
+            "decide": decide_agent,
         }
         try:
             output = await asyncio.wait_for(
@@ -265,6 +275,10 @@ def create_app(
     @app.post("/v2/context/retrieve")
     async def context_route(request: Request):
         return await invoke(request, "context")
+
+    @app.post("/v2/decide")
+    async def decide_route(request: Request):
+        return await invoke(request, "decide")
 
     @app.post("/v2/loop/plan")
     async def loop_plan(request: Request):

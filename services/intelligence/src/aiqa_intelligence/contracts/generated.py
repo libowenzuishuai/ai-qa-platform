@@ -701,6 +701,57 @@ class LoopPlannerOutput(BaseModel):
     rationale: str = Field(..., max_length=2000, min_length=1)
 
 
+class Option(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(..., max_length=200, min_length=1)
+    label: str = Field(..., max_length=500, min_length=1)
+    context: str | None = Field('', max_length=2000)
+
+
+class DecisionRequestInput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    question: str = Field(..., max_length=2000, min_length=1)
+    options: list[Option] = Field(..., max_length=20, min_length=2)
+    kind: Literal['choose', 'score', 'classify']
+
+
+class SelectedOptionId(RootModel[str]):
+    root: str = Field(None, max_length=200)
+
+
+class Score2(RootModel[float]):
+    root: float = Field(None, ge=0.0, le=1.0)
+
+
+class Category(RootModel[str]):
+    root: str = Field(None, max_length=200)
+
+
+class RawConfidence(RootModel[float]):
+    root: float = Field(None, ge=0.0, le=1.0)
+
+
+class FallbackReason(RootModel[str]):
+    root: str = Field(None, max_length=500)
+
+
+class DecisionResult(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: Literal['choose', 'score', 'classify']
+    selectedOptionId: SelectedOptionId | None = None
+    score: Score2 | None = None
+    category: Category | None = None
+    rawConfidence: RawConfidence | None = None
+    fallbackUsed: bool | None = False
+    fallbackReason: FallbackReason | None = None
+
+
 class ExcludedPath(RootModel[str]):
     root: str = Field(..., max_length=1024, min_length=1)
 
@@ -2317,6 +2368,19 @@ class LoopPlannerInput(BaseModel):
     promptVersion: Literal['loop-planner-v1']
 
 
+class DecisionRequest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    timeoutMs: int = Field(..., ge=1000, le=600000)
+    input: DecisionRequestInput
+
+
 class OldFile(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -2985,6 +3049,19 @@ class LoopPlannerResponse(BaseModel):
     output: LoopPlannerOutput
 
 
+class DecisionResponse(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str = Field(
+        ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
+    )
+    mode: Literal['real', 'mock']
+    invocations: list[InvocationRecord]
+    output: DecisionResult
+
+
 class MultiFileComparisonInput(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -3235,6 +3312,12 @@ class IntelligenceContracts(BaseModel):
     LoopPlannerResponse_1: LoopPlannerResponse = Field(..., alias='LoopPlannerResponse')
     LoopPlannerInput_1: LoopPlannerInput = Field(..., alias='LoopPlannerInput')
     LoopPlannerOutput_1: LoopPlannerOutput = Field(..., alias='LoopPlannerOutput')
+    DecisionRequestInput_1: DecisionRequestInput = Field(
+        ..., alias='DecisionRequestInput'
+    )
+    DecisionResult_1: DecisionResult = Field(..., alias='DecisionResult')
+    DecisionRequest_1: DecisionRequest = Field(..., alias='DecisionRequest')
+    DecisionResponse_1: DecisionResponse = Field(..., alias='DecisionResponse')
     MultiFileComparisonInput_1: MultiFileComparisonInput = Field(
         ..., alias='MultiFileComparisonInput'
     )
