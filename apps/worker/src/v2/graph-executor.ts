@@ -30,6 +30,10 @@ export interface GraphExecutionInput {
   allowedOrigins: string[];
   /** 执行命名空间（session/execution id）：幂等键与调用身份据此隔离（R0.4）。 */
   executionKey: string;
+  /** HAR-04：execute（默认）| dry-run（零外部调用）| replay（缺记录即失败，零外部副作用）。 */
+  mode?: "execute" | "dry-run" | "replay";
+  /** replay 输入：逻辑键 → 记录输出。 */
+  replayLog?: Record<string, unknown>;
 }
 
 export interface NodeRunRecord {
@@ -64,17 +68,25 @@ export async function executeGraph(args: GraphExecutionInput): Promise<GraphExec
   let sequence = 0;
   let status: GraphExecutionResult["status"] = "completed";
 
-  // 未实现模式显式拒绝（R0.4）：subflow 尚未实现，不能静默按普通节点执行。
-  const unsupported = args.definition.nodes.find((n) => n.subflow);
-  if (unsupported)
+  // 子流程（W02）：加载固定版本并内联展开（命名空间隔离；递归在展开层拦截）。
+  const expanded = await expandSubflows(args);
+  if ("error" in expanded)
     return {
       status: "failed",
       nodes: [],
-      firstFailure: { nodeId: unsupported.nodeId, status: "failed", output: null, attempts: 0, error: { code: "UNSUPPORTED", message: `节点 ${unsupported.nodeId} 使用未实现的 subflow 模式` } },
+      firstFailure: { nodeId: expanded.nodeId, status: "failed", output: null, attempts: 0, error: { code: expanded.code, message: expanded.message } },
+    };
+  const effectiveDefinition = expanded.definition;
+  const runCheck = validateGraphForRun(effectiveDefinition);
+  if (!runCheck.ok)
+    return {
+      status: "failed",
+      nodes: [],
+      firstFailure: { nodeId: "$graph", status: "failed", output: null, attempts: 0, error: { code: "VALIDATION_ERROR", message: runCheck.problems.slice(0, 3).join("；") } },
     };
 
-  const byId = new Map(args.definition.nodes.map((n) => [n.nodeId, n]));
-  const ordered = topoOrder(args.definition);
+  const byId = new Map(effectiveDefinition.nodes.map((n) => [n.nodeId, n]));
+  const ordered = topoOrder(effectiveDefinition);
   if (!ordered)
     return {
       status: "failed",
@@ -316,6 +328,17 @@ async function invokeOnce(
   const effectiveDeadline = Math.min(ctxHint.nodeDeadline ?? Number.MAX_SAFE_INTEGER, args.deadline);
   if (Date.now() >= effectiveDeadline)
     return { status: "failed", output: null, error: { code: "BUDGET_EXCEEDED", message: "调用前已达截止，零派发" } };
+  // HAR-04：dry-run/replay 零外部调用；replay 缺记录直接失败不回退。
+  const mode = args.mode ?? "execute";
+  const replayKey = `${args.executionKey}:${node.nodeId}${ctxHint.mapIndex !== undefined ? `:map-${ctxHint.mapIndex}` : ctxHint.iteration !== undefined ? `:iter-${ctxHint.iteration}` : ""}`;
+  if (mode === "dry-run")
+    return { status: "completed", output: { dryRun: true, capabilityId: node.capabilityId, logicalKey: replayKey }, retryable: false };
+  if (mode === "replay") {
+    const recorded = args.replayLog?.[replayKey];
+    if (recorded === undefined)
+      return { status: "failed", output: null, error: { code: "REPLAY_MISS", message: `回放缺少记录：${replayKey}（不访问真实服务补齐）` } };
+    return { status: "completed", output: recorded, retryable: false };
+  }
   const input: Record<string, unknown> = {};
   for (const [param, binding] of Object.entries(node.bindings)) {
     if (ctxHint.mapItem !== undefined && binding.source === "input" && binding.path === "$item") {
@@ -397,6 +420,63 @@ export function evaluateCondition(
     case "lt": return Number(left) < Number(right) ? "true" : "false";
     default: return "unknown";
   }
+}
+
+/** 子流程展开：加载已发布固定版本 → 前缀命名空间内联（递归深度=展开层数上限）。 */
+const MAX_SUBFLOW_EXPANSION = 8;
+
+async function expandSubflows(
+  args: GraphExecutionInput,
+  depth = 0,
+): Promise<
+  | { definition: WorkflowDefinitionContent }
+  | { error: true; nodeId: string; code: string; message: string }
+> {
+  if (depth >= MAX_SUBFLOW_EXPANSION)
+    return { error: true, nodeId: "$graph", code: "VALIDATION_ERROR", message: `子流程嵌套超过 ${MAX_SUBFLOW_EXPANSION} 层` };
+  const subflowNodes = args.definition.nodes.filter((n) => n.subflow);
+  if (subflowNodes.length === 0) return { definition: args.definition };
+  const inlined: GraphNode[] = [];
+  for (const node of args.definition.nodes) {
+    if (!node.subflow) { inlined.push(node); continue; }
+    const row = await args.prisma.v2WorkflowDefinition.findFirst({
+      where: { id: node.subflow!.definitionId, version: node.subflow!.version, projectId: args.projectId },
+    });
+    if (!row || row.status !== "PUBLISHED")
+      return { error: true, nodeId: node.nodeId, code: "NOT_FOUND", message: `子流程 ${node.subflow!.definitionId}@${node.subflow!.version} 不存在或未发布` };
+    const content = row.content as unknown as WorkflowDefinitionContent;
+    // 递归展开（内层定义也可能含子流程）。
+    const nested = await expandSubflows({ ...args, definition: content }, depth + 1);
+    if ("error" in nested) return nested;
+    const prefix = `${node.nodeId}__`;
+    for (const inner of nested.definition.nodes) {
+      inlined.push({
+        ...inner,
+        nodeId: prefix + inner.nodeId,
+        dependsOn: [...inner.dependsOn.map((d) => prefix + d), ...node.dependsOn],
+        bindings: Object.fromEntries(
+          Object.entries(inner.bindings).map(([param, binding]) => [
+            param,
+            binding.source === "node"
+              ? { ...binding, nodeId: binding.nodeId.startsWith("$host.") ? binding.nodeId.slice("$host.".length) : prefix + binding.nodeId }
+              : binding,
+          ]),
+        ),
+      });
+    }
+  }
+  return { definition: { ...args.definition, nodes: inlined } };
+}
+
+/** 运行前轻量校验（展开后 ID 一致性）。 */
+function validateGraphForRun(definition: WorkflowDefinitionContent): { ok: boolean; problems: string[] } {
+  const problems: string[] = [];
+  const ids = new Set(definition.nodes.map((n) => n.nodeId));
+  if (ids.size !== definition.nodes.length) problems.push("nodeId 重复（展开后）");
+  for (const node of definition.nodes)
+    for (const dep of node.dependsOn)
+      if (!ids.has(dep)) problems.push(`节点 ${node.nodeId} 依赖不存在的 ${dep}`);
+  return { ok: problems.length === 0, problems };
 }
 
 function topoOrder(definition: WorkflowDefinitionContent): GraphNode[] | null {
