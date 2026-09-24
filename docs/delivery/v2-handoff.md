@@ -20,11 +20,12 @@
 1. **R4 遗项（本轮已消掉的部分打勾）**：
    - ✅ 浏览器 1440/390 截图与交互（真实 Chromium 旅程+四张截图）；
    - ✅ 三构建同标准连续对照、动作前退出、重复投递、运行中撤权；
-   - ❌ 双 worker 并发抢占、过期租约、排队中/模型等待中取消、SSE 断线重连（v2 事件暂无 SSE）、过期观察、证据丢失；
-   - ❌ `python-real` 规划器接线（A2-04：先做 wire 契约 LoopPlannerInput/Output）；
+   - ✅ python-real 规划器接线（/v2/loop/plan + 护栏 + 真实 Python 进程验证）；
+   - ❌ 双 worker 并发抢占、过期租约、排队中/模型等待中取消、SSE 断线重连、过期观察、证据丢失；
    - ❌ 快速开始端口预检/关于环境说明页（R3 第 6 点）。
 2. **Alpha 门判定**（按 PRD）：两个独立 SDK 适配器 ✓（http-read + data-reconcile，且新增 draft-ops）＋完整反馈循环 ✓（script 切片）＋标准不变 ✓（oracleHash 全程未变+测试）＋恢复正确 ✓（SIGKILL+幂等对账）＋v1 兼容 ✓（回归全绿）。**但 Alpha 宣称要求"确定性/脚本驱动内核验证"与"真实模型驱动效果"分开报告**——后者未验（无真实模型调用），故只能说"script 内核 Alpha 达成、真实模型语义未验"。
-3. **W05～W10** 按原 ROADMAP；W02 剩余（子流程运行时、回放、MCP、画布）不阻塞 W05。
+3. **W05～W10** 按原 ROADMAP 推进；本轮已开 W07/W08 头（记忆消费闭环 3/3、模型三路由契约+确定性决策基线 4/4）；W02 剩余（子流程运行时、回放、MCP、画布）不阻塞 W05。
+4. **W05 入口**：复用 `packages/test-runtime` executor（DOM 断言/策略代理已验）+ `apps/worker/src/v2/capability-invoker`（授权/Schema 防线）——先做"DOM+截图联合观察"能力（observationType=ui_text 已在 Oracle 契约中），再接 UI/API 交叉核验。
 
 ## 本轮已知坑（新增）
 

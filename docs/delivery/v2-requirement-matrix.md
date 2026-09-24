@@ -123,6 +123,9 @@
 | V2-R08 台账精度 | 本提交（57 行重数/状态拆分/SHA 区分） | 本文件 + v2-progress |
 | R1 准备检查 | `feat(R1)`（依赖分面/指纹绑定/TTL/幂等） | api readiness 7/7（真实 DB） |
 | R2 W04 循环 | `feat(R2/W04)`（循环核心+SIGKILL）+`fix` 探针残留 | worker loop 5/5 + session-api 2/2（真实进程/DB/HTTP） |
+| W04 python-real 规划器 | `feat(W04)` loop-planner | python agent 4/4 + worker 通道 2/2（真实 Python 进程；mock 无回放受控失败、零业务副作用） |
+| W08 决策基线 | `feat(W08)` 契约+基线 | 4/4（命中选择/无命中回退/平局不猜/归一分值） |
+| W07 记忆闭环 | `feat(W07)` memory-usages | 3/3（跨项目拒/过期不能 used/used+outcome 账本） |
 | R3 最小旅程 | `feat(R2/R3)` + `test(R3)` 浏览器旅程 | web 1/1（SSR）；browser journey 1/1（真实 Chromium：1440 空态/表单键盘提交/COMPLETED/详情、390 详情、无横向溢出；截图 ×4 已入库 docs/evidence/v2-ui/） |
 | R2 故障矩阵扩展 | `test(R2)` 三构建+矩阵 | loop 9/9（三构建同 oracleHash 连续对照；动作前退出资源 0→1；重复投递幂等资源仍 1；运行中撤权循环 FAILED） |
 
