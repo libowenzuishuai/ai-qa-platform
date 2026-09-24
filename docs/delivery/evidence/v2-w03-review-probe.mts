@@ -2,6 +2,8 @@ import {pathToFileURL} from 'node:url';
 import {createServer} from 'node:http';
 const root=process.argv[2];
 const imp=(p:string)=>import(pathToFileURL(`${root}/${p}`).href);
+const {computeManifestHash}=await imp('packages/contracts/src/index.ts') as any;
+const realHash=(m:any)=>computeManifestHash(m);
 const {WorkflowDefinitionContent}=await imp('packages/contracts/src/v2/graph.ts');
 const {executeGraph}=await imp('apps/worker/src/v2/graph-executor.ts');
 const {registerLocalAdapter}=await imp('apps/worker/src/v2/capability-registry.ts');
@@ -10,10 +12,15 @@ const {HttpReadManifest}=await imp('packages/adapter-sdk/src/samples/http-checke
 const {selfCheckSchema,validateAgainstSchema}=await imp('packages/adapter-sdk/src/index.ts');
 const out:any={method:'Actual source functions; in-memory Prisma stub, not DB integration; local HTTP servers for redirect only',probes:{}};
 const mk=(id:string,execute:any)=>{const manifest={...HttpReadManifest,id,inputSchema:{type:'object',properties:{item:{type:'integer'}},additionalProperties:false},outputSchema:{type:'object',properties:{done:{type:'boolean'}},required:['done'],additionalProperties:false}};registerLocalAdapter({manifest,execute});return manifest};
-const db=(manifest:any,endpoint?:string)=>({v2AdapterInstallation:{findFirst:async()=>({id:'install',projectId:'proj',status:'AUTHORIZED',manifestHash:'same',endpoint,authorization:{scope:['read:http']}})},v2CapabilityManifest:{findUnique:async()=>({manifest,manifestHash:'same'})}});
+const db=(manifest:any,endpoint?:string,manifestHash?:string)=>{
+  const store={v2AdapterInstallation:{findFirst:async()=>({id:'install',projectId:'proj',status:'AUTHORIZED',manifestHash:manifestHash??'same',endpoint,authorization:{scope:['read:http']}}),findUniqueOrThrow:async()=>({id:'install',projectId:'proj',status:'AUTHORIZED',manifestHash:manifestHash??'same',endpoint,authorization:{scope:['read:http']}})},v2CapabilityManifest:{findUnique:async()=>({manifest,manifestHash:manifestHash??'same'})}};
+  // R0.1 修复引入锁内复核（$transaction+$queryRaw）——替身透传。
+  const tx={...store,$queryRaw:async()=>[]};
+  return {...store,$queryRaw:async()=>[],$transaction:async(fn:any)=>fn(tx)};
+};
 const ok=()=>({status:'SUCCEEDED',output:{done:true},resourceKeys:[],retryable:false});
 const fail=()=>({status:'FAILED',output:null,resourceKeys:[],retryable:false,error:{code:'TRANSIENT',message:'first failure'}});
-const base=(manifest:any,node:any,taskInput:any={})=>({prisma:db(manifest),projectId:'proj',definition:{name:'Review graph',description:'',maxSubflowDepth:4,nodes:[{nodeId:'n',capabilityId:manifest.id,capabilityVersion:'1.0.0',dependsOn:[],bindings:{},onFailure:'fail',...node}]},taskInput,deadline:Date.now()+5000,signal:new AbortController().signal,allowedOrigins:[]});
+const base=(manifest:any,node:any,taskInput:any={})=>({prisma:db(manifest,undefined,realHash(manifest)),projectId:'proj',definition:{name:'Review graph',description:'',maxSubflowDepth:4,nodes:[{nodeId:'n',capabilityId:manifest.id,capabilityVersion:'1.0.0',dependsOn:[],bindings:{},onFailure:'fail',...node}]},taskInput,deadline:Date.now()+5000,signal:new AbortController().signal,allowedOrigins:[],executionKey:'review-exec'});
 let calls=0;
 let m=mk('review.retry',async()=>++calls===1?fail():ok());
 let r=await executeGraph(base(m,{retry:{maxAttempts:2,retryableErrorClasses:['TRANSIENT'],totalDeadlineMs:1000}}));
@@ -38,7 +45,7 @@ const redirect=createServer((_req,res)=>{res.writeHead(307,{location:receiverUrl
 await listen(redirect);const endpoint=`http://127.0.0.1:${(redirect.address() as any).port}`;
 try{
 const remote={...HttpReadManifest,id:'review.remote',protocol:'remote-http',inputSchema:{type:'object',properties:{value:{type:'string'}},required:['value'],additionalProperties:false},outputSchema:{type:'object',properties:{done:{type:'boolean'}},required:['done'],additionalProperties:false}};
-await invokeCapability({prisma:db(remote,endpoint),projectId:'proj',capabilityId:remote.id,capabilityVersion:'1.0.0',input:{value:'synthetic-private-input'},deadline:Date.now()+3000,idempotencyKey:'review-key',signal:new AbortController().signal,allowedOrigins:[endpoint],invocationId:'review-invocation'});
+await invokeCapability({prisma:db(remote,endpoint,realHash(remote)),projectId:'proj',capabilityId:remote.id,capabilityVersion:'1.0.0',input:{value:'synthetic-private-input'},deadline:Date.now()+3000,idempotencyKey:'review-key',signal:new AbortController().signal,allowedOrigins:[endpoint],invocationId:'review-invocation'});
 out.probes.remoteRedirect={secondReceiverRequests:received,syntheticInputReceived:receivedValue};
 }finally{redirect.closeAllConnections();receiver.closeAllConnections();await Promise.all([new Promise<void>(r=>redirect.close(()=>r())),new Promise<void>(r=>receiver.close(()=>r()))])}
 out.probes.bindingShape={ordinaryPath:WorkflowDefinitionContent.safeParse(base(m,{map:{inputSet:{source:'input',path:'items',type:'json'},maxItems:5,maxConcurrency:2}},{items:[0,1]}).definition).success};

@@ -127,7 +127,13 @@ export async function executeGraph(args: GraphExecutionInput): Promise<GraphExec
 
     const record = await runNode(node, args, outputs, () => (sequence += 1));
     records.set(node.nodeId, record);
-    if (record.status === "completed") outputs.set(node.nodeId, record.output);
+    if (record.status === "completed") {
+      outputs.set(node.nodeId, record.output);
+      // R0.3：重试成功也保留首败（图级可见，供报告"首次结果/最终结果"分列）。
+      if (record.firstError && !firstFailure) {
+        firstFailure = { ...record, status: "failed" };
+      }
+    }
     else if (record.status === "failed") {
       if (!firstFailure) firstFailure = record; // 首个失败（含 firstError 首败证据）
       if (node.onFailure === "fail") { status = "failed"; }
@@ -277,7 +283,9 @@ async function runNode(
     }
     if (!firstError && last.error) { firstError = last.error; firstFailureAttempt = attempt + 1; }
     const errorClassAllowed = node.retry?.retryableErrorClasses.includes(last.error?.code ?? "") ?? false;
-    if (last.status !== "failed" || !errorClassAllowed) break;
+    // R0.3：适配器 retryable ∩ 允许错误分类 共同决定（缺一不可）。
+    const adapterRetryable = last.retryable !== false;
+    if (last.status !== "failed" || !errorClassAllowed || !adapterRetryable) break;
     // 写效果的 FAILED 不可盲目重试：调用器已把写超时归入 UNKNOWN 语义（R0.3），
     // 到达这里的 failed 均为声明可重试类；节点截止在循环顶检查。
   }
@@ -286,15 +294,15 @@ async function runNode(
 }
 
 type InvokeOutcome =
-  | { status: "completed"; output: unknown; error?: undefined }
-  | { status: "failed" | "cancelled" | "require_human" | "unknown_write"; output: null; error?: { code: string; message: string } };
+  | { status: "completed"; output: unknown; retryable?: false; error?: undefined }
+  | { status: "failed" | "cancelled" | "require_human" | "unknown_write"; output: null; retryable?: boolean; error?: { code: string; message: string } };
 
-function toOutcome(result: { status: "SUCCEEDED" | "FAILED" | "CANCELLED" | "UNKNOWN"; output: unknown; error?: { code: string; message: string } }): InvokeOutcome {
+function toOutcome(result: { status: "SUCCEEDED" | "FAILED" | "CANCELLED" | "UNKNOWN"; output: unknown; retryable?: boolean; error?: { code: string; message: string } }): InvokeOutcome {
   if (result.status === "SUCCEEDED") return { status: "completed", output: result.output };
   if (result.status === "CANCELLED") return { status: "cancelled", output: null, error: result.error };
   // R0.3：UNKNOWN（写入效果不明）暂停等待对账/人工，不进普通 failed 重试路径。
-  if (result.status === "UNKNOWN") return { status: "unknown_write", output: null, error: result.error };
-  return { status: "failed", output: null, error: result.error };
+  if (result.status === "UNKNOWN") return { status: "unknown_write", output: null, retryable: result.retryable, error: result.error };
+  return { status: "failed", output: null, retryable: result.retryable, error: result.error };
 }
 
 async function invokeOnce(

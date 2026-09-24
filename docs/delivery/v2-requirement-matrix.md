@@ -121,6 +121,9 @@
 | V2-R06 上下文复合键 | `fix(R0.6)`（(dv,spanId) 复合键/对账/保守预算/sessionId 校验） | python 3/3 + api 6/6（双文档同名 span 反例） |
 | V2-R07 Schema 自检 | `fix(R0.2/3/4/7)`（pattern 编译/深度/闭包/区间/绑定路径类转义） | adapter-sdk 9/9；探针 invalidPattern ok:false、bindingShape items:true |
 | V2-R08 台账精度 | 本提交（57 行重数/状态拆分/SHA 区分） | 本文件 + v2-progress |
+| R1 准备检查 | `feat(R1)`（依赖分面/指纹绑定/TTL/幂等） | api readiness 7/7（真实 DB） |
+| R2 W04 循环 | `feat(R2/W04)`（循环核心+SIGKILL）+`fix` 探针残留 | worker loop 5/5 + session-api 2/2（真实进程/DB/HTTP） |
+| R3 最小旅程 | `feat(R2/R3)`（会话 API/页面） | web 1/1（SSR 真实数据流）；浏览器 1440/390 截图未做（列入 R4 待办） |
 
 
 ## 兼容矩阵与样本清单（W00 冻结起点）
