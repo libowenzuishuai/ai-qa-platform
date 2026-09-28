@@ -19,12 +19,12 @@ export const ExecutionSessionStatus = z.enum([
 
 /** 合法状态迁移（闭环校验用；无效迁移必须拒绝）。 */
 export const EXECUTION_SESSION_TRANSITIONS: Record<string, string[]> = {
-  QUEUED: ["PREPARING", "RUNNING", "CANCELLED", "FAILED"],
-  PREPARING: ["RUNNING", "FAILED", "CANCELLED"],
+  QUEUED: ["PREPARING", "RUNNING", "PAUSED", "CANCELLED", "FAILED"],
+  PREPARING: ["RUNNING", "PAUSED", "FAILED", "CANCELLED"],
   RUNNING: ["WAITING_HUMAN", "WAITING_AUTH", "PAUSED", "COMPLETED", "FAILED", "CANCELLED"],
   WAITING_HUMAN: ["RUNNING", "PAUSED", "CANCELLED", "FAILED"],
   WAITING_AUTH: ["RUNNING", "CANCELLED", "FAILED"],
-  PAUSED: ["RUNNING", "CANCELLED", "FAILED"],
+  PAUSED: ["QUEUED", "RUNNING", "CANCELLED", "FAILED"],
   COMPLETED: [],
   FAILED: [],
   CANCELLED: [],
@@ -33,8 +33,8 @@ export const EXECUTION_SESSION_TRANSITIONS: Record<string, string[]> = {
 export const SessionBudget = z.object({
   maxWallClockMs: z.number().int().min(60_000).max(86_400_000),
   maxActiveMs: z.number().int().min(60_000).max(86_400_000),
-  maxModelCalls: z.number().int().min(1).max(10_000),
-  maxTokens: z.number().int().min(1000).max(100_000_000),
+  maxModelCalls: z.number().int().min(0).max(10_000),
+  maxTokens: z.number().int().min(0).max(100_000_000),
   maxToolCalls: z.number().int().min(1).max(100_000),
   maxResources: z.number().int().min(1).max(10_000),
   /** 预算上限（微元/千次调用等单位由部署方声明）；null = 价格未知。 */

@@ -85,13 +85,13 @@ afterAll(async () => { await app?.close(); await env?.cleanup(); });
 async function call(capabilityId: string, input: Record<string, unknown>, artifactsDir?: string) {
   return invokeCapability({
     prisma: env.prisma, projectId,
-    capabilityId, capabilityVersion: "1.0.0",
+    capabilityId, capabilityVersion: capabilityId === "platform.web-observe" ? WebObserveManifest.version : "1.0.0",
     input, deadline: Date.now() + 30000,
     idempotencyKey: `obs-${randomUUID()}`,
     signal: new AbortController().signal,
     allowedOrigins: [new URL(draftBaseUrl).origin],
     invocationId: `obs-${randomUUID()}`,
-    ...(artifactsDir ? {} : {}),
+    artifactDir: env.artifactDir,
   });
 }
 
@@ -105,7 +105,7 @@ it("DOM 观察：testid 文本 + 截图落盘（sha256 一致）；白名单外�
 
   const observed = await call("platform.web-observe", {
     baseUrl: draftBaseUrl, path: `/ui/drafts/${draftId}`,
-    testId: "draft-title", artifactsDir: env.artifactDir, observationRef: "w05-test",
+    testId: "draft-title", observationRef: "w05-test",
   });
   expect(observed.status).toBe("SUCCEEDED");
   const out = observed.output as { text: string | null; screenshotSha256: string | null; screenshotPath: string | null };

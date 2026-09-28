@@ -145,14 +145,14 @@ async function createSession(): Promise<string> {
 it("python-real 通道：缺智能服务配置显式拒绝（CONFIG_MISSING）", async () => {
   const sessionId = await createSession();
   await expect(runDraftSessionLoop({
-    prisma: env.prisma, sessionId, baseUrl: draftBaseUrl, planner: "python-real",
+    prisma: env.prisma, artifactDir: env.artifactDir, sessionId, baseUrl: draftBaseUrl, planner: "python-real",
   })).rejects.toMatchObject({ code: "CONFIG_MISSING" });
 });
 
 it("python-real 通道：真实 HTTP 到 Python；mock 文本网关无注册回放 → 受控失败（不冒充成功）", async () => {
   const sessionId = await createSession();
   const result = await runDraftSessionLoop({
-    prisma: env.prisma, sessionId, baseUrl: draftBaseUrl, planner: "python-real",
+    prisma: env.prisma, artifactDir: env.artifactDir, sessionId, baseUrl: draftBaseUrl, planner: "python-real",
     intelligence: { url: pythonUrl, token: pythonToken },
     maxRounds: 4,
   }).catch((e: unknown) => ({ status: "THREW", code: (e as { code?: string }).code, reason: String((e as Error).message) }));

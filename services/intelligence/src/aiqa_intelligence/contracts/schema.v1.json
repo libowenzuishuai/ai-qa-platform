@@ -4457,12 +4457,12 @@
         },
         "maxModelCalls": {
           "type": "integer",
-          "minimum": 1,
+          "minimum": 0,
           "maximum": 10000
         },
         "maxTokens": {
           "type": "integer",
-          "minimum": 1000,
+          "minimum": 0,
           "maximum": 100000000
         },
         "maxToolCalls": {

@@ -75,6 +75,10 @@ async function failJob(prisma: PrismaClient, job: JobRow & { kind: string }, err
   });
   if (changed.count) {
     await markDocumentFailed(tx, job);
+    if(job.kind === "V2_SESSION_LOOP") {
+      const sessionId=(job.request as {sessionId:string}).sessionId;
+      await tx.v2ExecutionSession.updateMany({where:{id:sessionId,status:{in:["QUEUED","PREPARING"]},leaseToken:null},data:{status:"FAILED",terminationReason:`${error.code}: ${error.message}`,result:{status:"FAILED",verdict:"blocked",reason:error.message,rounds:0,finalTitle:null,draftId:null}}});
+    }
     if(job.kind==='LOGIN_CHECK')await tx.loginPreparation.updateMany({where:{lastCheckJobId:job.id},data:{lastCheckStatus:'ERROR',lastCheckAt:null,lastCheckDetail:'检查作业失败，请核对配置后重新检查'}});
   }
   });
@@ -184,10 +188,11 @@ export async function processAgentJob(
     } else if(job.kind === "CHUNK_EXTRACT") {
       await runChunkExtract(prisma,store,job,config,commitJob);
     } else if(job.kind === "V2_SESSION_LOOP") {
-      const request = job.request as { sessionId: string; baseUrl: string; planner: "script"; maxRounds?: number };
+      const request = job.request as { sessionId: string; baseUrl: string; planner: "script" | "python-real"; maxRounds?: number };
       const result = await runDraftSessionLoop({
         prisma, sessionId: request.sessionId, baseUrl: request.baseUrl,
-        planner: request.planner, maxRounds: request.maxRounds,
+        intelligence: config.intelligenceUrl && config.intelligenceToken ? {url:config.intelligenceUrl,token:config.intelligenceToken} : undefined,
+        planner: request.planner, maxRounds: request.maxRounds, artifactDir: config.artifactDir, signal: config.executionSignal,
       });
       await commitJob(prisma, job, async (tx) => {
         await tx.job.update({

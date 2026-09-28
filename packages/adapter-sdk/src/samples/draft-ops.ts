@@ -59,29 +59,39 @@ export class DraftOpsAdapter implements CapabilityAdapter {
     };
     if (!ctx.allowedOrigins.includes(new URL(baseUrl).origin))
       return failed("FORBIDDEN", `目标 origin 不在白名单：${baseUrl}`);
+    if (ctx.signal.aborted) return cancelled();
+    if (ctx.deadline <= Date.now()) return failed("BUDGET_EXCEEDED", "调用期限已到");
+    const safeUrl = (path: string) => {
+      const url = new URL(path, baseUrl);
+      if (url.origin !== new URL(baseUrl).origin || !ctx.allowedOrigins.includes(url.origin) || url.username || url.password)
+        throw new Error("目标越过授权 origin");
+      return url;
+    };
     const timeout = Math.max(1, Math.min(ctx.deadline - Date.now(), this.manifest.timeoutMsMax));
     const signal = AbortSignal.any([AbortSignal.timeout(timeout), ctx.signal]);
     try {
       if (op === "meta") {
-        const r = await fetch(new URL("/api/_meta", baseUrl), { signal, redirect: "error" });
+        const r = await fetch(safeUrl("/api/_meta"), { signal, redirect: "error" });
         if (ctx.signal.aborted) return cancelled();
+        if (!r.ok) return failed("TARGET_HTTP_ERROR", `目标返回 HTTP ${r.status}`);
         const meta = (await r.json()) as Record<string, unknown>;
         return ok({ status: r.status, kind: "meta", draft: null, meta });
       }
       if (op === "create") {
-        const r = await fetch(new URL("/api/drafts", baseUrl), {
+        const r = await fetch(safeUrl("/api/drafts"), {
           method: "POST", redirect: "error", signal,
           headers: { "content-type": "application/json", "idempotency-key": ctx.idempotencyKey },
           body: JSON.stringify({ title: title ?? "未命名草稿" }),
         });
         if (ctx.signal.aborted) return cancelled();
+        if (!r.ok) return failed("TARGET_HTTP_ERROR", `目标返回 HTTP ${r.status}`);
         const body = (await r.json()) as { reused?: boolean; draft?: unknown };
         return ok({ status: r.status, kind: body.reused ? "reused" : "created", draft: body.draft ?? null, meta: null });
       }
       if (op === "rename") {
         if (!draftId || !renamePath || title === undefined)
           return failed("VALIDATION_ERROR", "rename 需要 draftId/renamePath/title");
-        const r = await fetch(new URL(renamePath.replace(":id", draftId), baseUrl), {
+        const r = await fetch(safeUrl(renamePath.replace(":id", encodeURIComponent(draftId))), {
           method: "PATCH", redirect: "error", signal,
           headers: { "content-type": "application/json", "idempotency-key": ctx.idempotencyKey },
           body: JSON.stringify({ title }),
@@ -90,13 +100,15 @@ export class DraftOpsAdapter implements CapabilityAdapter {
         const body = (await r.json().catch(() => ({}))) as { draft?: unknown };
         if (r.status === 404)
           return failed("ROUTE_MOVED", `改名入口 ${renamePath} 返回 404（定位可能已变化，需重新观察）`);
+        if (!r.ok) return failed("TARGET_HTTP_ERROR", `目标返回 HTTP ${r.status}`);
         return ok({ status: r.status, kind: "renamed", draft: body.draft ?? null, meta: null });
       }
       if (op === "get") {
         if (!draftId) return failed("VALIDATION_ERROR", "get 需要 draftId");
-        const r = await fetch(new URL(`/api/drafts/${draftId}`, baseUrl), { signal, redirect: "error" });
+        const r = await fetch(safeUrl(`/api/drafts/${encodeURIComponent(draftId)}`), { signal, redirect: "error" });
         if (ctx.signal.aborted) return cancelled();
         const body = (await r.json().catch(() => ({}))) as { draft?: unknown };
+        if (!r.ok) return failed("TARGET_HTTP_ERROR", `目标返回 HTTP ${r.status}`);
         return ok({ status: r.status, kind: r.status === 200 ? "draft" : "error", draft: body.draft ?? null, meta: null });
       }
       return failed("VALIDATION_ERROR", `未知 op：${op}`);
@@ -104,7 +116,7 @@ export class DraftOpsAdapter implements CapabilityAdapter {
       if (ctx.signal.aborted) return cancelled();
       const name = error instanceof Error ? error.name : String(error);
       // 写效果超时/断连：副作用不明（服务端可能已创建）——UNKNOWN 等待对账。
-      if ((name === "TimeoutError" || name === "AbortError") && (op === "create" || op === "rename"))
+      if ((op === "create" || op === "rename") && !(error instanceof Error && error.message.includes("授权 origin")))
         return { status: "UNKNOWN", output: null, resourceKeys: [], retryable: false, error: { code: "MODEL_TIMEOUT", message: "写效果超时（副作用未知，先对账）" } };
       return failed("DEPENDENCY_UNAVAILABLE", `请求失败：${name}`);
     }

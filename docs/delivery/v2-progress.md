@@ -1,54 +1,19 @@
-# v2.0 交付进度台账
+# v2.0 当前交付台账
 
-创建：2026-09-23 · 分支：`v2/autonomous-qa`（基线 `main@5adb49c`，执行代码基线 `214b89c`）
-R0 修复轮：2026-09-24（定向评审 V2-R01～08 全部修复；见需求矩阵"R0 修复回填"；评审探针复跑 7/7 期望值达成）
-R1/R2/R3 轮：2026-09-24（readiness 依赖分面判定；W04 循环+SIGKILL 恢复；会话 API+SSR 最小旅程）
+更新：2026-09-28。GLM 接管基线 `aceb518`。本表整体状态按完整工作包判定，局部测试通过不升级整包完成。
 
-状态取值：NOT_STARTED / IN_PROGRESS / CODE_READY / VERIFIED / EXTERNAL_BLOCKED。
-历史 975 项平台检查是 1.0 记录，不作为 2.0 现状；本轮基线以本文件记录的实际运行为准。
-
-| 工作包 | 状态 | 依赖 | 说明 |
+| 工作包 | 当前状态 | 已有 | 未完成 |
 |---|---|---|---|
-| W00 基线与台账 | VERIFIED | 无 | 本文件 + 需求矩阵 + ADR；基线命令逐项实际运行 |
-| W01 共享契约与迁移 | CODE_READY | W00 | 15 类实体定稿（Oracle/Harness/Graph/Session/Context/Finding 六模块，v2/ 目录）；25 例共享向量（19 shape 双端同判 + 6 semantic TS 权威）；16 张 V2* 表迁移（干净库+旧库重放通过）；contracts 305/305、python 向量 20/20、typecheck 0。VERIFIED 待 W02 起逐表消费（规则 11：只建不消费不算完成） |
-| W02 能力 SDK 与组合内核 | IN_PROGRESS（注册/执行/组合内核修复后 VERIFIED；子流程/回放/MCP 未做） | W01 | adapter-sdk 包（CapabilityAdapter 协议 + Schema 子集校验器 + 自检）；TS 样例 example.http-read（本地 SDK，白名单/取消/超时）；Python 样例 example.data-reconcile（remote-http 独立进程，describe/execute/cancel）；worker 注册表+调用器（授权/撤权/跨项目/Schema 前后校验/版本哈希匹配）；API 安装/授权/撤销/列表（安装≠授权；清单不可变；撤销后重装=新行）。集成 12/12（真实 DB+真实 HTTP+本地 HTTP 目标）。组合执行内核 VERIFIED（graph-executor：依赖拓扑序+失败/跳过/人工传播、typed binding 三源解析、三值条件 onUnknown 分支、有界 map 并发≤2 逐项对账、repeat 上限、retry 限错误分类保留首败、同能力多实例输出隔离、取消传播；集成 8/8 真实 DB+HTTP）。剩余：子流程运行时、回放/dry-run、MCP 桥、HAR-05 画布 |
-| W03 真实上下文与 OracleSpec | IN_PROGRESS（检索/Oracle 修复后核心 VERIFIED；规划消费接线在 W04） | W01 | OracleSpec API（批准规则→确定性断言冻结→oracleHash→批准不可变→同内容幂等→supersede 链→读取哈希复验）；Python keyword-structural-v1 检索基线（bigram 关键词×结构权重×规则来源权威路径，selected/rejected+分数+原因）+ /v2/context/retrieve；ContextManifest API（服务端装载→真实检索→预算估算→截断 omitted 对账→inputHash 落库）；集成 5/5（真实 DB+真实 Python）。剩余：OpenAPI/设计图线索（CTX-05）、跨块关系审计（CTX-06）、六维覆盖运行时接线（DES-01 与 W04 联动） |
-| W04 持久化自主循环（Alpha 核心） | IN_PROGRESS（R2 全项 VERIFIED：script 循环+SIGKILL 恢复+**三构建同标准连续对照（健康 PASS→缺陷 FAIL→修复 PASS，同一 oracleHash）**+故障矩阵扩展（动作前退出/重复投递/运行中撤权）；R3 页面+浏览器验收 VERIFIED——真实 Chromium 1440/390 旅程+四张截图 docs/evidence/v2-ui/、无横向溢出、表单键盘提交；剩余：过期租约/SSE/多角色。**python-real 已接线**；**双 worker CAS 与排队取消已验**（排队取消零派发；双认领只执行一次资源仍 1）（/v2/loop/plan wire+Python agent+循环护栏：title≠标准拒绝、done 由 verifier 判定；真实 HTTP 通道经真实 Python 进程验证，mock 文本网关无回放受控失败不冒充；真实模型语义质量仍未验） | W02+W03 | session-loop：Observe→Plan→Act→Verify→Adapt 全阶段持久化（V2Observation/StepAttempt/ActionIntent/Invocation）；同逻辑写入复用同 intent+业务幂等键（重试挂新 attempt 不换键）；写后回执前 SIGKILL 真实子进程→重启按幂等键对账→资源仍 1 个→继续到 PASS；缺陷构建三次等价无进展→业务 FAIL 不自修复；运行中定位变化（rename→title）→重新观察选新入口（oracleHash 不变）；轮次上限有界停止。合成草稿系统 examples/synthetic/draft-app（显式 synthetic 标记；评测器专用 __danger_* 端点不在能力面）。规划器为 script（确定性，显式标注）；python-real 为后续切片不冒充 | 集成 5/5（真实 DB+真实进程+真实 HTTP） | 剩余：python-real 规划器接线、双 worker/重复队列/过期租约/SSE 断线等故障矩阵扩展、多角色编排 | Observe→Plan→Act→Verify→Adapt；草稿三构建最小闭环 + 故障矩阵 |
-| W05 浏览器/API/数据 | IN_PROGRESS（观察+交叉核验切片 VERIFIED） | W04 | DOM+视觉联合观察；复杂交互；交叉核验；Stagehand 对照 ADR |
-| W06 工作台与组合设计器 | NOT_STARTED | W04 | 实时控制台/缺陷卡/画布+表单同 AST/三个真实预设 |
-| W07 调查/记忆/有效代码测试 | NOT_STARTED | W05 | 假设反证/记忆消费闭环/候选测试补丁/变异对照 |
-| W08 模型路由与可选 Jev | NOT_STARTED | W04 | 三协议路由；确定性基线；Jev 官方协议适配（不伪造） |
-| W09 安装/运行器/CI | IN_PROGRESS（支持矩阵+复用 v1 基础） | W02+W05+W06 | 支持矩阵；干净库/旧库升级/备份恢复全链；GitHub App 实测单列 |
-| W10 独立评审与业务评测 | NOT_STARTED | W05–W09+外部 | 3 授权项目/120 流程/30 缺陷/两周试点；实现者自审不算独立评审 |
+| W00 基线 | 已更新 | 原 57 项矩阵、ADR；本轮接管审计及验证摘要 | 随后续实现继续回填 |
+| W01 共享契约 | 部分完成 | TS/Python 类型、共享向量、增量迁移；确定性预算和暂停状态修正 | 部分 V2 表仍无完整消费链 |
+| W02 SDK/Harness | 部分完成 | 安装授权、注册调用、组合内核、子流程/回放/演练函数；超时/网络边界加固 | Profile/会话通用接线、MCP 桥、持久图执行 |
+| W03 上下文/标准 | 部分完成 | 来源检索、Oracle 冻结、OpenAPI 线索；实际模型请求引用与预算 | 通用覆盖/设计图/跨块关系和多观察器 |
+| W04 自主循环 | 合成切片已验证 | 草稿同标准三构建、检查点/原输入恢复、租约、取消、暂停、预算、持久事件、SSE 重连 | 任意站点规划执行、真实模型效果、通用会话宿主 |
+| W05 浏览器/API | 部分完成 | v1 固定计划；v2 DOM/截图观察、连接层隔离、UI/API 对照 | 视觉写动作、复杂控件、实时绑定新鲜度、多角色自主闭环 |
+| W06 产品页面 | 部分完成 | 会话列表/详情/控制；组合节点与表单同 AST，校验/保存/发布/重开 | 拖拽连线、组合执行入口、三个预设、完整覆盖/诊断产品旅程 |
+| W07 调查/记忆/代码测试 | 部分完成 | Finding/Memory API、既有工程检查 | 根因/复现/记忆收益闭环、独立标准生成有效测试补丁 |
+| W08 模型路线 | 部分完成 | 文本/视觉既有通道、确定性 Decision 基线、受预算约束的循环规划通道 | 统一路由与实效对照、可选 Jev |
+| W09 发布工程 | 部分完成 | 1.0 安装/备份/runner/CI 基础，支持矩阵；本轮干净库迁移测试 | 新依赖镜像重验、跨平台兼容、真实 GitHub App 回传 |
+| W10 产品效果 | 未完成 | 合成回归与样例 | 3 授权项目/120 流程/30 缺陷/两周试点/独立 QA 对照 |
 
-## W00 基线核验（2026-09-23 实际运行）
-
-| 命令 | 结果 | 备注 |
-|---|---|---|
-| `pnpm typecheck` | 通过（exit 0） | 全仓 TS 无错误 |
-| `pnpm test:contracts` | 见本文件下方"基线数字" | 契约层 |
-| `generate_models.py --check` | 见下方 | Python 生成类型一致性 |
-| 基础设施 | ai-qa-postgres-1 / ai-qa-redis-1 healthy（colima） | 本机 Docker 运行中 |
-
-完整回归（api/worker/web/python/runner）在对应工作包触碰时运行；W00 只需确认基线可用，
-不重复 1.0 已记录的 975 项。
-
-## 可复用资产盘点（代码入口核实）
-
-- 生命周期/证据/来源/审批：Run/CaseAttempt/Artifact/RuleVersion/Baseline 全链（v1 已验收）。
-- 能力目录与模板：`CapabilityCatalog`/`WorkflowTemplate`（版本/发布/DAG 校验）+ 模板化 WorkflowRun
-  （`WorkflowRun.templateId`/`WorkflowNode.capabilityKey`，R07 已接）。**新增能力仍走核心 switch 分支——W02 要替换为注册式 SDK。**
-- 目标/探索/记忆/诊断：`goal-service`/`exploration-job`/`memory-service`/`diagnosis-service` 已有 API+worker；
-  记忆有 TTL/来源/失效，但无 retrieved/used/outcome 消费闭环（W07）。
-- 工程检查：`tools/self-hosted-runner`（8 类适配器 + 部署模板）、`github-ci.ts`、LCOV 复核（W09 复用；CODE-02/04 候选测试生成是缺口）。
-- 模型：moonshot 正式通道 + mock 确定性协议 + 调用记录（W08 拆三协议；Jev 缺）。
-- 长文档：分块/租约/预算/合并（R03）——W03 检索基线的底座。
-- 多文件快照：字节哈希判据/联合校验/复核闭环（R01/R02）——CTX-01 底座。
-
-## 外部依赖登记（不阻塞内核开发）
-
-1. 三个授权试点项目 + 完整 PRD + 角色/数据授权（W10）。
-2. GitHub App 真实配置（W09 对应门）。
-3. 真实模型预算（W08 A/B、W10 效果评测）。
-4. Jev 官方协议资料/密钥（W08；仅按官方文档适配）。
-5. 人工基线参与者与两周试点窗口（W10）。
+详细代码、验收口径、升级入口及剩余工作：[接管评审](v2-takeover-20260928.md)。实际测试计数：[核验摘要](evidence/v2-takeover-verification.json)。原始需求逐项语义仍以 [PRD](../product/v2.0/PRD.md) 为准。

@@ -172,9 +172,9 @@ it("创建会话：白名单外目标拒绝；合法创建入队，作业驱动�
 it("幂等创建：同参返回原会话；终态取消拒绝", async () => {
   const again = await app.inject({
     method: "POST", url: `/api/v2/projects/${projectId}/sessions`, headers: H,
-    payload: { goal: "创建草稿→改名→刷新仍保留名称", oracleSpecId, environmentId, targetBaseUrl: draftBaseUrl, idempotencyKey: "idem-ok-0002" },
+    payload: { goal: "创建草稿→改名→刷新仍保留名称", oracleSpecId, environmentId, targetBaseUrl: draftBaseUrl, idempotencyKey: "idem-ok-0001" },
   });
-  // 不同幂等键但同 goal → fingerprint 相同 → 返回已有会话。
+  // 同一幂等键与完整请求一致才返回已有会话。
   expect(again.json().existed).toBe(true);
 
   const sessions = await app.inject({ method: "GET", url: `/api/v2/projects/${projectId}/sessions`, headers: H });
@@ -182,4 +182,49 @@ it("幂等创建：同参返回原会话；终态取消拒绝", async () => {
   const completed = list.find((s) => s.status === "COMPLETED")!;
   const cancel = await app.inject({ method: "POST", url: `/api/v2/sessions/${completed.id}/cancel`, headers: H, payload: {} });
   expect(cancel.statusCode).toBe(409);
+});
+
+it("幂等键区分新验收；相同键参数变化返回 409，不能串旧任务", async () => {
+  const request = { goal:"幂等矩阵",oracleSpecId,environmentId,targetBaseUrl:draftBaseUrl,idempotencyKey:"idem-matrix-0001" };
+  const post = (payload:unknown) => app.inject({method:"POST",url:`/api/v2/projects/${projectId}/sessions`,headers:H,payload:payload as never});
+  const first = await post(request);
+  expect(first.statusCode).toBe(202);
+  const duplicate = await post(request);
+  expect(duplicate.json().sessionId).toBe(first.json().sessionId);
+  expect((await post({...request,buildId:"other-build"})).statusCode).toBe(409);
+  const next = await post({...request,idempotencyKey:"idem-matrix-0002"});
+  expect(next.statusCode).toBe(202);
+  expect(next.json().sessionId).not.toBe(first.json().sessionId);
+});
+
+it("暂停/继续保留身份，持久事件按 cursor 续传，终态不能复活", async () => {
+  const created = await app.inject({method:"POST",url:`/api/v2/projects/${projectId}/sessions`,headers:H,payload:{goal:"控制台",oracleSpecId,environmentId,targetBaseUrl:draftBaseUrl,idempotencyKey:"idem-controls-001"}});
+  const id=created.json().sessionId;
+  const control=(action:string)=>app.inject({method:"POST",url:`/api/v2/sessions/${id}/${action}`,headers:H,payload:{}});
+  expect((await control("pause")).json().status).toBe("PAUSED");
+  expect((await control("resume")).json().status).toBe("QUEUED");
+  expect((await control("cancel")).json().status).toBe("CANCELLED");
+  expect((await control("resume")).statusCode).toBe(409);
+  const all=await app.inject({method:"GET",url:`/api/v2/sessions/${id}/events?format=json`,headers:H});
+  const events=all.json().events;
+  expect(events.map((e:any)=>e.payload.status)).toEqual(["QUEUED","PAUSED","QUEUED","CANCELLED"]);
+  const tail=await app.inject({method:"GET",url:`/api/v2/sessions/${id}/events?format=json&after=${events[1].seq}`,headers:H});
+  expect(tail.json().events.map((e:any)=>e.seq)).toEqual(events.slice(2).map((e:any)=>e.seq));
+});
+
+it("SSE 真实 HTTP 断开重连按 Last-Event-ID 继续，不重复旧事件",async()=>{
+ const created=await app.inject({method:'POST',url:`/api/v2/projects/${projectId}/sessions`,headers:H,payload:{goal:'SSE reconnect',oracleSpecId,environmentId,targetBaseUrl:draftBaseUrl,idempotencyKey:'sse-reconnect-001'}});
+ const id=created.json().sessionId;
+ const base=await app.listen({host:'127.0.0.1',port:0});
+ async function next(after?:number){
+  const abort=new AbortController();
+  const response=await fetch(`${base}/api/v2/sessions/${id}/events`,{signal:abort.signal,headers:after?{'Last-Event-ID':String(after)}:{}});
+  expect(response.status).toBe(200);
+  const reader=response.body!.getReader();let text='';const timer=setTimeout(()=>abort.abort(),5000);
+  try{while(!/id: (\d+)/.test(text)){const part=await reader.read();if(part.done)break;text+=new TextDecoder().decode(part.value);}return {seq:Number(/id: (\d+)/.exec(text)?.[1]),text};}
+  finally{clearTimeout(timer);abort.abort();await reader.cancel().catch(()=>undefined);}
+ }
+ const first=await next();expect(first.text).toContain('QUEUED');
+ await app.inject({method:'POST',url:`/api/v2/sessions/${id}/cancel`,headers:H,payload:{}});
+ const second=await next(first.seq);expect(second.seq).toBeGreaterThan(first.seq);expect(second.text).toContain('CANCELLED');expect(second.text).not.toContain('QUEUED');
 });

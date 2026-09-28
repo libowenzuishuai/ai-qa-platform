@@ -1,13 +1,13 @@
 # v2.0 支持矩阵（W09）
 
-更新：2026-09-24。逐项声明支持面与验证状态；未通过兼容测试的组合标 experimental/unsupported，不用"支持 Web"概括。
+更新：2026-09-28。最新修复与限制见 [接管评审](delivery/v2-takeover-20260928.md)。逐项声明支持面与验证状态；未通过兼容测试的组合标 experimental/unsupported，不用"支持 Web"概括。
 
 ## 执行面
 
 | 面 | 支持 | 验证状态 | 备注 |
 |---|---|---|---|
 | 合成 HTTP 系统（Node http） | ✅ | VERIFIED（v2 会话循环/观察/交叉核验全链测试） | synthetic 显式标记 |
-| 真实 Chromium 观察 | ✅ | VERIFIED（platform.web-observe：DOM testid+截图 sha256） | Playwright 固定版本 |
+| 真实 Chromium 观察 | ✅ | VERIFIED（platform.web-observe@1.0.1：连接层代理/宿主证据目录/DOM testid+截图 sha256） | Playwright 固定版本 |
 | 真实 Chromium 执行（写操作） | ⚠️ experimental | 复用 v1 executor（test-runtime）；v2 循环尚未接写型浏览器动作 | W05 后续 |
 | 远程 HTTP 能力 | ✅ | VERIFIED（example.data-reconcile 独立 Python 进程） | redirect 全拒+32MiB 上限 |
 | Node 工程检查 | ✅（v1 继承） | VERIFIED（self-hosted-runner 19/19） | npm 锁文件；pnpm 项目 unsupported |
@@ -21,7 +21,7 @@
 | Markdown | ✅ | VERIFIED |
 | DOCX | ✅ | VERIFIED（v1） |
 | PDF（文字层） | ✅ | VERIFIED（v1，含跨页表） |
-| PDF（扫描/内嵌图） | ✅（OCR 通道） | VERIFIED（v1 Kimi vision 小样本；语义质量未全面评测） |
+| PDF（扫描/内嵌图） | ✅（大模型视觉解析） | VERIFIED（v1 Kimi vision 小样本；语义质量未全面评测） |
 | 图片 PNG/JPEG | ✅ | VERIFIED |
 | OpenAPI（线索上下文） | ✅ | VERIFIED（本轮：命中选中/无关拒绝） |
 
@@ -48,3 +48,5 @@
 - runner：锁文件缺失/未知包管理器 → 安装阶段显式拒绝（v1 已验）。
 - 能力安装：协议/Schema 自检失败 → 422（R0.7 已验）。
 - 规划器：python-real 无配置 → CONFIG_MISSING（已验）；python 通道断连 → DEPENDENCY_UNAVAILABLE 受控失败（已验）。
+
+本轮未重新构建发布镜像；部署面 VERIFIED 为历史 1.0 验证，不能当作本轮 V2 镜像验收。组合编辑器可保存和发布 AST，页面直接运行通用组合尚未接线。

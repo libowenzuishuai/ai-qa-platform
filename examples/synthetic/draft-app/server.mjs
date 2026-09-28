@@ -33,8 +33,10 @@ const currentSegment = () => {
 const server = http.createServer((req, res) => {
   const url = parse(req.url, true);
   const json = (code, body) => {
-    res.writeHead(code, { "content-type": "application/json" });
-    res.end(JSON.stringify(body));
+    const send=()=>{res.writeHead(code, { "content-type": "application/json" });res.end(JSON.stringify(body));};
+    // Fault-injection fixture only: commit precedes a delayed receipt.
+    const delay=["POST","PATCH"].includes(req.method)?Number(process.env.WRITE_RESPONSE_DELAY_MS||0):0;
+    if(delay>0)setTimeout(send,delay);else send();
   };
   let body = "";
   req.on("data", (c) => (body += c));

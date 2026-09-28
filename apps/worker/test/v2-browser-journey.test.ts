@@ -1,3 +1,4 @@
+import {registerV2DefinitionRoutes} from "../../api/src/routes-v2-definitions.js";
 import { beforeAll, afterAll, it, expect } from "vitest";
 import Fastify from "fastify";
 import { spawn } from "node:child_process";
@@ -89,6 +90,7 @@ beforeAll(async () => {
   apiApp.setErrorHandler((e, q, r) => sendApiError(q, r, e));
   registerV2CapabilityRoutes(apiApp, env.prisma);
   registerV2SessionRoutes(apiApp, env.prisma, queue);
+  registerV2DefinitionRoutes(apiApp,env.prisma);
   // 页面需要环境列表（最小内联端点；真实 API 由 routes-projects 提供）。
   apiApp.get("/api/projects/:id/environments", async (req) => {
     const { id } = req.params as { id: string };
@@ -185,3 +187,36 @@ it("1440/390 真实浏览器旅程：列表空态→表单创建→详情（真�
 
   await browser.close();
 }, 120000);
+
+it("组合编辑器：画布和表单保存同一 AST，发布后重新打开，移动端无溢出",async()=>{
+ const browser=await chromium.launch();
+ try {
+  const context=await browser.newContext({viewport:{width:1440,height:1000}});
+  await context.addCookies([{name:"web_sid",value:webSid,url:webUrl}]);
+  const page=await context.newPage();
+  const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
+  await page.goto(`${webUrl}/space/${projectId}/composer`);
+  await page.fill("#flow-name","浏览器验收组合");
+  await page.click("#add-node");
+  await page.fill("#node-id","observe-draft");
+  await page.fill("#bindings",JSON.stringify({op:{source:"constant",type:"string",value:"meta"},baseUrl:{source:"input",type:"string",path:"baseUrl"}}));
+  await page.click("#apply-node");
+  expect(await page.locator("#canvas").innerText()).toContain("observe-draft");
+  await page.click("#validate-flow");
+  await page.waitForFunction(()=>document.getElementById("compose-status")?.textContent?.includes("检查通过"));
+  await page.click("#save-flow");
+  await page.waitForFunction(()=>document.getElementById("compose-status")?.textContent?.includes("已保存"));
+  await page.click("#publish-flow");
+  await page.waitForFunction(()=>document.getElementById("compose-status")?.textContent?.includes("已发布"));
+  const row=await env.prisma.v2WorkflowDefinition.findFirstOrThrow({where:{projectId,name:"浏览器验收组合"}});
+  expect(row.status).toBe("PUBLISHED");
+  expect((row.content as any).nodes[0].nodeId).toBe("observe-draft");
+  await page.goto(`${webUrl}/space/${projectId}/composer?definition=${row.id}`);
+  expect(await page.locator("#canvas").innerText()).toContain("observe-draft");
+  await page.screenshot({path:join(shotDir,"desktop-composer.png"),fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth+1)).toBe(false);
+  await page.screenshot({path:join(shotDir,"mobile-composer.png"),fullPage:true});
+  expect(errors).toEqual([]);
+ } finally {await browser.close();}
+},45000);

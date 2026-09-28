@@ -54,6 +54,7 @@ async function startDraftServer(envOverrides: Record<string, string> = {}): Prom
     child.stderr?.on("data", on);
   });
   const baseUrl = `http://127.0.0.1:${port}`;
+  await env.prisma.environment.update({where:{id:environmentId},data:{allowedOrigins:{push:baseUrl}}});
   return {
     process: child, port, baseUrl,
     stop: () => new Promise<void>((r) => { child.kill("SIGTERM"); setTimeout(r, 200); }),
@@ -180,7 +181,7 @@ it("正常构建：PASS，资源恰好 1 个，观察/计划/执行/验证全留
   const server = await startDraftServer();
   const sessionId = await createSession();
   const result = await runDraftSessionLoop({
-    prisma: env.prisma, sessionId, baseUrl: server.baseUrl, planner: "script",
+    prisma: env.prisma, artifactDir: env.artifactDir, sessionId, baseUrl: server.baseUrl, planner: "script",
   });
   expect(result.status).toBe("COMPLETED");
   expect(result.verdict).toBe("pass");
@@ -198,7 +199,7 @@ it("缺陷构建（改名不落库）：业务 FAIL 不自修复，三次等价�
   const server = await startDraftServer({ DEFECT: "rename_no_persist" });
   const sessionId = await createSession();
   const result = await runDraftSessionLoop({
-    prisma: env.prisma, sessionId, baseUrl: server.baseUrl, planner: "script", maxRounds: 12,
+    prisma: env.prisma, artifactDir: env.artifactDir, sessionId, baseUrl: server.baseUrl, planner: "script", maxRounds: 12,
   });
   expect(result.status).toBe("FAILED");
   expect(result.verdict).toBe("fail");
@@ -214,7 +215,7 @@ it("运行中定位变化（rename→title 入口切换）：重新观察选新�
   const sessionId = await createSession();
   const sessionBefore = await env.prisma.v2ExecutionSession.findUniqueOrThrow({ where: { id: sessionId } });
   const result = await runDraftSessionLoop({
-    prisma: env.prisma, sessionId, baseUrl: server.baseUrl, planner: "script", maxRounds: 12,
+    prisma: env.prisma, artifactDir: env.artifactDir, sessionId, baseUrl: server.baseUrl, planner: "script", maxRounds: 12,
   });
   expect(result.status).toBe("COMPLETED");
   expect(result.verdict).toBe("pass");
@@ -248,13 +249,16 @@ it("写后回执前 SIGKILL 真实子进程：重启恢复对账，资源仍 1 �
     registerBuiltinSamples();
     const prisma = new PrismaClient({ datasources: { db: { url: ${JSON.stringify(env.databaseUrl)} } } });
     const r = await runDraftSessionLoop({
-      prisma, sessionId: ${JSON.stringify(sessionId)}, baseUrl: ${JSON.stringify(server.baseUrl)},
+      prisma, artifactDir: ${JSON.stringify(env.artifactDir)}, sessionId: ${JSON.stringify(sessionId)}, baseUrl: ${JSON.stringify(server.baseUrl)},
       planner: "script", killAt: "after_write_before_receipt", killMarkerFile: ${JSON.stringify(marker)},
     }).catch((e) => { console.error("LOOP-ERR", e?.message, e?.code); process.exit(1); });
     console.error("LOOP-RESULT", JSON.stringify(r));
   `);
   const child = spawn(join(root, "apps/worker/node_modules/.bin/tsx"), [childScriptFile], { cwd: root, stdio: ["ignore", "pipe", "pipe"] });
 
+  let childLog = "";
+  child.stderr?.on("data", b => {childLog += b.toString();});
+  try {
   // 等标记出现（写已发生）→ SIGKILL 真实进程。
   const deadline = Date.now() + 30000;
   let childExited: number | null = null;
@@ -262,7 +266,7 @@ it("写后回执前 SIGKILL 真实子进程：重启恢复对账，资源仍 1 �
   while (!existsSync(marker) && Date.now() < deadline && childExited === null) {
     await new Promise((r) => setTimeout(r, 100));
   }
-  expect(existsSync(marker)).toBe(true);
+  expect(existsSync(marker),childLog.slice(-1500)).toBe(true);
   child.kill("SIGKILL");
   await new Promise<void>((r) => { if (childExited !== null) r(); else child.on("exit", () => r()); });
   // 子进程死亡：写已发生（服务端资源 ≥1），回执未落库。
@@ -271,21 +275,25 @@ it("写后回执前 SIGKILL 真实子进程：重启恢复对账，资源仍 1 �
   const intentsWithoutReceipt = await countPendingIntents(sessionId);
   expect(intentsWithoutReceipt).toBeGreaterThanOrEqual(1);
 
+  await new Promise(r => setTimeout(r, 10500)); // 等待真实租约到期，不能抢活跃 worker
   // 重启恢复（新进程语义 = 测试内重入循环）：对账 + 继续到 PASS。
   const result = await runDraftSessionLoop({
-    prisma: env.prisma, sessionId, baseUrl: server.baseUrl, planner: "script",
+    prisma: env.prisma, artifactDir: env.artifactDir, sessionId, baseUrl: server.baseUrl, planner: "script",
   });
   expect(result.status).toBe("COMPLETED");
   expect(result.verdict).toBe("pass");
   // 关键验收：资源仍只有 1 个（幂等键对账，不重复创建）。
   expect((await server.stats()).drafts).toBe(1);
-  rmSync(marker, { force: true });
-  rmSync(childScriptFile, { force: true });
-  await server.stop();
+  } finally {
+    child.kill("SIGKILL");
+    rmSync(marker, { force: true });
+    rmSync(childScriptFile, { force: true });
+    await server.stop();
+  }
 
   async function countPendingIntents(sid: string): Promise<number> {
     const intents = await env.prisma.v2ActionIntent.findMany({ where: { sessionId: sid } });
-    const receipts = new Set((await env.prisma.v2Invocation.findMany()).map((i) => i.intentId));
+    const receipts = new Set((await env.prisma.v2Invocation.findMany({where:{status:{not:"RUNNING"}}})).map((i) => i.intentId));
     return intents.filter((i) => !receipts.has(i.id)).length;
   }
 }, 60000);
@@ -297,7 +305,7 @@ it("故障矩阵：排队中取消——会话 CANCELLED 后循环启动即零�
     where: { id: sessionId },
     data: { status: "CANCELLED", terminationReason: "用户取消" },
   });
-  const result = await runDraftSessionLoop({ prisma: env.prisma, sessionId, baseUrl: server.baseUrl, planner: "script" });
+  const result = await runDraftSessionLoop({ prisma: env.prisma, artifactDir: env.artifactDir, sessionId, baseUrl: server.baseUrl, planner: "script" });
   expect(result.status).toBe("CANCELLED");
   expect(result.rounds).toBe(0);
   expect((await server.stats()).drafts).toBe(0); // 零副作用
@@ -344,14 +352,14 @@ it("三构建同标准连续对照：健康 PASS → 缺陷 FAIL → 修复版�
   const healthy = await startDraftServer();
   const healthySession = await createSession(sharedOracleId);
   oracleSessionIds.push(healthySession);
-  const healthyResult = await runDraftSessionLoop({ prisma: env.prisma, sessionId: healthySession, baseUrl: healthy.baseUrl, planner: "script" });
+  const healthyResult = await runDraftSessionLoop({ prisma: env.prisma, artifactDir: env.artifactDir, sessionId: healthySession, baseUrl: healthy.baseUrl, planner: "script" });
   expect(healthyResult.verdict).toBe("pass");
   await healthy.stop();
   // 缺陷（改名不落库）：同标准 FAIL。
   const defective = await startDraftServer({ DEFECT: "rename_no_persist" });
   const defectSession = await createSession(sharedOracleId);
   oracleSessionIds.push(defectSession);
-  const defectResult = await runDraftSessionLoop({ prisma: env.prisma, sessionId: defectSession, baseUrl: defective.baseUrl, planner: "script", maxRounds: 12 });
+  const defectResult = await runDraftSessionLoop({ prisma: env.prisma, artifactDir: env.artifactDir, sessionId: defectSession, baseUrl: defective.baseUrl, planner: "script", maxRounds: 12 });
   expect(defectResult.verdict).toBe("fail");
   expect(defectResult.reason).toContain("不自修复");
   await defective.stop();
@@ -359,7 +367,7 @@ it("三构建同标准连续对照：健康 PASS → 缺陷 FAIL → 修复版�
   const fixed = await startDraftServer(); // 与健康等价（缺陷移除）
   const fixedSession = await createSession(sharedOracleId);
   oracleSessionIds.push(fixedSession);
-  const fixedResult = await runDraftSessionLoop({ prisma: env.prisma, sessionId: fixedSession, baseUrl: fixed.baseUrl, planner: "script" });
+  const fixedResult = await runDraftSessionLoop({ prisma: env.prisma, artifactDir: env.artifactDir, sessionId: fixedSession, baseUrl: fixed.baseUrl, planner: "script" });
   expect(fixedResult.verdict).toBe("pass");
   // 三个会话引用同一标准内容（同 Oracle 模板 → 同 oracleHash）。
   const hashes = await env.prisma.v2ExecutionSession.findMany({
@@ -376,7 +384,7 @@ it("故障矩阵：动作前退出（首轮派发前终止）恢复后从零开�
   const server = await startDraftServer();
   const sessionId = await createSession();
   expect((await server.stats()).drafts).toBe(0); // 动作前：零副作用
-  const result = await runDraftSessionLoop({ prisma: env.prisma, sessionId, baseUrl: server.baseUrl, planner: "script" });
+  const result = await runDraftSessionLoop({ prisma: env.prisma, artifactDir: env.artifactDir, sessionId, baseUrl: server.baseUrl, planner: "script" });
   expect(result.verdict).toBe("pass");
   expect((await server.stats()).drafts).toBe(1);
   await server.stop();
@@ -385,10 +393,10 @@ it("故障矩阵：动作前退出（首轮派发前终止）恢复后从零开�
 it("故障矩阵：重复队列投递（同作业跑两次）幂等——资源仍 1 个，会话终态不变", async () => {
   const server = await startDraftServer();
   const sessionId = await createSession();
-  const first = await runDraftSessionLoop({ prisma: env.prisma, sessionId, baseUrl: server.baseUrl, planner: "script" });
+  const first = await runDraftSessionLoop({ prisma: env.prisma, artifactDir: env.artifactDir, sessionId, baseUrl: server.baseUrl, planner: "script" });
   expect(first.verdict).toBe("pass");
   // 同会话重复执行（重复投递语义）：恢复对账走幂等键，不新建资源，结论不变。
-  const second = await runDraftSessionLoop({ prisma: env.prisma, sessionId, baseUrl: server.baseUrl, planner: "script" });
+  const second = await runDraftSessionLoop({ prisma: env.prisma, artifactDir: env.artifactDir, sessionId, baseUrl: server.baseUrl, planner: "script" });
   expect((await server.stats()).drafts).toBe(1);
   expect(second.verdict ? [first.verdict, second.verdict] : [first.verdict]).toContain("pass");
   await server.stop();
@@ -404,7 +412,7 @@ it("故障矩阵：撤权后循环内新调用被拒（运行中 REVOKED）", as
   const installations = await env.prisma.v2AdapterInstallation.findMany({ where: { projectId } });
   const draftInstall = installations.find((i) => i.capabilityId === "synthetic.draft-ops" && i.status === "AUTHORIZED");
   if (draftInstall) await env.prisma.v2AdapterInstallation.update({ where: { id: draftInstall.id }, data: { status: "REVOKED" } });
-  const result = await runDraftSessionLoop({ prisma: env.prisma, sessionId, baseUrl: server.baseUrl, planner: "script", maxRounds: 4 });
+  const result = await runDraftSessionLoop({ prisma: env.prisma, artifactDir: env.artifactDir, sessionId, baseUrl: server.baseUrl, planner: "script", maxRounds: 4 });
   expect(result.status).toBe("FAILED");
   // 拒绝语义：不再有 AUTHORIZED 安装可寻址（NOT_FOUND），或显式 REVOKED（FORBIDDEN）。
   expect(result.reason).toMatch(/未安装|撤销|FORBIDDEN/);
@@ -419,13 +427,120 @@ it("轮次上限（预算）耗尽有界停止；未支持规划器显式拒绝"
   // 用不可达标题制造持续失败？正常系统会改名成功——直接用极小轮次让它有界停止：
   // 圆 1 只能 create。maxRounds=1 → NO/FAIL 出口（轮次上限）。
   const result = await runDraftSessionLoop({
-    prisma: env.prisma, sessionId, baseUrl: server.baseUrl, planner: "script", maxRounds: 1,
+    prisma: env.prisma, artifactDir: env.artifactDir, sessionId, baseUrl: server.baseUrl, planner: "script", maxRounds: 1,
   });
   expect(["FAILED", "NO_PROGRESS"]).toContain(result.status);
   // python-real 无配置 → CONFIG_MISSING（受控拒绝，不静默回退 script）。
   await expect(runDraftSessionLoop({
-    prisma: env.prisma, sessionId: await createSession(), baseUrl: server.baseUrl,
+    prisma: env.prisma, artifactDir: env.artifactDir, sessionId: await createSession(), baseUrl: server.baseUrl,
     planner: "python-real",
   })).rejects.toMatchObject({ code: "CONFIG_MISSING" });
   await server.stop();
+});
+
+it("结束会话重复投递不发任何请求、不改原始阶段与证据", async()=>{
+ const server=await startDraftServer();
+ try {
+  const sessionId=await createSession();
+  const args={prisma:env.prisma,artifactDir:env.artifactDir,sessionId,baseUrl:server.baseUrl,planner:"script" as const};
+  const first=await runDraftSessionLoop(args);
+  const before=await env.prisma.v2Invocation.count();
+  expect(await runDraftSessionLoop(args)).toEqual(first);
+  expect(await env.prisma.v2Invocation.count()).toBe(before);
+  const observations=await env.prisma.v2Observation.findMany({where:{sessionId}});
+  expect(observations.every(o=>o.evidenceArtifactIds.length>0)).toBe(true);
+  const artifacts=await env.prisma.artifact.findMany({where:{id:{in:observations.flatMap(o=>o.evidenceArtifactIds)}}});
+  expect(artifacts.every(a=>env.store.verify(a.storageKey,a.checksum))).toBe(true);
+ } finally {await server.stop();}
+});
+
+it("无法观察的第二条标准不能被忽略后判 PASS",async()=>{
+ const server=await startDraftServer();
+ try {
+  const sessionId=await createSession();
+  const session=await env.prisma.v2ExecutionSession.findUniqueOrThrow({where:{id:sessionId}});
+  const oracle=await env.prisma.v2OracleSpec.findUniqueOrThrow({where:{id:session.oracleSpecId}});
+  const assertions=oracle.assertions as any[];
+  assertions.push({...assertions[0],id:"unobservable",observationRef:"draft.owner"});
+  const oracleHash=computeOracleHash({...oracle,assertions} as never);
+  await env.prisma.v2OracleSpec.update({where:{id:oracle.id},data:{assertions,oracleHash}});
+  await env.prisma.v2ExecutionSession.update({where:{id:sessionId},data:{oracleHash}});
+  const result=await runDraftSessionLoop({prisma:env.prisma,artifactDir:env.artifactDir,sessionId,baseUrl:server.baseUrl,planner:"script"});
+  expect(result.verdict).toBe("blocked");expect(result.reason).toContain("UNSUPPORTED_ORACLE");
+  expect((await server.stats()).drafts).toBe(0);
+ } finally {await server.stop();}
+});
+
+it("篡改标准、工具预算耗尽均阻断；不误记成业务 FAIL",async()=>{
+ const server=await startDraftServer();
+ try {
+  for(const mode of ["hash","budget"]){
+   const sessionId=await createSession();
+   const row=await env.prisma.v2ExecutionSession.findUniqueOrThrow({where:{id:sessionId}});
+   await env.prisma.v2ExecutionSession.update({where:{id:sessionId},data:mode==="hash"?{oracleHash:"f".repeat(64)}:{budget:{...(row.budget as object),maxToolCalls:1}}});
+   const r=await runDraftSessionLoop({prisma:env.prisma,artifactDir:env.artifactDir,sessionId,baseUrl:server.baseUrl,planner:"script"});
+   expect(r.verdict).toBe("blocked");expect(r.reason).toContain(mode==="hash"?"CONFLICT":"BUDGET_EXCEEDED");
+  }
+  expect((await server.stats()).drafts).toBe(0);
+ }finally{await server.stop();}
+});
+
+it("失联会话作业重新入队，过期 worker 不能复活终态",async()=>{
+ const {reconcileAgentJobs}=await import("../src/agent-job-recovery.js");
+ const sessionId=await createSession();
+ await env.prisma.v2ExecutionSession.update({where:{id:sessionId},data:{status:"RUNNING",leaseToken:"dead",leaseExpiresAt:new Date(0)}});
+ const job=await env.prisma.job.create({data:{projectId,kind:"V2_SESSION_LOOP",fingerprint:randomUUID(),request:{sessionId},status:"RUNNING",updatedAt:new Date(0)}});
+ const sent:string[]=[];
+ await reconcileAgentJobs(env.prisma,{add:async(_n,d)=>{sent.push(d.jobId);return {} as never;}});
+ expect((await env.prisma.job.findUniqueOrThrow({where:{id:job.id}})).status).toBe("QUEUED");
+ expect((await env.prisma.v2ExecutionSession.findUniqueOrThrow({where:{id:sessionId}})).leaseToken).toBeNull();
+});
+
+it("模型规划每轮获得最新草稿；模型请求与用量留痕，mock HTTP 不代表模型质量",async()=>{
+ const server=await startDraftServer();const planner=Fastify();const seen:Array<{draft:any;tokens:number}>=[];
+ planner.post('/v2/loop/plan',async req=>{
+  const b=req.body as any;const draft=b.input.observation.draft;
+  seen.push({draft,tokens:Number(req.headers['x-aiqa-model-tokens'])});
+  const output=!draft?{action:'create_draft',params:{},rationale:'fixture create'}:draft.title!==TARGET_TITLE?{action:'rename_draft',params:{title:TARGET_TITLE,renamePath:b.input.observation.renamePath},rationale:'fixture rename'}:{action:'done',params:{},rationale:'fixture verify'};
+  return {schemaVersion:'1.0',requestId:b.requestId,mode:'real',output,invocations:[{purpose:'PLAN_PROPOSAL',promptVersion:'loop-planner-v1',response:{parsedJson:output,rawText:JSON.stringify(output),repairsApplied:[],provider:'mock',model:'fixture',requestId:'fixture',usage:{inputTokens:30,outputTokens:20},latencyMs:1,outcome:'SUCCESS'}}]};
+ });
+ const url=await planner.listen({host:'127.0.0.1',port:0});
+ try{
+  const sessionId=await createSession();const row=await env.prisma.v2ExecutionSession.findUniqueOrThrow({where:{id:sessionId}});
+  await env.prisma.v2ExecutionSession.update({where:{id:sessionId},data:{budget:{...(row.budget as object),maxModelCalls:10,maxTokens:10000}}});
+  const r=await runDraftSessionLoop({prisma:env.prisma,artifactDir:env.artifactDir,sessionId,baseUrl:server.baseUrl,planner:'python-real',intelligence:{url,token:'fixture'}});
+  expect(r.verdict).toBe('pass');expect(seen.map(x=>x.draft?.title??null)).toEqual([null,'初始草稿',TARGET_TITLE]);
+  expect(seen.map(x=>x.tokens)).toEqual([10000,9950,9900]);
+  const final=await env.prisma.v2ExecutionSession.findUniqueOrThrow({where:{id:sessionId}});
+  expect((final.usage as any).modelCallsUsed).toBe(3);expect((final.usage as any).tokensUsed).toBe(150);
+ }finally{await planner.close();await server.stop();}
+});
+
+it("运行中取消传播；已发送写入保持待核对，旧执行不能提交 PASS",async()=>{
+ const server=await startDraftServer({WRITE_RESPONSE_DELAY_MS:"1200"});
+ try{
+  const sessionId=await createSession();
+  const promise=runDraftSessionLoop({prisma:env.prisma,artifactDir:env.artifactDir,sessionId,baseUrl:server.baseUrl,planner:"script"});
+  const limit=Date.now()+5000;
+  while(Date.now()<limit){const row=await env.prisma.v2ExecutionSession.findUniqueOrThrow({where:{id:sessionId}});if((row.checkpoint as any).pendingIntentId)break;await new Promise(r=>setTimeout(r,20));}
+  await env.prisma.v2ExecutionSession.update({where:{id:sessionId},data:{status:"CANCELLED",cancelRequestedAt:new Date(),terminationReason:"用户取消",leaseToken:null,leaseExpiresAt:null}});
+  const result=await promise;
+  expect(result.status).toBe("CANCELLED");expect(result.verdict).not.toBe("pass");
+  const row=await env.prisma.v2ExecutionSession.findUniqueOrThrow({where:{id:sessionId}});expect(row.status).toBe("CANCELLED");
+  const pending=(row.checkpoint as any).pendingIntentId;expect(pending).toBeTruthy();
+  expect(await env.prisma.v2Invocation.count({where:{intentId:pending,status:"SUCCEEDED"}})).toBe(0);
+ }finally{await server.stop();}
+});
+
+it("过期 worker 被新 fencing token 取代后拒绝落回执",async()=>{
+ const server=await startDraftServer({WRITE_RESPONSE_DELAY_MS:"1200"});
+ try{
+  const sessionId=await createSession();
+  const outcome=runDraftSessionLoop({prisma:env.prisma,artifactDir:env.artifactDir,sessionId,baseUrl:server.baseUrl,planner:"script"}).catch(e=>e);
+  const limit=Date.now()+5000;
+  while(Date.now()<limit){const row=await env.prisma.v2ExecutionSession.findUniqueOrThrow({where:{id:sessionId}});if((row.checkpoint as any).pendingIntentId)break;await new Promise(r=>setTimeout(r,20));}
+  await env.prisma.v2ExecutionSession.update({where:{id:sessionId},data:{leaseToken:"new-owner",leaseExpiresAt:new Date(Date.now()+10000)}});
+  expect(await outcome).toMatchObject({code:"LEASE_LOST"});
+  const row=await env.prisma.v2ExecutionSession.findUniqueOrThrow({where:{id:sessionId}});expect(row.leaseToken).toBe("new-owner");expect(row.result).toBeNull();
+ }finally{await server.stop();}
 });

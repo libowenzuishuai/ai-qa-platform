@@ -194,6 +194,9 @@ importers:
       '@ai-qa/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@ai-qa/test-runtime':
+        specifier: workspace:*
+        version: link:../test-runtime
       playwright:
         specifier: ^1.63.0
         version: 1.63.0

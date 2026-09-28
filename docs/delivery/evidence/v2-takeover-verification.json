@@ -1,0 +1,69 @@
+{
+  "date": "2026-09-28",
+  "reviewedBaseline": "aceb518",
+  "branch": "v2/autonomous-qa",
+  "type": "observed tool-run results; counts may overlap across suites, do not sum",
+  "checks": [
+    {
+      "command": "pnpm typecheck",
+      "result": "passed"
+    },
+    {
+      "command": "pnpm test:contracts",
+      "passed": 306,
+      "failed": 0
+    },
+    {
+      "command": "pnpm contracts:check",
+      "result": "passed"
+    },
+    {
+      "command": "services/intelligence/.venv/bin/python services/intelligence/scripts/generate_models.py --check",
+      "result": "passed"
+    },
+    {
+      "command": "pnpm --filter @ai-qa/api exec vitest run --maxWorkers=2",
+      "passed": 116,
+      "failed": 0
+    },
+    {
+      "command": "pnpm --filter @ai-qa/worker exec vitest run --maxWorkers=2",
+      "passed": 188,
+      "skipped": 7,
+      "failed": 0,
+      "note": "Full regression before the final two SDK/SSE cases and final targeted changes. Final V2 rerun below covers them."
+    },
+    {
+      "command": "pnpm --filter @ai-qa/worker exec vitest run v2- --maxWorkers=2",
+      "passed": 66,
+      "failed": 0,
+      "testFiles": 10,
+      "note": "Final V2 suite after code changes; includes real DB/HTTP/Chromium, process kill, lease expiry, second receiver, live SSE reconnect, composer UI and model HTTP fixture."
+    },
+    {
+      "command": "pnpm --filter @ai-qa/web test",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "command": "services/intelligence/.venv/bin/python -m pytest services/intelligence/tests -q",
+      "passed": 398,
+      "failed": 0,
+      "warnings": 5
+    }
+  ],
+  "paidModelCalls": 0,
+  "limitations": [
+    "Synthetic draft workflow, not general autonomous QA",
+    "Mock model results do not establish real model quality",
+    "Not a complete PRD 2.0 release or independent reviewer sign-off",
+    "New production container stack not rebuilt in this round",
+    "Existing development database not migrated/reset; clean isolated migration replay tested"
+  ],
+  "evidence": [
+    "docs/evidence/v2-ui/desktop-composer.png",
+    "docs/evidence/v2-ui/mobile-composer.png",
+    "docs/evidence/v2-ui/desktop-detail.png",
+    "docs/evidence/v2-ui/mobile-detail.png"
+  ]
+}

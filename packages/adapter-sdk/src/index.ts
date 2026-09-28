@@ -11,6 +11,8 @@ export type { SchemaValidation };
  */
 
 export interface CapabilityContext {
+  /** Trusted host-owned evidence directory, never model/task supplied. */
+  artifactDir?: string;
   /** 取消信号（协作式取消；不支持取消的能力应尽快结束）。 */
   signal: AbortSignal;
   /** 绝对截止时间（毫秒时间戳）。 */

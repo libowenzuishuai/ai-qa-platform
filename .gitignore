@@ -48,3 +48,6 @@ tools/phase1-acceptance/artifacts-*/
 # Operator-only deployment configuration
 /deploy/.env.production
 /deploy/.env.github
+
+# Ephemeral process-level fault-test scripts
+apps/worker/test/.tmp-*-child-*.mts

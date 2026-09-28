@@ -13,6 +13,21 @@ export async function reconcileAgentJobs(prisma: PrismaClient, queue: Pick<Queue
     where: { status: "RUNNING", updatedAt: { lt: staleBefore } }, select: { id: true, projectId: true, kind: true, request: true }, take: 50,
   });
   for (const job of stale) {
+    if (job.kind === "V2_SESSION_LOOP") {
+      await prisma.$transaction(async tx => {
+        const sessionId = (job.request as {sessionId:string}).sessionId;
+        const session = await tx.v2ExecutionSession.findUnique({where:{id:sessionId}});
+        if (session?.leaseExpiresAt && session.leaseExpiresAt > now) return;
+        const stopped = session && ["COMPLETED","FAILED","CANCELLED","PAUSED"].includes(session.status);
+        const changed = await tx.job.updateMany({where:{id:job.id,status:"RUNNING",updatedAt:{lt:staleBefore}},data:stopped
+          ? {status:"SUCCEEDED",finishedAt:now,result:{sessionId,status:session.status,reconciled:true}}
+          : {status:"QUEUED",startedAt:null,finishedAt:null}});
+        if (changed.count && session && !stopped) {
+          await tx.v2ExecutionSession.updateMany({where:{id:sessionId,leaseToken:session.leaseToken},data:{leaseToken:null,leaseExpiresAt:null}});
+        }
+      });
+      continue;
+    }
     await prisma.$transaction(async tx => {
     const changed = await tx.job.updateMany({
       where: { id: job.id, status: "RUNNING", updatedAt: { lt: staleBefore } },

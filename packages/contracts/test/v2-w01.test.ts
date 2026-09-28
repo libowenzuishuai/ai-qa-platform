@@ -205,3 +205,10 @@ describe("W01 状态迁移与哈希", () => {
     expect(computeOracleHash(changed)).not.toBe(computeOracleHash(base));
   });
 });
+
+it("确定性会话可显式禁止模型消费；暂停和继续迁移与 API 一致",()=>{
+ expect(SessionBudget.safeParse({maxWallClockMs:60000,maxActiveMs:60000,maxModelCalls:0,maxTokens:0,maxToolCalls:10,maxResources:1,maxCostMicros:null}).success).toBe(true);
+ expect(sessionCanTransition('QUEUED','PAUSED')).toBe(true);
+ expect(sessionCanTransition('PAUSED','QUEUED')).toBe(true);
+ expect(sessionCanTransition('COMPLETED','QUEUED')).toBe(false);
+});

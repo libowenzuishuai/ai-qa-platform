@@ -59,6 +59,19 @@ export function registerV2DefinitionRoutes(app: FastifyInstance, prisma: PrismaC
     };
   });
 
+  app.get("/api/v2/definitions/:id", async (req) => {
+    const row = await prisma.v2WorkflowDefinition.findUnique({where:{id:param(req,"id")}});
+    if(!row) throw new ApiError("NOT_FOUND","定义不存在");
+    await requireProjectAccess(prisma,req,row.projectId,"VIEWER");
+    return row;
+  });
+
+  app.post("/api/v2/projects/:id/definitions/validate", async(req)=>{
+    await requireProjectAccess(prisma,req,param(req,"id"),"LEAD");
+    const content=WorkflowDefinitionContent.parse(req.body);
+    return {...validateGraph(content),astHash:computeAstHash(content),content};
+  });
+
   app.post("/api/v2/definitions/:id/publish", async (req) => {
     const id = param(req, "id");
     const row = await prisma.v2WorkflowDefinition.findUnique({ where: { id } });

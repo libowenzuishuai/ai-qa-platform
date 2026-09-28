@@ -38,6 +38,7 @@ export interface InvokeInput {
   allowedOrigins: string[];
   installationId?: string;
   invocationId: string;
+  artifactDir?: string;
 }
 
 export async function invokeCapability(args: InvokeInput): Promise<CapabilityResult> {
@@ -46,6 +47,7 @@ export async function invokeCapability(args: InvokeInput): Promise<CapabilityRes
     error: { code, message },
   });
 
+  if (Date.now() >= args.deadline) return fail("BUDGET_EXCEEDED", "调用期限已到，零派发");
   // 安装与授权：同项目、精确版本、AUTHORIZED（REVOKED/DISABLED 阻止新调用）。
   const installation = args.installationId
     ? await args.prisma.v2AdapterInstallation.findFirst({
@@ -79,7 +81,7 @@ export async function invokeCapability(args: InvokeInput): Promise<CapabilityRes
   if (grantedScope.length === 0) return fail("FORBIDDEN", "安装缺少授权范围记录，拒绝调用");
   if (args.actionScope && args.actionScope.length > 0) {
     const overlap = args.actionScope.filter((a) => grantedScope.includes(a));
-    if (overlap.length === 0)
+    if (overlap.length !== args.actionScope.length)
       return fail("FORBIDDEN", `动作范围与授权无交集（请求 ${args.actionScope.join(",")}，授权 ${grantedScope.join(",")}）`);
   }
 
@@ -116,8 +118,17 @@ export async function invokeCapability(args: InvokeInput): Promise<CapabilityRes
 
   if (args.signal.aborted) return { status: "CANCELLED", output: null, resourceKeys: [], retryable: false, error: { code: "CANCELLED", message: "调用前已取消" } };
 
+  if (Date.now() >= args.deadline) return fail("BUDGET_EXCEEDED", "授权检查后期限已到，零派发");
+  let allowedOrigins=args.allowedOrigins;
+  if(args.environmentId){
+    const environment=await args.prisma.environment.findFirst({where:{id:args.environmentId,projectId:args.projectId,isProduction:false}});
+    if(!environment)return fail("FORBIDDEN","环境不存在、跨项目或为生产环境");
+    allowedOrigins=allowedOrigins.filter(x=>environment.allowedOrigins.includes(x));
+  }
+  if(manifest.permissions.network === "declared-origins-only") allowedOrigins=allowedOrigins.filter(x=>manifest.permissions.declaredOrigins.includes(x));
   const timeoutMs = Math.max(1, Math.min(args.deadline - Date.now(), manifest.timeoutMsMax));
   const ctx: CapabilityContext = {
+    artifactDir: args.artifactDir,
     signal: args.signal,
     deadline: Date.now() + timeoutMs,
     resolveSecret: async (ref) => {
@@ -133,25 +144,35 @@ export async function invokeCapability(args: InvokeInput): Promise<CapabilityRes
             where: { id: args.environmentId, projectId: args.projectId },
             select: { secretRefs: true, revision: true },
           })
-        : await args.prisma.environment.findFirst({
-            where: { projectId: args.projectId },
-            orderBy: { revision: "desc" },
-            select: { secretRefs: true, revision: true },
-          });
+        : null;
       if (!environment) throw new Error(`固定环境不存在或不可用：${args.environmentId ?? "(项目无环境)"}`);
       const resolver = makeCredentialResolver((environment.secretRefs ?? {}) as SecretRefs);
       const value = resolver(ref);
       if (value === undefined) throw new Error(`凭据引用未配置：${ref}`);
       return value;
     },
-    allowedOrigins: args.allowedOrigins,
+    allowedOrigins,
     idempotencyKey: args.idempotencyKey,
   };
 
   let result: CapabilityResult;
   const local = localAdapter;
   if (local) {
-    result = await local.adapter.execute(args.input, ctx);
+    // A cooperative adapter can still malfunction. Bound host waiting and retain uncertain writes.
+    const deadlineController=new AbortController();
+    const localSignal=AbortSignal.any([args.signal,deadlineController.signal]);
+    let stop:()=>void=()=>undefined;
+    const interrupted=new Promise<CapabilityResult>(resolve=>{
+      stop=()=>resolve({status:manifest.effectClass === "READ" ? (args.signal.aborted?"CANCELLED":"FAILED") : "UNKNOWN",output:null,resourceKeys:[],retryable:false,error:{code:args.signal.aborted?"CANCELLED":"MODEL_TIMEOUT",message:"本地能力中止；写效果需要核对"}});
+      localSignal.addEventListener("abort",stop,{once:true});
+      if(localSignal.aborted)stop();
+    });
+    const timer=setTimeout(()=>deadlineController.abort(),timeoutMs);
+    try {
+      result=await Promise.race([local.adapter.execute(args.input,{...ctx,signal:localSignal}),interrupted]);
+    } catch(error) {
+      result={status:manifest.effectClass === "READ"?"FAILED":"UNKNOWN",output:null,resourceKeys:[],retryable:false,error:{code:"DEPENDENCY_UNAVAILABLE",message:`适配器异常：${error instanceof Error?error.message:"unknown"}`}};
+    } finally {clearTimeout(timer);localSignal.removeEventListener("abort",stop);}
   } else if (manifest.protocol === "remote-http") {
     if (!installation.endpoint) return fail("CONFIG_MISSING", "远程能力缺少 endpoint");
     result = await invokeRemote(installation.endpoint, args, manifest, timeoutMs);
@@ -204,9 +225,15 @@ async function invokeRemote(
     const lengthHeader = Number(response.headers.get("content-length") ?? "0");
     if (Number.isFinite(lengthHeader) && lengthHeader > MAX_REMOTE_BODY)
       return { status: "FAILED", output: null, resourceKeys: [], retryable: false, error: { code: "MODEL_OUTPUT_INVALID", message: "远程适配器响应超过大小上限" } };
-    const text = await response.text();
-    if (text.length > MAX_REMOTE_BODY)
-      return { status: "FAILED", output: null, resourceKeys: [], retryable: false, error: { code: "MODEL_OUTPUT_INVALID", message: "远程适配器响应超过大小上限" } };
+    const reader=response.body?.getReader();
+    const chunks:Uint8Array[]=[];let size=0;
+    if(reader) while(true){
+      const part=await reader.read();if(part.done)break;
+      size+=part.value.byteLength;
+      if(size>MAX_REMOTE_BODY){await reader.cancel();return {status:manifest.effectClass === "READ"?"FAILED":"UNKNOWN",output:null,resourceKeys:[],retryable:false,error:{code:"MODEL_OUTPUT_INVALID",message:"远程适配器响应超过大小上限"}};}
+      chunks.push(part.value);
+    }
+    const text=Buffer.concat(chunks).toString("utf8");
     let json: unknown;
     try {
       json = JSON.parse(text);

@@ -105,7 +105,7 @@ export async function buildServer() {
   registerV2CapabilityRoutes(app,prisma);
   registerV2OracleRoutes(app,prisma);
   registerV2ReadinessRoutes(app,prisma);
-  registerV2SessionRoutes(app,prisma,agentJobsQueue);
+  registerV2SessionRoutes(app,prisma,agentJobsQueue,{intelligenceUrl:process.env.AIQA_INTELLIGENCE_URL,intelligenceToken:process.env.AIQA_INTELLIGENCE_TOKEN});
   registerV2MemoryRoutes(app,prisma);
   registerV2FindingRoutes(app,prisma);
   registerV2DefinitionRoutes(app,prisma);

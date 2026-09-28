@@ -22,7 +22,8 @@
   },
   "dependencies": {
     "@ai-qa/contracts": "workspace:*",
-    "playwright": "^1.63.0"
+    "playwright": "^1.63.0",
+    "@ai-qa/test-runtime": "workspace:*"
   },
   "peerDependencies": {}
 }

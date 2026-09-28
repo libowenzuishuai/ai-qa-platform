@@ -432,8 +432,8 @@ class V2SessionBudget(BaseModel):
     )
     maxWallClockMs: int = Field(..., ge=60000, le=86400000)
     maxActiveMs: int = Field(..., ge=60000, le=86400000)
-    maxModelCalls: int = Field(..., ge=1, le=10000)
-    maxTokens: int = Field(..., ge=1000, le=100000000)
+    maxModelCalls: int = Field(..., ge=0, le=10000)
+    maxTokens: int = Field(..., ge=0, le=100000000)
     maxToolCalls: int = Field(..., ge=1, le=100000)
     maxResources: int = Field(..., ge=1, le=10000)
     maxCostMicros: MaxCostMicros | None

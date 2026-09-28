@@ -414,3 +414,17 @@ it("列表接口按项目返回安装与状态", async () => {
   expect(ids).toContain("example.http-read");
   expect(ids).toContain("example.data-reconcile");
 });
+
+it("不合作的本地适配器仍受截止约束，过期请求零派发",async()=>{
+ const {registerLocalAdapter}=await import('../src/v2/capability-registry.js');
+ const manifest={...HttpReadManifest,id:'test.noncooperative-read',humanName:'deadline fault fixture'};
+ let calls=0;
+ registerLocalAdapter({manifest,execute:async()=>{calls++;return new Promise(()=>{});}});
+ const installed=await app.inject({method:'POST',url:`/api/v2/projects/${projectId}/capabilities/install`,headers:H,payload:{manifest}});
+ expect(installed.statusCode).toBe(202);
+ await app.inject({method:'POST',url:`/api/v2/installations/${installed.json().installationId}/authorize`,headers:H,payload:{scope:['read:http']}});
+ const args={prisma:env.prisma,projectId,capabilityId:manifest.id,capabilityVersion:manifest.version,input:{baseUrl:'http://127.0.0.1:1',resourcePath:'/read'},signal:new AbortController().signal,allowedOrigins:['http://127.0.0.1:1'],idempotencyKey:'deadline-test-001',invocationId:'deadline-test',deadline:Date.now()-1};
+ expect((await invokeCapability(args)).error?.code).toBe('BUDGET_EXCEEDED');expect(calls).toBe(0);
+ const started=Date.now();const result=await invokeCapability({...args,deadline:Date.now()+150});
+ expect(result.error?.code).toBe('MODEL_TIMEOUT');expect(Date.now()-started).toBeLessThan(2000);expect(calls).toBe(1);
+});

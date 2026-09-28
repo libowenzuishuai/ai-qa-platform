@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { registerComposerPages } from "./v2-composer.js";
 import { api } from "./api.js";
 import { layout } from "./pages.js";
 
@@ -14,6 +15,7 @@ const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "
 interface SessionRow { id: string; goal: string; status: string; buildId: string; createdAt: string }
 
 export function registerV2Pages(app: FastifyInstance) {
+  registerComposerPages(app);
   const sid = (req: { cookies: Record<string, string | undefined> }) => req.cookies.web_sid;
 
   app.get("/space/:id/autonomous", async (req, reply) => {
@@ -37,6 +39,7 @@ export function registerV2Pages(app: FastifyInstance) {
       const body = `
       <div class="page-heading"><div><span class="eyebrow">AUTONOMOUS QA（v2 预览）</span><h1>自主测试会话</h1>
       <p>目标驱动的执行循环：观察→规划→行动→验证→调整。当前为 script 规划器切片（确定性，显式标注；真实模型规划为后续切片）。</p></div></div>
+      <p><a class="primary-link" href="/space/${esc(id)}/composer">组合测试能力 →</a></p>
       <section class="card"><h2>发起一次验收（合成草稿闭环）</h2>
       <p class="muted">目标固定为「创建草稿→改名→刷新仍保留名称」，以已批准的 Oracle 为标准。合成系统地址须在环境白名单内。</p>
       <form method="post" action="/space/${esc(id)}/autonomous">
@@ -83,7 +86,7 @@ export function registerV2Pages(app: FastifyInstance) {
     try {
       const res = await api(`/api/v2/sessions/${encodeURIComponent(id)}`, { sid: s });
       const d = res.data as {
-        session: { id: string; goal: string; status: string; terminationReason: string | null; projectId: string; buildId: string };
+        session: { result?: { verdict: string }; id: string; goal: string; status: string; terminationReason: string | null; projectId: string; buildId: string };
         attempts: Array<{ round: number; phase: string; status: string; rationale: string | null }>;
         intents: Array<{ id: string; idempotencyKey: string; createdAt: string }>;
         invocations: Array<{ intentId: string; attemptNo: number; status: string; receipt: { outcome: string } | null }>;
@@ -94,8 +97,9 @@ export function registerV2Pages(app: FastifyInstance) {
       const invocations = d.invocations.map((v) => `<tr><td><code>${esc(v.intentId.slice(-8))}</code></td><td>#${v.attemptNo}</td><td>${esc(v.status)}</td><td>${esc(v.receipt?.outcome ?? "")}</td></tr>`).join("");
       const body = `
       <div class="page-heading"><div><span class="eyebrow">SESSION</span><h1>${esc(d.session.goal.slice(0, 50))}</h1>
-      <p>状态 <b>${esc(d.session.status)}</b> · 构建 ${esc(d.session.buildId)}${d.session.terminationReason ? ` · 结束原因：${esc(d.session.terminationReason)}` : ""}</p></div>
-      <div>${["QUEUED", "RUNNING", "WAITING_HUMAN", "PAUSED"].includes(d.session.status) ? `<form method="post" action="/v2/sessions/${esc(id)}/cancel"><button type="submit" class="danger">取消会话</button></form>` : ""}</div></div>
+      <p>状态 <b>${esc(d.session.status)}</b> · 验收结论 <b>${esc(d.session.result?.verdict ?? "尚未判定")}</b> · 构建（已声明，未验证）${esc(d.session.buildId)}${d.session.terminationReason ? ` · 结束原因：${esc(d.session.terminationReason)}` : ""}</p></div>
+      <div>${["QUEUED","RUNNING"].includes(d.session.status) ? `<form method="post" action="/v2/sessions/${esc(id)}/pause"><button type="submit">暂停</button></form>` : d.session.status === "PAUSED" ? `<form method="post" action="/v2/sessions/${esc(id)}/resume"><button type="submit">继续（保留原标准和预算）</button></form>` : ""}${["QUEUED", "RUNNING", "WAITING_HUMAN", "PAUSED"].includes(d.session.status) ? `<form method="post" action="/v2/sessions/${esc(id)}/cancel"><button type="submit" class="danger">取消会话</button></form>` : ""}</div></div>
+      ${["QUEUED","PREPARING","RUNNING"].includes(d.session.status) ? `<p class="muted">运行记录每 3 秒更新；暂停或结束后停止刷新。</p><script>setTimeout(()=>location.reload(),3000)</script>` : ""}
       <section class="card"><h2>循环阶段（真实事件）</h2>
       ${attempts ? `<table><thead><tr><th>轮次</th><th>阶段</th><th>状态</th><th>决策依据</th></tr></thead><tbody>${attempts}</tbody></table>` : `<div class="empty-state">尚无阶段记录。</div>`}
       </section>
@@ -109,12 +113,12 @@ export function registerV2Pages(app: FastifyInstance) {
     }
   });
 
-  app.post("/v2/sessions/:id/cancel", async (req, reply) => {
+  for (const action of ["cancel", "pause", "resume"]) app.post(`/v2/sessions/:id/${action}`, async (req, reply) => {
     const s = sid(req);
     if (!s) return reply.redirect("/login");
     const { id } = req.params as { id: string };
     try {
-      await api(`/api/v2/sessions/${encodeURIComponent(id)}/cancel`, { sid: s, method: "POST", body: {} });
+      await api(`/api/v2/sessions/${encodeURIComponent(id)}/${action}`, { sid: s, method: "POST", body: {} });
     } catch { /* 已终态时展示原页面 */ }
     return reply.redirect(`/v2/sessions/${encodeURIComponent(id)}`);
   });

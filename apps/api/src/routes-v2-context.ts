@@ -32,7 +32,7 @@ export function registerV2ContextRoutes(app: FastifyInstance, prisma: PrismaClie
         query: z.string().min(1).max(4000),
         documentVersionIds: z.array(z.string().min(1)).min(1).max(50),
         ruleVersionIds: z.array(z.string().min(1)).max(500).default([]),
-        /** 上下文 token 预算（估算：4 字符≈1 token）。 */
+        /** 来源正文 token 预算（以 UTF-8 字节数作保守估算）。 */
         tokensMax: z.number().int().min(100).max(200_000).default(20_000),
         maxSelected: z.number().int().min(1).max(500).default(50),
         sessionId: z.string().optional(),
@@ -43,11 +43,13 @@ export function registerV2ContextRoutes(app: FastifyInstance, prisma: PrismaClie
       .parse(req.body);
       const apiContract: Array<{ method: "get" | "post" | "put" | "patch" | "delete"; path: string; operationId?: string; summary?: string }> = [];
       if (body.openapiJson !== undefined) {
-        const spec = body.openapiJson as { paths?: Record<string, Record<string, { operationId?: string; summary?: string }>> };
+        const spec = z.object({ paths: z.record(z.record(z.unknown())).default({}) }).passthrough().parse(body.openapiJson);
         for (const [path, methods] of Object.entries(spec.paths ?? {})) {
           for (const [method, op] of Object.entries(methods ?? {})) {
             if (!["get", "post", "put", "patch", "delete"].includes(method)) continue;
-            apiContract.push({ method: method as "get", path: path.slice(0, 500), operationId: op?.operationId?.slice(0, 300), summary: op?.summary?.slice(0, 1000) });
+            const operation = z.object({operationId:z.string().max(300).optional(),summary:z.string().max(1000).optional()}).passthrough().parse(op);
+            if(!path.startsWith("/") || path.length>500) throw new ApiError("VALIDATION_ERROR","OpenAPI 路径不合法");
+            apiContract.push({ method: method as "get", path, operationId: operation.operationId, summary: operation.summary });
           }
         }
         if (apiContract.length > 200) throw new ApiError("VALIDATION_ERROR", `OpenAPI 线索超过上限（${apiContract.length} > 200）`);
@@ -107,7 +109,7 @@ export function registerV2ContextRoutes(app: FastifyInstance, prisma: PrismaClie
     let remote: unknown;
     try {
       const response = await fetch(new URL("/v2/context/retrieve", config.intelligenceUrl), {
-        method: "POST",
+        method: "POST", redirect: "error",
         headers: { "content-type": "application/json", authorization: `Bearer ${config.intelligenceToken}` },
         body: JSON.stringify(input),
         signal: AbortSignal.timeout(INTELLIGENCE_TIMEOUT_MS),
@@ -126,11 +128,10 @@ export function registerV2ContextRoutes(app: FastifyInstance, prisma: PrismaClie
     // R0.6：检索响应与已装载来源对账——引用必须真实存在、不重复、
     // 质量不可升级（UNPARSED 不能被标为 span 选中）。
     const loadedKeys = new Set(bundles.flatMap((b) => b.spans.map((s) => `${b.documentVersionId}:${s.id}`)));
-    const apiClueKeys = new Set(parsed.data.output.selections
-      .filter((x) => x.documentVersionId === "api-contract")
-      .map((x) => `api-contract:${x.ref}`));
+    const apiClueKeys = new Set(apiContract.map(x=>`api-contract:api:${x.method.toUpperCase()} ${x.path}`));
     const loadedUnparsed = new Set(bundles.flatMap((b) => b.spans.filter((s) => s.extractionQuality === "UNPARSED").map((s) => `${b.documentVersionId}:${s.id}`)));
     const spanText = new Map(bundles.flatMap((b) => b.spans.map((s) => [`${b.documentVersionId}:${s.id}`, s.quotedText ?? ""])));
+    for(const clue of apiContract) spanText.set(`api-contract:api:${clue.method.toUpperCase()} ${clue.path}`,canonicalStringify(clue));
     const problems: string[] = [];
     const seenKeys = new Set<string>();
     const selections: typeof parsed.data.output.selections = [];
@@ -152,9 +153,8 @@ export function registerV2ContextRoutes(app: FastifyInstance, prisma: PrismaClie
     if (problems.length)
       throw new ApiError("MODEL_OUTPUT_INVALID", "检索输出与已装载来源对账失败", { problems: problems.slice(0, 10) });
 
-    // R0.6：预算估算——保守上界口径（中文≈1字1token、混合取 chars/2 上取整），
-    // 不是精确 tokenizer；实际模型请求哈希在 W04 规划器单独记录。
-    const estimateTokens = (text: string) => Math.max(1, Math.ceil(text.length / 2));
+    // UTF-8 字节上界只约束来源正文；完整模型请求另行预留并记录实际用量。
+    const estimateTokens = (text: string) => Math.max(1, Buffer.byteLength(text,"utf8"));
     let tokensUsed = 0;
     const omittedRefs: string[] = [];
     const finalSelections = selections.map((selection) => {
@@ -178,7 +178,7 @@ export function registerV2ContextRoutes(app: FastifyInstance, prisma: PrismaClie
       selections: finalSelections,
       budget: { tokensMax: body.tokensMax, tokensUsed, truncated, omittedRefs },
     };
-    const inputHash = createHash("sha256").update(canonicalStringify(manifestPayload)).digest("hex");
+    const inputHash = createHash("sha256").update(canonicalStringify({request:input,manifest:manifestPayload})).digest("hex");
     const manifest = ContextManifest.parse({
       ...manifestPayload,
       id: "pending",
