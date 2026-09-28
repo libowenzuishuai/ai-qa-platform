@@ -1,3 +1,5 @@
+import {registerCampaignPages} from './v2-campaigns.js';
+import {registerBrowserPages} from './v2-browser.js';
 import {registerFindingPages} from './v2-findings.js';
 import {registerTestPatchPages} from "./v2-test-patches.js";
 import {registerGraphRunnerPages} from "./v2-runner.js";
@@ -20,6 +22,8 @@ interface SessionRow { id: string; goal: string; status: string; buildId: string
 export function registerV2Pages(app: FastifyInstance) {
   registerComposerPages(app);
   registerGraphRunnerPages(app);
+  registerBrowserPages(app);
+  registerCampaignPages(app);
   registerTestPatchPages(app);
   registerFindingPages(app);
   const sid = (req: { cookies: Record<string, string | undefined> }) => req.cookies.web_sid;
@@ -56,6 +60,7 @@ export function registerV2Pages(app: FastifyInstance) {
         <label for="v2-oracle">Oracle（已批准标准）</label><input id="v2-oracle" name="oracleSpecId" required placeholder="从 Oracle 列表粘贴 id">
         <button type="submit">启动会话 →</button>
       </form></details>
+      <section class="card"><h2>通用网站测试</h2><p>配置角色与批准操作，在真实页面上逐轮观察和执行。</p><a href="/space/${esc(id)}/browser-task">配置网站自主测试 →</a> · <a href="/space/${esc(id)}/evaluations">效果评测 →</a></section>
       <section class="card"><h2>会话</h2>
       ${rows ? `<table><thead><tr><th>目标</th><th>状态</th><th>构建</th><th>创建时间</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="empty-state">尚无会话。发起第一次自主验收。</div>`}
       </section>`;
@@ -110,6 +115,7 @@ export function registerV2Pages(app: FastifyInstance) {
       ${["QUEUED","PREPARING","RUNNING"].includes(d.session.status) ? `<p class="muted">运行记录每 3 秒更新；暂停或结束后停止刷新。</p><script>setTimeout(()=>location.reload(),3000)</script>` : ""}
       ${d.reportVerdict === "review" && !d.evidenceComplete ? `<p class="error-box">证据缺失或校验失败，当前报告需要复核。历史执行结论仍保留。</p>` : ""}
       ${d.session.result?.checks?`<section class="card"><h2>业务断言</h2><p>业务预期固定在批准版本；操作完成不会直接变成验收通过。</p><ul>${d.session.result.checks.map(c=>`<li><b>${esc(c.verdict)}</b> · ${esc(c.assertionId)} · ${esc(JSON.stringify(c.actual))} ${esc(c.reason??'')}</li>`).join('')}</ul><p><a href="/space/${esc(d.session.projectId)}/findings">查看缺陷与复测 →</a></p></section>`:''}
+      <section class="card"><h2>证据回放</h2><form method="post" action="/v2/sessions/${esc(id)}/replay"><button>回放已记录的组合（不访问目标）</button></form></section>
       <section class="card"><h2>循环阶段（真实事件）</h2>
       ${attempts ? `<table><thead><tr><th>轮次</th><th>阶段</th><th>状态</th><th>决策依据</th></tr></thead><tbody>${attempts}</tbody></table>` : `<div class="empty-state">尚无阶段记录。</div>`}
       </section>
@@ -123,6 +129,10 @@ export function registerV2Pages(app: FastifyInstance) {
     }
   });
 
+  app.post('/v2/sessions/:id/replay',async(req,reply)=>{
+    const s=sid(req);if(!s)return reply.redirect('/login');const {id}=req.params as {id:string};
+    try{const r=await api(`/api/v2/sessions/${encodeURIComponent(id)}/replay`,{sid:s,method:'POST',body:{}});return reply.type('text/html').send(layout('证据回放',`<section class="card"><h1>历史记录回放</h1><p>本次不调用目标或模型，不能代替当前版本重新验收。</p><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(JSON.stringify(r.data,null,2))}</pre></section>`));}catch(e){return reply.code(422).send(layout('回放未完成',`<p class="error-box">${esc((e as Error).message)}</p>`));}
+  });
   for (const action of ["cancel", "pause", "resume"]) app.post(`/v2/sessions/:id/${action}`, async (req, reply) => {
     const s = sid(req);
     if (!s) return reply.redirect("/login");

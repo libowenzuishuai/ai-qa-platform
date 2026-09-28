@@ -100,7 +100,7 @@ it("DOM 观察：testid 文本 + 截图落盘（sha256 一致）；白名单外�
   draftBaseUrl = server.baseUrl;
   // 准备一个草稿。
   const created = await call("synthetic.draft-ops", { op: "create", baseUrl: draftBaseUrl, title: "界面标题甲" });
-  expect(created.status).toBe("SUCCEEDED");
+  expect(created.status,JSON.stringify(created)).toBe("SUCCEEDED");
   const draftId = (created.output as { draft: { id: string } }).draft.id;
 
   const observed = await call("platform.web-observe", {

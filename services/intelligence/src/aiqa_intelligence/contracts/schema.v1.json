@@ -1,6 +1,423 @@
 {
   "$ref": "#/definitions/IntelligenceContracts",
   "definitions": {
+    "BrowserAgentInput": {
+      "type": "object",
+      "properties": {
+        "strategy": {
+          "type": "string",
+          "enum": [
+            "semantic-v1",
+            "model-v1"
+          ],
+          "default": "semantic-v1"
+        },
+        "promptVersion": {
+          "type": "string",
+          "const": "browser-agent-v1"
+        },
+        "goal": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "images": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "role": {
+                "type": "string",
+                "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,79}$"
+              },
+              "tab": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "imageStorageKey": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "checksum": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "role",
+              "tab",
+              "imageStorageKey",
+              "checksum"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 8,
+          "default": []
+        },
+        "hints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "memoryId": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 1500
+              }
+            },
+            "required": [
+              "memoryId",
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 3,
+          "default": []
+        },
+        "observationId": {
+          "type": "string"
+        },
+        "elements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ref": {
+                "type": "string"
+              },
+              "role": {
+                "$ref": "#/definitions/BrowserAgentInput/properties/images/items/properties/role"
+              },
+              "tab": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "frame": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "tag": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "type": {
+                "type": "string"
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "box": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "width": {
+                        "type": "number"
+                      },
+                      "height": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y",
+                      "width",
+                      "height"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "ref",
+              "role",
+              "tab",
+              "frame",
+              "tag",
+              "name",
+              "type",
+              "enabled",
+              "box"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 800
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/definitions/BrowserAgentInput/properties/images/items/properties/role"
+              },
+              "role": {
+                "$ref": "#/definitions/BrowserAgentInput/properties/images/items/properties/role"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "click",
+                  "fill",
+                  "select",
+                  "navigate",
+                  "reload",
+                  "switch_tab",
+                  "wait"
+                ]
+              },
+              "target": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "value": {
+                "type": "string",
+                "maxLength": 4000
+              },
+              "after": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/BrowserAgentInput/properties/images/items/properties/role"
+                },
+                "maxItems": 50,
+                "default": []
+              },
+              "maxUses": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5,
+                "default": 1
+              },
+              "visual": {
+                "type": "boolean",
+                "default": false
+              },
+              "dialog": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "alert",
+                      "confirm",
+                      "prompt"
+                    ]
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "accept",
+                      "dismiss"
+                    ]
+                  },
+                  "promptText": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "type",
+                  "message",
+                  "action"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "role",
+              "kind",
+              "target"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 100
+        },
+        "completed": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/BrowserAgentInput/properties/images/items/properties/role"
+          },
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "promptVersion",
+        "goal",
+        "observationId",
+        "elements",
+        "operations",
+        "completed"
+      ],
+      "additionalProperties": false
+    },
+    "BrowserAgentOutput": {
+      "type": "object",
+      "properties": {
+        "observationId": {
+          "type": "string"
+        },
+        "actionId": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BrowserAgentInput/properties/images/items/properties/role"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "elementRef": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "point": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1280
+                },
+                "y": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 800
+                }
+              },
+              "required": [
+                "x",
+                "y"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "act",
+            "done",
+            "blocked"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      },
+      "required": [
+        "observationId",
+        "actionId",
+        "elementRef",
+        "status",
+        "rationale"
+      ],
+      "additionalProperties": false
+    },
+    "BrowserAgentRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]*$"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "real",
+            "mock"
+          ]
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 600000
+        },
+        "input": {
+          "$ref": "#/definitions/BrowserAgentInput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "timeoutMs",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "BrowserAgentResponse": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "requestId": {
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "real",
+            "mock"
+          ]
+        },
+        "invocations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/InvocationRecord"
+          }
+        },
+        "output": {
+          "$ref": "#/definitions/BrowserAgentOutput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "invocations",
+        "output"
+      ],
+      "additionalProperties": false
+    },
     "CandidateTestsInput": {
       "type": "object",
       "properties": {
@@ -323,26 +740,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "type": "string",
-          "const": "1.0"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/schemaVersion"
         },
         "requestId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._:-]*$"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "type": "string",
-          "enum": [
-            "real",
-            "mock"
-          ]
+          "$ref": "#/definitions/BrowserAgentRequest/properties/mode"
         },
         "timeoutMs": {
-          "type": "integer",
-          "minimum": 1000,
-          "maximum": 600000
+          "$ref": "#/definitions/BrowserAgentRequest/properties/timeoutMs"
         },
         "input": {
           "$ref": "#/definitions/SourceClassificationInput"
@@ -361,24 +768,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "type": "string",
-          "const": "1.0"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "type": "string",
-          "enum": [
-            "real",
-            "mock"
-          ]
+          "$ref": "#/definitions/BrowserAgentResponse/properties/mode"
         },
         "invocations": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/InvocationRecord"
-          }
+          "$ref": "#/definitions/BrowserAgentResponse/properties/invocations"
         },
         "output": {
           "$ref": "#/definitions/SourceClassificationOutput"
@@ -400,10 +799,10 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+              "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
             },
             "caseId": {
-              "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+              "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
             },
             "version": {
               "type": "integer",
@@ -419,7 +818,7 @@
             "ruleVersionIds": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "minItems": 1
             },
@@ -448,7 +847,7 @@
                       "const": "fixture"
                     },
                     "fixtureId": {
-                      "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                      "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                     },
                     "params": {
                       "type": "object",
@@ -494,7 +893,7 @@
                 "type": "object",
                 "properties": {
                   "id": {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   "role": {
                     "type": "string",
@@ -523,7 +922,7 @@
                 "type": "object",
                 "properties": {
                   "id": {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   "description": {
                     "type": "string",
@@ -546,7 +945,7 @@
                     "default": true
                   },
                   "ruleVersionId": {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   "operator": {
                     "type": "string",
@@ -631,7 +1030,7 @@
             "supersedesId": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                 },
                 {
                   "type": "null"
@@ -693,7 +1092,7 @@
                 "type": "object",
                 "properties": {
                   "targetRef": {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   "locator": {
                     "anyOf": [
@@ -783,7 +1182,7 @@
                     "format": "date-time"
                   },
                   "evidenceId": {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   "note": {
                     "type": "string"
@@ -862,7 +1261,7 @@
                 "type": "object",
                 "properties": {
                   "id": {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   "effect": {
                     "type": "string",
@@ -942,7 +1341,7 @@
                 "type": "object",
                 "properties": {
                   "id": {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   "effect": {
                     "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/effect"
@@ -988,7 +1387,7 @@
                             "const": "dataRef"
                           },
                           "ref": {
-                            "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                            "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                           }
                         },
                         "required": [
@@ -1023,7 +1422,7 @@
                             "const": "credential"
                           },
                           "ref": {
-                            "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                            "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                           }
                         },
                         "required": [
@@ -1049,7 +1448,7 @@
                 "type": "object",
                 "properties": {
                   "id": {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   "effect": {
                     "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/effect"
@@ -1077,7 +1476,7 @@
                 "type": "object",
                 "properties": {
                   "id": {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   "effect": {
                     "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/effect"
@@ -1109,7 +1508,7 @@
                 "type": "object",
                 "properties": {
                   "id": {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   "effect": {
                     "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/effect"
@@ -1138,7 +1537,7 @@
                 "type": "object",
                 "properties": {
                   "id": {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   "effect": {
                     "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/effect"
@@ -1171,7 +1570,7 @@
                 "type": "object",
                 "properties": {
                   "id": {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   "effect": {
                     "$ref": "#/definitions/PlanProposalOutput/properties/actions/items/anyOf/0/properties/effect"
@@ -1184,7 +1583,7 @@
                     "const": "assert"
                   },
                   "assertionId": {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   }
                 },
                 "required": [
@@ -1236,16 +1635,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/mode"
         },
         "timeoutMs": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/timeoutMs"
         },
         "input": {
           "$ref": "#/definitions/PlanProposalInput"
@@ -1264,16 +1663,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/mode"
         },
         "invocations": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/invocations"
         },
         "output": {
           "$ref": "#/definitions/PlanProposalOutput"
@@ -1292,7 +1691,7 @@
       "type": "object",
       "properties": {
         "documentVersionId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "format": {
           "type": "string",
@@ -1326,7 +1725,7 @@
             "type": "object",
             "properties": {
               "id": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "kind": {
                 "type": "string",
@@ -1362,10 +1761,10 @@
             "type": "object",
             "properties": {
               "id": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "documentVersionId": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "locator": {
                 "anyOf": [
@@ -1603,7 +2002,7 @@
                 "type": "string"
               },
               "spanId": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               }
             },
             "required": [
@@ -1731,12 +2130,12 @@
                   "type": "object",
                   "properties": {
                     "documentVersionId": {
-                      "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                      "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                     },
                     "sourceSpanIds": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                        "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                       },
                       "minItems": 1
                     }
@@ -1806,7 +2205,7 @@
             "type": "object",
             "properties": {
               "spanId": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "reason": {
                 "type": "string",
@@ -1842,10 +2241,10 @@
             "type": "object",
             "properties": {
               "id": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "ruleId": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "version": {
                 "type": "integer",
@@ -1905,12 +2304,12 @@
                   "type": "object",
                   "properties": {
                     "documentVersionId": {
-                      "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                      "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                     },
                     "sourceSpanIds": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                        "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                       },
                       "minItems": 1
                     }
@@ -1926,7 +2325,7 @@
               "conflictsWith": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                 },
                 "default": []
               },
@@ -1944,7 +2343,7 @@
               "supersedesId": {
                 "anyOf": [
                   {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   {
                     "type": "null"
@@ -2005,12 +2404,12 @@
             "type": "object",
             "properties": {
               "id": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "ruleVersionIds": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                 },
                 "minItems": 1
               },
@@ -2075,7 +2474,7 @@
         "fixtureCapabilities": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+            "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
           },
           "default": []
         },
@@ -2116,7 +2515,7 @@
               "ruleVersionIds": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                 },
                 "minItems": 1
               },
@@ -2235,7 +2634,7 @@
             "type": "object",
             "properties": {
               "ruleVersionId": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "caseCount": {
                 "type": "integer"
@@ -2261,7 +2660,7 @@
             "type": "object",
             "properties": {
               "ruleVersionId": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "reason": {
                 "type": "string",
@@ -2449,7 +2848,7 @@
       "type": "object",
       "properties": {
         "documentVersionId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "format": {
           "$ref": "#/definitions/ParsedDocumentBundle/properties/format"
@@ -2481,16 +2880,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/mode"
         },
         "timeoutMs": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/timeoutMs"
         },
         "input": {
           "$ref": "#/definitions/DocumentParseInput"
@@ -2509,16 +2908,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/mode"
         },
         "invocations": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/invocations"
         },
         "output": {
           "$ref": "#/definitions/ParsedDocumentBundle"
@@ -2537,16 +2936,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/mode"
         },
         "timeoutMs": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/timeoutMs"
         },
         "input": {
           "$ref": "#/definitions/RuleExtractionInput"
@@ -2565,16 +2964,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/mode"
         },
         "invocations": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/invocations"
         },
         "output": {
           "$ref": "#/definitions/RuleExtractionOutput"
@@ -2593,16 +2992,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/mode"
         },
         "timeoutMs": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/timeoutMs"
         },
         "input": {
           "$ref": "#/definitions/CaseGenerationInput"
@@ -2621,16 +3020,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/mode"
         },
         "invocations": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/invocations"
         },
         "output": {
           "$ref": "#/definitions/CaseGenerationOutput"
@@ -2824,10 +3223,10 @@
           "minLength": 1
         },
         "oldDocumentVersionId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "newDocumentVersionId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "format": {
           "$ref": "#/definitions/ParsedDocumentBundle/properties/format"
@@ -2888,7 +3287,7 @@
             "type": "object",
             "properties": {
               "ruleVersionId": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "reason": {
                 "type": "string",
@@ -2900,10 +3299,10 @@
                   "type": "object",
                   "properties": {
                     "documentVersionId": {
-                      "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                      "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                     },
                     "spanId": {
-                      "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                      "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                     }
                   },
                   "required": [
@@ -2934,12 +3333,12 @@
             "type": "object",
             "properties": {
               "caseVersionId": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "viaRuleVersionIds": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                 },
                 "minItems": 1
               },
@@ -3029,16 +3428,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/mode"
         },
         "timeoutMs": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/timeoutMs"
         },
         "input": {
           "$ref": "#/definitions/ChangeReviewAnalysisInput"
@@ -3057,16 +3456,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/mode"
         },
         "invocations": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/invocations"
         },
         "output": {
           "$ref": "#/definitions/ChangeReviewAnalysisOutput"
@@ -3085,7 +3484,7 @@
       "type": "object",
       "properties": {
         "sourceSpanId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "startOffset": {
           "type": "integer",
@@ -3112,7 +3511,7 @@
       "type": "object",
       "properties": {
         "chunkId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "seq": {
           "type": "integer",
@@ -3147,7 +3546,7 @@
                     "const": "span"
                   },
                   "spanId": {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   }
                 },
                 "required": [
@@ -3199,7 +3598,7 @@
       "type": "object",
       "properties": {
         "documentVersionId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "strategyVersion": {
           "type": "string",
@@ -3265,7 +3664,7 @@
       "type": "object",
       "properties": {
         "documentVersionId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "chunkManifestChecksum": {
           "type": "string"
@@ -3305,7 +3704,7 @@
               "chunkId": {
                 "anyOf": [
                   {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   {
                     "type": "null"
@@ -3340,16 +3739,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/mode"
         },
         "timeoutMs": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/timeoutMs"
         },
         "input": {
           "type": "object",
@@ -3409,16 +3808,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/mode"
         },
         "invocations": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/invocations"
         },
         "output": {
           "type": "object",
@@ -3450,12 +3849,12 @@
       "type": "object",
       "properties": {
         "projectId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "ruleVersionIds": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+            "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
           },
           "minItems": 1,
           "maxItems": 500
@@ -3471,7 +3870,7 @@
                 "maxLength": 128
               },
               "ruleVersionId": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "kind": {
                 "type": "string",
@@ -3606,7 +4005,7 @@
                 "maxLength": 128
               },
               "ruleVersionId": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "kind": {
                 "type": "string",
@@ -3639,7 +4038,7 @@
             "type": "object",
             "properties": {
               "ruleVersionId": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "dimension": {
                 "type": "string",
@@ -3678,7 +4077,7 @@
           "default": []
         },
         "id": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "version": {
           "type": "integer",
@@ -3700,7 +4099,7 @@
         "supersedesId": {
           "anyOf": [
             {
-              "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+              "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
             },
             {
               "type": "null"
@@ -3961,10 +4360,10 @@
       "type": "object",
       "properties": {
         "id": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "projectId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "capabilityId": {
           "type": "string"
@@ -4086,7 +4485,7 @@
               "installationId": {
                 "anyOf": [
                   {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   {
                     "type": "null"
@@ -4141,10 +4540,10 @@
           "maxLength": 200
         },
         "id": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "projectId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "key": {
           "type": "string",
@@ -4451,7 +4850,7 @@
                 "type": "object",
                 "properties": {
                   "definitionId": {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   "version": {
                     "type": "integer",
@@ -4491,10 +4890,10 @@
           "default": 4
         },
         "id": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "projectId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "version": {
           "type": "integer",
@@ -4547,10 +4946,10 @@
       "type": "object",
       "properties": {
         "id": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "projectId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "goal": {
           "type": "string",
@@ -4558,21 +4957,21 @@
           "maxLength": 4000
         },
         "oracleSpecId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "oracleHash": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
         },
         "profileId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "profileHash": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
         },
         "definitionId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "definitionVersion": {
           "type": "integer",
@@ -4581,7 +4980,7 @@
         "workflowRunId": {
           "anyOf": [
             {
-              "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+              "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
             },
             {
               "type": "null"
@@ -4590,7 +4989,7 @@
           "default": null
         },
         "environmentId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "buildId": {
           "type": "string",
@@ -4803,13 +5202,13 @@
       "type": "object",
       "properties": {
         "id": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "sessionId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "stepAttemptId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "capabilityId": {
           "type": "string"
@@ -4856,7 +5255,7 @@
       "type": "object",
       "properties": {
         "intentId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "outcome": {
           "type": "string",
@@ -4914,10 +5313,10 @@
       "type": "object",
       "properties": {
         "id": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "intentId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "attemptNo": {
           "type": "integer",
@@ -5027,10 +5426,10 @@
       "type": "object",
       "properties": {
         "id": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "sessionId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "round": {
           "type": "integer",
@@ -5060,7 +5459,7 @@
         "evidenceArtifactIds": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+            "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
           },
           "maxItems": 200,
           "default": []
@@ -5087,12 +5486,12 @@
       "type": "object",
       "properties": {
         "id": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "sessionId": {
           "anyOf": [
             {
-              "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+              "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
             },
             {
               "type": "null"
@@ -5101,7 +5500,7 @@
           "default": null
         },
         "projectId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "retrievalStrategy": {
           "type": "string",
@@ -5133,7 +5532,7 @@
               "documentVersionId": {
                 "anyOf": [
                   {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   {
                     "type": "null"
@@ -5232,13 +5631,13 @@
       "type": "object",
       "properties": {
         "id": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "projectId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "oracleSpecId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "entries": {
           "type": "array",
@@ -5246,7 +5645,7 @@
             "type": "object",
             "properties": {
               "ruleVersionId": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "dimension": {
                 "type": "string",
@@ -5271,7 +5670,7 @@
               "evidenceAttemptId": {
                 "anyOf": [
                   {
-                    "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                    "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                   },
                   {
                     "type": "null"
@@ -5320,15 +5719,15 @@
       "type": "object",
       "properties": {
         "id": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "projectId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "oracleSpecId": {
           "anyOf": [
             {
-              "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+              "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
             },
             {
               "type": "null"
@@ -5339,7 +5738,7 @@
         "ruleVersionId": {
           "anyOf": [
             {
-              "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+              "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
             },
             {
               "type": "null"
@@ -5375,7 +5774,7 @@
             "sessionId": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                 },
                 {
                   "type": "null"
@@ -5386,7 +5785,7 @@
             "attemptId": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                 },
                 {
                   "type": "null"
@@ -5397,7 +5796,7 @@
             "runId": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                 },
                 {
                   "type": "null"
@@ -5408,7 +5807,7 @@
             "evidenceIds": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "maxItems": 100,
               "default": []
@@ -5657,16 +6056,16 @@
       "type": "object",
       "properties": {
         "id": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "projectId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "memoryRecordId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "sessionId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "retrieved": {
           "type": "boolean",
@@ -5723,7 +6122,7 @@
         "contentArtifactId": {
           "anyOf": [
             {
-              "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+              "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
             },
             {
               "type": "null"
@@ -5750,10 +6149,10 @@
           "default": null
         },
         "id": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "projectId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "origin": {
           "type": "object",
@@ -5866,7 +6265,7 @@
             "reportArtifactId": {
               "anyOf": [
                 {
-                  "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                 },
                 {
                   "type": "null"
@@ -5949,13 +6348,13 @@
       "type": "object",
       "properties": {
         "id": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "campaignId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "projectId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "flowId": {
           "type": "string",
@@ -5965,7 +6364,7 @@
         "sessionId": {
           "anyOf": [
             {
-              "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+              "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
             },
             {
               "type": "null"
@@ -6049,7 +6448,7 @@
           "const": "aiqa.capability-rpc/2"
         },
         "invocationId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "deadline": {
           "$ref": "#/definitions/PlanProposalInput/properties/testCase/properties/createdAt"
@@ -6151,16 +6550,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/mode"
         },
         "timeoutMs": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/timeoutMs"
         },
         "input": {
           "$ref": "#/definitions/ContextRetrievalInput"
@@ -6179,16 +6578,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/mode"
         },
         "invocations": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/invocations"
         },
         "output": {
           "$ref": "#/definitions/ContextRetrievalOutput"
@@ -6225,15 +6624,15 @@
             "type": "object",
             "properties": {
               "ruleVersionId": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "documentVersionId": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "sourceSpanIds": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                  "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
                 },
                 "minItems": 1
               }
@@ -6325,7 +6724,7 @@
                 "maxLength": 500
               },
               "documentVersionId": {
-                "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+                "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
               },
               "score": {
                 "anyOf": [
@@ -6376,16 +6775,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/mode"
         },
         "timeoutMs": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/timeoutMs"
         },
         "input": {
           "$ref": "#/definitions/LoopPlannerInput"
@@ -6404,16 +6803,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/mode"
         },
         "invocations": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/invocations"
         },
         "output": {
           "$ref": "#/definitions/LoopPlannerOutput"
@@ -6534,7 +6933,7 @@
         "contextManifestId": {
           "anyOf": [
             {
-              "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+              "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
             },
             {
               "type": "null"
@@ -6759,16 +7158,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/mode"
         },
         "timeoutMs": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/timeoutMs"
         },
         "input": {
           "$ref": "#/definitions/DecisionRequestInput"
@@ -6787,16 +7186,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/mode"
         },
         "invocations": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/invocations"
         },
         "output": {
           "$ref": "#/definitions/DecisionResult"
@@ -7023,16 +7422,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/mode"
         },
         "timeoutMs": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/timeoutMs"
         },
         "input": {
           "$ref": "#/definitions/SnapshotDiffInput"
@@ -7051,16 +7450,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/mode"
         },
         "invocations": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/invocations"
         },
         "output": {
           "$ref": "#/definitions/SnapshotDiffReport"
@@ -7254,16 +7653,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/mode"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/mode"
         },
         "timeoutMs": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/timeoutMs"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/timeoutMs"
         },
         "input": {
           "$ref": "#/definitions/GoalProposalAgentInput"
@@ -7282,16 +7681,16 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/schemaVersion"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/schemaVersion"
         },
         "requestId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "mode": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/mode"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/mode"
         },
         "invocations": {
-          "$ref": "#/definitions/SourceClassificationResponse/properties/invocations"
+          "$ref": "#/definitions/BrowserAgentResponse/properties/invocations"
         },
         "output": {
           "$ref": "#/definitions/GoalProposalAgentOutput"
@@ -7340,7 +7739,7 @@
         "documentVersionId": {
           "anyOf": [
             {
-              "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+              "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
             },
             {
               "type": "null"
@@ -7391,10 +7790,10 @@
       "type": "object",
       "properties": {
         "snapshotId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "repositoryId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "commitSha": {
           "type": "string",
@@ -7595,10 +7994,10 @@
       "type": "object",
       "properties": {
         "oldSnapshotId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "newSnapshotId": {
-          "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+          "$ref": "#/definitions/BrowserAgentRequest/properties/requestId"
         },
         "fileChanges": {
           "type": "array",
@@ -7660,6 +8059,18 @@
     "IntelligenceContracts": {
       "type": "object",
       "properties": {
+        "BrowserAgentInput": {
+          "$ref": "#/definitions/BrowserAgentInput"
+        },
+        "BrowserAgentOutput": {
+          "$ref": "#/definitions/BrowserAgentOutput"
+        },
+        "BrowserAgentRequest": {
+          "$ref": "#/definitions/BrowserAgentRequest"
+        },
+        "BrowserAgentResponse": {
+          "$ref": "#/definitions/BrowserAgentResponse"
+        },
         "CandidateTestsInput": {
           "$ref": "#/definitions/CandidateTestsInput"
         },
@@ -7929,6 +8340,10 @@
         }
       },
       "required": [
+        "BrowserAgentInput",
+        "BrowserAgentOutput",
+        "BrowserAgentRequest",
+        "BrowserAgentResponse",
         "CandidateTestsInput",
         "CandidateTestsOutput",
         "CandidateTestsRequest",

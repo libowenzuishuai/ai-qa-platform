@@ -1,3 +1,5 @@
+import {ArtifactStore} from '@ai-qa/artifact-store';
+import {investigateEvidence} from './v2-investigate.js';
 import type {FastifyInstance,FastifyRequest} from 'fastify';
 import type {PrismaClient} from '@prisma/client';
 import {createHash} from 'node:crypto';
@@ -9,6 +11,33 @@ import {requireV2Evidence} from './v2-evidence.js';
 const hash=(v:unknown)=>createHash('sha256').update(canonicalStringify(v)).digest('hex');
 export function registerV2InvestigationRoutes(app:FastifyInstance,prisma:PrismaClient,artifactDir?:string){
  const id=(req:FastifyRequest)=>(req.params as {id:string}).id;
+
+ app.post('/api/v2/findings/:id/investigate',async req=>{
+  const finding=await prisma.v2Finding.findUnique({where:{id:id(req)}});if(!finding)throw new ApiError('NOT_FOUND','问题不存在');
+  await requireProjectAccess(prisma,req,finding.projectId,'LEAD');
+  if(!artifactDir)throw new ApiError('DEPENDENCY_UNAVAILABLE','证据目录未配置');
+  const first=finding.firstFailure as {sessionId?:string;evidenceIds:string[]};
+  if(!first.sessionId)throw new ApiError('CONFLICT','缺少原始运行，不能自动调查');
+  const session=await prisma.v2ExecutionSession.findFirst({where:{id:first.sessionId,projectId:finding.projectId,status:{in:['COMPLETED','FAILED']}}});
+  if(!session)throw new ApiError('CONFLICT','原始运行不存在或尚未结束');
+  const observations=await prisma.v2Observation.findMany({where:{sessionId:session.id},orderBy:{observedAt:'asc'},take:500});
+  const ids=[...new Set([...first.evidenceIds,...observations.flatMap(o=>o.evidenceArtifactIds)])];
+  await requireV2Evidence(prisma,finding.projectId,ids,artifactDir);
+  const store=new ArtifactStore(artifactDir),records=[];
+  for(const observation of observations)for(const id of observation.evidenceArtifactIds){
+    const artifact=await prisma.artifact.findUniqueOrThrow({where:{id}});if(artifact.type==='SCREENSHOT')continue;
+    const bytes=store.read(artifact.storageKey);if(bytes.length>4*1024*1024)continue;
+    try{records.push({id,source:observation.source,body:JSON.parse(bytes.toString())});}catch{/* Non-JSON evidence is retained but cannot support structured diagnosis. */}
+  }
+  const report=investigateEvidence(records);
+  await prisma.$transaction(async tx=>{
+    await tx.$queryRaw`SELECT id FROM "V2Finding" WHERE id=${finding.id} FOR UPDATE`;
+    const fresh=await tx.v2Finding.findUniqueOrThrow({where:{id:finding.id}});
+    if(['rejected','fix_verified'].includes(fresh.status))throw new ApiError('CONFLICT','已关闭问题不能被调查覆盖');
+    await tx.v2Finding.update({where:{id:finding.id},data:{status:'investigating',hypotheses:report.hypotheses}});
+    await tx.auditEvent.create({data:{actorId:requireAuth(req).userId,action:'v2.finding.investigate',entityType:'V2Finding',entityId:finding.id,metadata:{...report,sessionId:session.id,evidenceIds:ids} as never}});
+  });return report;
+ });
  app.post('/api/v2/findings/:id/verify-session',async req=>{
   const finding=await prisma.v2Finding.findUnique({where:{id:id(req)}});if(!finding)throw new ApiError('NOT_FOUND','问题不存在');
   await requireProjectAccess(prisma,req,finding.projectId,'LEAD');

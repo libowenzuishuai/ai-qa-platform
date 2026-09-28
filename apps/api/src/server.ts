@@ -1,3 +1,5 @@
+import {registerV2ReplayRoutes} from './routes-v2-replay.js';
+import {registerV2CampaignRoutes} from './routes-v2-campaigns.js';
 import {registerV2TestPatchRoutes} from "./routes-v2-test-patches.js";
 import {registerV2InvestigationRoutes} from "./routes-v2-investigation.js";
 import {registerGithubRoutes} from './routes-github.js';
@@ -112,6 +114,8 @@ export async function buildServer() {
   registerV2MemoryRoutes(app,prisma,process.env.AIQA_ARTIFACT_DIR);
   registerV2FindingRoutes(app,prisma,process.env.AIQA_ARTIFACT_DIR);
   registerV2InvestigationRoutes(app,prisma,process.env.AIQA_ARTIFACT_DIR);
+  registerV2CampaignRoutes(app,prisma,process.env.AIQA_ARTIFACT_DIR);
+  registerV2ReplayRoutes(app,prisma,process.env.AIQA_ARTIFACT_DIR);
   registerV2DefinitionRoutes(app,prisma);
   registerV2ProfileRoutes(app,prisma,agentJobsQueue);
   registerV2TestPatchRoutes(app,prisma,{artifactDir:process.env.AIQA_ARTIFACT_DIR??"data/artifacts",intelligenceUrl:process.env.AIQA_INTELLIGENCE_URL,intelligenceToken:process.env.AIQA_INTELLIGENCE_TOKEN});

@@ -14,6 +14,7 @@ from .agents.planner import propose_plan, classify_sources
 from .agents.goal import propose_goal
 from .agents.context_retrieval import retrieve as retrieve_context
 from .agents.loop_planner import plan_next
+from .agents.browser_agent import propose as propose_browser
 from .agents.decision import decide as decide_baseline
 from .doc_ingestion.service import DocumentParser
 from .doc_ingestion.chunking import ChunkLimit, chunk_bundle, coverage_report
@@ -155,6 +156,7 @@ def create_app(
             "goal": "GoalProposalAgent",
             "context": "ContextRetrieval",
             "loop_plan": "LoopPlanner",
+            "browser_agent": "BrowserAgent",
             "decide": "Decision",
             "candidate_tests": "CandidateTests",
         }
@@ -224,6 +226,7 @@ def create_app(
             "goal": propose_goal,
             "context": retrieve_context_agent,
             "loop_plan": plan_next,
+            "browser_agent": propose_browser,
             "decide": decide_agent,
             "candidate_tests": propose_candidate_tests,
         }
@@ -286,6 +289,10 @@ def create_app(
     @app.post("/v2/decide")
     async def decide_route(request: Request):
         return await invoke(request, "decide")
+
+    @app.post("/v2/browser/plan")
+    async def browser_plan(request: Request):
+        return await invoke(request, "browser_agent")
 
     @app.post("/v2/loop/plan")
     async def loop_plan(request: Request):

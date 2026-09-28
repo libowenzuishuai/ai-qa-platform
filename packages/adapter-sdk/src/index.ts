@@ -11,6 +11,8 @@ export type { SchemaValidation };
  */
 
 export interface CapabilityContext {
+  /** Host-owned per-execution browser; adapters cannot create/cross another session. */
+  browser?: import('./browser-harness.js').BrowserHarness;
   /** Trusted host-owned evidence directory, never model/task supplied. */
   artifactDir?: string;
   /** 取消信号（协作式取消；不支持取消的能力应尽快结束）。 */

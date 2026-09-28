@@ -1,0 +1,82 @@
+{
+  "date": "2026-09-28",
+  "branch": "v2/autonomous-qa",
+  "baseline": "ec6c71e584c99faf151cba88189fb4488babbf8b",
+  "releaseStatus": "development_preview",
+  "mergedToMain": false,
+  "paidModelCalls": 0,
+  "fixtureProvenance": "synthetic business scenarios; real Chromium, PostgreSQL, HTTP, Python processes",
+  "checks": [
+    {
+      "name": "contracts",
+      "log": "/tmp/aiqa-autonomy-contracts-final.log",
+      "sha256": "6fb4eca1b9205b59b5547fa4ca5099e46ecf60258bc3b05e7be9df8d6f1ce5b7",
+      "passed": 310,
+      "skipped": 0
+    },
+    {
+      "name": "api",
+      "log": "/tmp/aiqa-autonomy-api-final2.log",
+      "sha256": "139a1a91f9996672211130d87ca48d0a6af6c3bfa21b3c1a0e4dfc42b9112ae8",
+      "passed": 122,
+      "skipped": 2
+    },
+    {
+      "name": "worker_v2",
+      "log": "/tmp/aiqa-autonomy-worker-final4.log",
+      "sha256": "83765d7b430d910565ea4d0255f25b3bcaa83c9725663a170694dd630f5a3e56",
+      "passed": 102,
+      "skipped": 0
+    },
+    {
+      "name": "python",
+      "log": "/tmp/aiqa-autonomy-python-final.log",
+      "sha256": "ce6e7959299583dbdb97a323ca25cb161de8edb3048250f5535ddffbb6d1c2a5",
+      "passed": 411,
+      "skipped": 0
+    },
+    {
+      "name": "typecheck",
+      "log": "/tmp/aiqa-autonomy-typecheck-final.log",
+      "sha256": "7cd18090d4f68bfa3bb2197054c980ae7d60bafde071036c588d533ef725e218",
+      "exitCode": 0
+    },
+    {
+      "name": "api_build",
+      "log": "/tmp/aiqa-autonomy-api-build.log",
+      "sha256": "05d711dbc543344c5f4b35b12456e466fb26be52c90f7a7ff4c62e78768d8616",
+      "exitCode": 0
+    },
+    {
+      "name": "worker_build",
+      "log": "/tmp/aiqa-autonomy-worker-build.log",
+      "sha256": "3f8695b2b9a1b77e26e5946d49dec9cebfdcb07b7959873896d2dc3516019853",
+      "exitCode": 0
+    },
+    {
+      "name": "web_build",
+      "log": "/tmp/aiqa-autonomy-web-build.log",
+      "sha256": "eb5af9681d2375169cf8e55cf8fa3aa9b1a9dbf7b3e688d87738aa3edbf37a78",
+      "exitCode": 0
+    },
+    {
+      "name": "contract_generation_check",
+      "log": "/tmp/aiqa-autonomy-contract-check-final.log",
+      "sha256": "40e71729c8c4d00c8ac86e97f90085a661fe9d3cf7439af21592a97c8a7974be",
+      "exitCode": 0
+    }
+  ],
+  "notVerified": [
+    "paid Kimi and visual effectiveness",
+    "three authorized real projects and independent QA truth",
+    "production images containing this increment",
+    "all general websites / upload-download / live MFA takeover",
+    "deep code/log root cause and reproduction minimization"
+  ],
+  "knownIntermediateFailures": [
+    {
+      "log": "/tmp/aiqa-autonomy-worker-final.log",
+      "resolution": "Replaced stale networkidle lifecycle check with per-action per-role request tracking; retained failure log; full suite passed after correction"
+    }
+  ]
+}

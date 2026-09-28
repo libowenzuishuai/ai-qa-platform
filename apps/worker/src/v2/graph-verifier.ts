@@ -33,6 +33,7 @@ export function verifyGraphAssertions(oracle:OracleSpec,bindings:Record<string,{
   return oracle.assertions.map(assertion=>{
     const binding=bindings[assertion.id],node=nodes.find(n=>n.nodeId===binding?.nodeId);
     if(!binding||!node||node.status!=='completed')return {assertionId:assertion.id,ruleVersionId:assertion.ruleVersionId,verdict:'review',reason:'观察未完成',actual:null};
+    if(assertion.allowedRoles.length&&(!node.output||typeof node.output!=='object'||!assertion.allowedRoles.includes((node.output as {role:string}).role)))return {assertionId:assertion.id,ruleVersionId:assertion.ruleVersionId,verdict:'review',reason:'观察角色与标准不符',actual:null};
     let value:unknown=node.output;
     for(const part of binding.path.split('.'))value=value!==null&&typeof value==='object'&&Object.hasOwn(value,part)?(value as Record<string,unknown>)[part]:undefined;
     const passed=evaluate(assertion,value);

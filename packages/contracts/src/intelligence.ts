@@ -74,3 +74,7 @@ export const ChunkingResponse = responseBase.extend({ output: ChunkingOutput });
 /** R02：快照对比（确定性，不调用模型）。 */
 export const SnapshotCompareRequest = requestBase.extend({ input: SnapshotDiffInput });
 export const SnapshotCompareResponse = responseBase.extend({ output: SnapshotDiffReport });
+
+import {BrowserAgentInput,BrowserAgentOutput} from './v2/browser-agent.js';
+export const BrowserAgentRequest=requestBase.extend({input:BrowserAgentInput});
+export const BrowserAgentResponse=responseBase.extend({output:BrowserAgentOutput});

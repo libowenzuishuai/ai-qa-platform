@@ -190,7 +190,7 @@ export async function processAgentJob(
       await runChunkExtract(prisma,store,job,config,commitJob);
     } else if(job.kind === "V2_GRAPH_SESSION") {
       const request=job.request as unknown as {sessionId:string;snapshot:GraphSnapshot};
-      const result=await runGraphSession({prisma,...request,artifactDir:config.artifactDir,signal:config.executionSignal});
+      const result=await runGraphSession({prisma,...request,artifactDir:config.artifactDir,signal:config.executionSignal,intelligence:config.intelligenceUrl&&config.intelligenceToken?{url:config.intelligenceUrl,token:config.intelligenceToken}:undefined});
       await commitJob(prisma,job,async tx=>{await tx.job.update({where:{id:job.id},data:{status:"SUCCEEDED",result:result as never,finishedAt:new Date()}});});
     } else if(job.kind === "V2_SESSION_LOOP") {
       const request = job.request as { sessionId: string; baseUrl: string; planner: "script" | "python-real"; maxRounds?: number };

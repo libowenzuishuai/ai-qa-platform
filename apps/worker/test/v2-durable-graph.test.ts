@@ -4,7 +4,7 @@ import {beforeAll,afterAll,it,expect} from 'vitest';
 import Fastify from 'fastify';
 import {createServer} from 'node:http';
 import {randomUUID} from 'node:crypto';
-import {rmSync,writeFileSync} from 'node:fs';
+import {rmSync,writeFileSync,mkdirSync} from 'node:fs';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {join} from 'node:path';
@@ -29,7 +29,7 @@ beforeAll(async()=>{
  const user=await env.prisma.user.create({data:{username:randomUUID(),displayName:'lead',passwordHash:'unused',platformRole:'LEAD'}});
  projectId=(await env.prisma.project.create({data:{name:'durable',memberships:{create:{userId:user.id,role:'ADMIN'}}}})).id;
  app.addHook('onRequest',async req=>{req.auth={userId:user.id,username:user.username,displayName:user.displayName,platformRole:'LEAD'};});
- registerJobRoutes(app,env.prisma,queue);registerV2InvestigationRoutes(app,env.prisma,env.artifactDir);registerV2CapabilityRoutes(app,env.prisma);registerV2DefinitionRoutes(app,env.prisma);registerV2ProfileRoutes(app,env.prisma,queue);registerV2SessionRoutes(app,env.prisma,queue,{artifactDir:env.artifactDir});registerBuiltinSamples();
+ registerJobRoutes(app,env.prisma,queue);registerV2InvestigationRoutes(app,env.prisma,env.artifactDir);registerV2CapabilityRoutes(app,env.prisma);registerV2DefinitionRoutes(app,env.prisma);registerV2ProfileRoutes(app,env.prisma,queue,env.artifactDir);registerV2SessionRoutes(app,env.prisma,queue,{artifactDir:env.artifactDir});registerBuiltinSamples();
  server=createServer((_req,res)=>{if(_req.url==='/build'){res.setHeader('content-type','application/json');res.end(JSON.stringify({buildId:probeBuildId}));return;}hits++;if(hits===holdAfter){holdReached=true;return;}res.writeHead(status).end('actual business response');});await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));baseUrl=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
  environmentId=(await env.prisma.environment.create({data:{projectId,name:'test',baseUrl,allowedOrigins:[baseUrl],runtime:{buildProbe:{path:'/build',field:'buildId'}}}})).id;
  installationId=(await app.inject({method:'POST',url:`/api/v2/projects/${projectId}/capabilities/install`,payload:{manifest:HttpReadManifest}})).json().installationId;
@@ -145,3 +145,55 @@ it('browser screenshots are registered as owned evidence and missing bytes degra
  expect(env.store.verify(screenshot.storageKey,screenshot.checksum)).toBe(true);rmSync(join(env.artifactDir,screenshot.storageKey));
  expect((await app.inject({url:`/api/v2/sessions/${request.sessionId}`})).json().reportVerdict).toBe('review');
 },30000);
+
+it('automatic evidence investigation keeps support and counterevidence; tampered evidence blocks it',async()=>{
+ status=500;const {request}=await create({buildId:'automatic-investigation'});try{
+  await run(request);const finding=await env.prisma.v2Finding.findFirstOrThrow({where:{projectId,buildId:'automatic-investigation'}});
+  expect((finding.hypotheses as Array<{status:string}>).some(h=>h.status==='supported')).toBe(true);
+  const response=await app.inject({method:'POST',url:`/api/v2/findings/${finding.id}/investigate`});expect(response.statusCode,response.body).toBe(200);expect(response.json().hypotheses[0].supportingEvidence.length).toBeGreaterThan(0);
+  const original=finding.firstFailure as {evidenceIds:string[]};const artifact=await env.prisma.artifact.findUniqueOrThrow({where:{id:original.evidenceIds[0]}});rmSync(join(env.artifactDir,artifact.storageKey));
+  expect((await app.inject({method:'POST',url:`/api/v2/findings/${finding.id}/investigate`})).statusCode).toBe(409);
+ }finally{status=200;}
+});
+
+it('evaluation freezes denominators, enrolls before execution, preserves first failure and exposes missing costs',async()=>{
+ const {registerV2CampaignRoutes}=await import('../../api/src/routes-v2-campaigns.js');const api=Fastify();api.setErrorHandler((e,q,r)=>sendApiError(q,r,e));
+ const member=await env.prisma.projectMembership.findFirstOrThrow({where:{projectId,role:'ADMIN'}});const user=await env.prisma.user.findUniqueOrThrow({where:{id:member.userId}});
+ api.addHook('onRequest',async req=>{req.auth={userId:user.id,username:user.username,displayName:user.displayName,platformRole:'LEAD'};});registerV2CampaignRoutes(api,env.prisma,env.artifactDir);
+ try{
+  const source=env.store.put({runId:'evaluation-fixture',attemptId:'truth',filename:'frozen.json',data:Buffer.from('{"kind":"synthetic","truth":"HTTP status must equal 200"}')});
+  const ref=await env.prisma.artifact.create({data:{projectId,storageKey:source.storageKey,checksum:source.checksum,type:'OBSERVATION',sensitivity:'RESTRICTED_RAW'}});
+  const oracle=await env.prisma.v2OracleSpec.findUniqueOrThrow({where:{id:oracleSpecId}}),profile=await env.prisma.v2HarnessProfile.findUniqueOrThrow({where:{id:profileId}});
+  const flow={buildId:'declared-test',oracleHash:oracle.oracleHash,profileHash:profile.contentHash,expected:'pass',assertionId:'status',defectId:null,sourceEvidenceIds:[ref.id],manualBaselineMinutes:4};
+  const freeze=await api.inject({method:'POST',url:`/api/v2/projects/${projectId}/campaigns`,payload:{name:'synthetic campaign',sampleKind:'synthetic',authorizationEvidenceIds:[ref.id],flows:[{...flow,id:'health'},{...flow,id:'unrun'}]}});expect(freeze.statusCode,freeze.body).toBe(201);const campaignId=freeze.json().campaignId;
+  const first=await create({evaluation:{campaignId,flowId:'health'}});
+  expect(await env.prisma.auditEvent.count({where:{entityType:'V2EvaluationCampaign',entityId:campaignId,action:'v2.campaign.enroll'}})).toBe(1);
+  expect(JSON.stringify(first.request)).not.toContain(campaignId); // truth metadata never reaches worker
+  expect((await api.inject({url:`/api/v2/projects/${projectId}/campaigns`})).json().campaigns[0].id).toBe(campaignId);
+  status=500;await run(first.request);status=200;
+  expect((await api.inject({method:'POST',url:`/api/v2/campaigns/${campaignId}/enroll`,payload:{flowId:'health',sessionId:first.request.sessionId}})).json().existed).toBe(true);
+  const record=await api.inject({method:'POST',url:`/api/v2/campaigns/${campaignId}/record`,payload:{sessionId:first.request.sessionId,humanInterventionMinutes:0}});expect(record.statusCode,record.body).toBe(200);expect(record.json().firstResult).toBe('false_positive');
+  const second=await create();expect((await api.inject({method:'POST',url:`/api/v2/campaigns/${campaignId}/enroll`,payload:{flowId:'health',sessionId:second.request.sessionId}})).statusCode).toBe(200);await run(second.request);
+  expect((await api.inject({method:'POST',url:`/api/v2/campaigns/${campaignId}/record`,payload:{sessionId:second.request.sessionId,humanInterventionMinutes:0}})).json().firstResult).toBe('pass_correct');
+  const report=(await api.inject({url:`/api/v2/campaigns/${campaignId}`})).json();expect(report.metrics.completion).toMatchObject({numerator:0,denominator:2});expect(report.firstAttempts[0].result).toBe('false_positive');expect(report.firstAttempts[1].result).toBe('unknown');expect(report.metrics.unknownCostTrials).toBe(2);expect(report.releaseEligible).toBe(false);
+  const count=await env.prisma.v2ExecutionSession.count({where:{projectId}});
+  const invalid=await app.inject({method:'POST',url:`/api/v2/projects/${projectId}/graph-sessions`,payload:{...first.body,idempotencyKey:randomUUID(),evaluation:{campaignId,flowId:'missing'}}});expect(invalid.statusCode).toBe(422);expect(await env.prisma.v2ExecutionSession.count({where:{projectId}})).toBe(count);
+  const late=await create();await run(late.request);expect((await api.inject({method:'POST',url:`/api/v2/campaigns/${campaignId}/enroll`,payload:{flowId:'unrun',sessionId:late.request.sessionId}})).statusCode).toBe(409);
+  const {registerCampaignPages}=await import('../../web/src/v2-campaigns.js'),{chromium}=await import('playwright');
+  const oldApi=process.env.API_BASE_URL,web=Fastify();await web.register((await import('@fastify/cookie')).default);await web.register((await import('@fastify/formbody')).default);registerCampaignPages(web);
+  process.env.API_BASE_URL=await api.listen({host:'127.0.0.1',port:0});const webUrl=await web.listen({host:'127.0.0.1',port:0}),browser=await chromium.launch();
+  try{const context=await browser.newContext({viewport:{width:1440,height:1000}});await context.addCookies([{name:'web_sid',value:'eval-ui',url:webUrl}]);const page=await context.newPage(),errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+   expect((await page.goto(webUrl+`/space/${projectId}/evaluations`))?.status()).toBe(200);await page.getByText('冻结一个新评测批次',{exact:true}).click();await page.getByRole('button',{name:'＋ 添加流程'}).click();expect(await page.locator('.eval-row').count()).toBe(2);
+   expect((await page.goto(webUrl+`/v2/evaluations/${campaignId}`))?.status()).toBe(200);expect(await page.getByRole('heading',{name:'冻结流程与首次结果'}).count()).toBe(1);expect(await page.getByText('健康误报',{exact:false}).count()).toBeGreaterThan(0);
+   const path=fileURLToPath(new URL('../../../docs/evidence/v2-ui/',import.meta.url));mkdirSync(path,{recursive:true});await page.screenshot({path:join(path,'evaluation-desktop.png'),fullPage:true});await page.setViewportSize({width:390,height:844});await page.screenshot({path:join(path,'evaluation-mobile.png'),fullPage:true});expect(errors).toEqual([]);
+  }finally{await browser.close();await web.close();if(oldApi===undefined)delete process.env.API_BASE_URL;else process.env.API_BASE_URL=oldApi;}
+
+ }finally{status=200;await api.close();}
+});
+
+it('graph preflight checks frozen profile with zero target calls and no extra session or job',async()=>{
+ const {body}=await create(),before=hits,sessions=await env.prisma.v2ExecutionSession.count(),jobs=await env.prisma.job.count();
+ const result=await app.inject({method:'POST',url:`/api/v2/projects/${projectId}/graph-preflight`,payload:body});
+ expect(result.statusCode,result.body).toBe(200);expect(result.json()).toMatchObject({mode:'dry-run',externalCalls:0,createsSession:false,graph:{status:'completed'}});
+ expect(hits).toBe(before);expect(await env.prisma.v2ExecutionSession.count()).toBe(sessions);expect(await env.prisma.job.count()).toBe(jobs);
+});

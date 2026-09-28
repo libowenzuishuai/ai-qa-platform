@@ -9,7 +9,10 @@
     ".": "./src/index.ts",
     "./samples/http-checker": "./src/samples/http-checker.ts",
     "./samples/draft-ops": "./src/samples/draft-ops.ts",
-    "./samples/web-observe": "./src/samples/web-observe.ts"
+    "./samples/web-observe": "./src/samples/web-observe.ts",
+    "./browser-harness": "./src/browser-harness.ts",
+    "./samples/browser-agent": "./src/samples/browser-agent.ts",
+    "./graph-kernel": "./src/graph-kernel.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

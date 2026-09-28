@@ -9,3 +9,4 @@ export * from "./remote.js";
 export * from "./context-retrieval.js";
 export * from "./loop-planner.js";
 export * from "./model-routes.js";
+export * from './browser-agent.js';

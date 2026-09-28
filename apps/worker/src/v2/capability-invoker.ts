@@ -22,6 +22,7 @@ import type { SecretRefs } from "../credentials.js";
  */
 
 export interface InvokeInput {
+  browser?: import('@ai-qa/adapter-sdk/browser-harness').BrowserHarness;
   prisma: PrismaClient;
   projectId: string;
   capabilityId: string;
@@ -129,6 +130,7 @@ export async function invokeCapability(args: InvokeInput): Promise<CapabilityRes
   if(manifest.permissions.network === "declared-origins-only") allowedOrigins=allowedOrigins.filter(x=>manifest.permissions.declaredOrigins.includes(x));
   const timeoutMs = Math.max(1, Math.min(args.deadline - Date.now(), manifest.timeoutMsMax));
   const ctx: CapabilityContext = {
+    browser:args.browser,
     artifactDir: args.artifactDir,
     signal: args.signal,
     deadline: Date.now() + timeoutMs,

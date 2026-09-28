@@ -8,7 +8,7 @@
 |---|---|---|---|
 | 合成 HTTP 系统（Node http） | ✅ | VERIFIED（v2 会话循环/观察/交叉核验全链测试） | synthetic 显式标记 |
 | 真实 Chromium 观察 | ✅ | VERIFIED（platform.web-observe@1.0.1：连接层代理/宿主证据目录/DOM testid+截图 sha256） | Playwright 固定版本 |
-| 真实 Chromium 执行（写操作） | ⚠️ experimental | 复用 v1 executor（test-runtime）；v2 循环尚未接写型浏览器动作 | W05 后续 |
+| 真实 Chromium 执行（写操作） | ⚠️ experimental | v2 已接批准操作目录、Python 规划、独立角色和读取判定；合成三构建通过 | W05 后续 |
 | 远程 HTTP 能力 | ✅ | VERIFIED（example.data-reconcile 独立 Python 进程） | redirect 全拒+32MiB 上限 |
 | Node 工程检查 | ✅（v1 继承） | VERIFIED（self-hosted-runner 19/19） | npm 锁文件；pnpm 项目 unsupported |
 | Python 工程检查 | ✅（v1 继承） | VERIFIED | requirements.txt |
@@ -30,7 +30,7 @@
 | 角色 | 基线 | 状态 |
 |---|---|---|
 | Generator | moonshot（正式通道）/ mock 确定性 | 通道 VERIFIED；loop-planner 已接 |
-| Vision | moonshot vision | v1 验证；v2 未接视觉动作 |
+| Vision | moonshot vision | v2 视觉动作管线与区域限制已接；本轮未调用付费视觉模型 |
 | Decision | 确定性关键词基线 | VERIFIED（TS+Python 双端 8/8） |
 | Jev | 未接 | 未验（缺官方协议资料/账号） |
 
@@ -58,3 +58,11 @@
 - 本轮镜像/安装/升级验收按 [最新机器记录](delivery/evidence/v2-integrated-verification.json) 判定，历史 1.0 通过不自动覆盖新版本。
 
 详细入口、版本和限制：[集成交付记录](delivery/v2-integrated-delivery-20260928.md)。
+
+## 网站自主增量（2026-09-28）
+
+当前能力、实测边界、UI 入口和未完成项以 [本轮交付](delivery/v2-browser-autonomy-20260928.md) 为准。通用上传/下载、MFA 实时接管、最小化复现、完整模型版本路由和真实项目效果仍未验收，不标支持。
+
+- 浏览器原生弹窗：精确类型/文案/处理方式逐操作授权，真实 confirm 正反例通过；上传下载与 MFA 现场接管仍未完成。
+- 组合演练：页面已接入零外部调用图演练，依赖工具实际输出的分支保持无法解析；不代表业务已验收。
+- 效果评测：管理员页面、冻结样本、运行创建时原子登记、首次结果统计已接；真实三项目试点及费用计量仍未完成。
