@@ -21,3 +21,5 @@ python3 tools/release-acceptance/run.py
 产物在 `data/pilot-evidence/production-release-<随机项目>.json`，包含代码提交、未提交 diff 哈希、镜像 ID、备份哈希、运行 ID 和每个实际步骤；`production-release.json` 仅为最新副本。失败尝试独立保留，cleanupErrors 不为空不能作为干净通过。凭据只在权限 0600 的临时文件内，日志屏蔽其值。
 
 夹具属于 synthetic，只证明安装/升级/证据恢复和真实浏览器组件，不能算第二真实业务项目或实际大模型验收。`container-fixture.ts` 仅复制到一次性验收容器，不进入生产镜像。
+
+2.0 增量检查还会在真实 API→Python 服务中生成并批准候选测试，将升级后的 V2 数据与文件另做一次备份，恢复到第三个独立库和证据卷后核对审核状态、测试文件哈希和旧报告。此步骤不执行模型调用，也不改变开发库。

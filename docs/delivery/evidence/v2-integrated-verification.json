@@ -48,7 +48,24 @@
     }
   ],
   "productionImages": {
-    "status": "BUILDING_AND_ACCEPTANCE_PENDING"
+    "status": "VERIFIED_ARM64",
+    "sourceCommit": "39bc6d5a750839aa00a6ccfd09a4039d8c5c850f",
+    "record": "docs/delivery/evidence/v2-production-release.json",
+    "imageIds": {
+      "aiqa-prod-r04-api:latest": "sha256:73e6b66f72dd0dd8be822596321a335ccc166f36ae0019b1ec366503123fec23",
+      "aiqa-prod-r04-seed:latest": "sha256:7fc5116614dc382f756d9161b8c2948a8b194814d3a00f07b0dc97eaf3f3d6ac",
+      "aiqa-prod-r04-worker:latest": "sha256:2828f1316c37d3312d2e935977b98c34ee8064cd0599f4c77fe9c5c0f0801c92",
+      "aiqa-api:v2-review": "sha256:636bbbc4ff3fcad88cfa1ed15f3c44c75ab6bd2e6ec4eb8fa37f369b8453ae11",
+      "aiqa-worker:v2-review": "sha256:e736c65f2f8bc89f847069093f58d3b6eec2e803f16bba142f43c1e537df5be1",
+      "aiqa-web:v2-review": "sha256:f10bbc47228b22440ee84be548cd4abbc7fdb4c4b31afe3cf80b59dd0736614c",
+      "aiqa-intelligence:v2-review": "sha256:147b60c1f4e99646c25ba195ff8c89317768295417aead5fc8d84afc4cba85cd"
+    },
+    "steps": 9,
+    "cleanupErrors": [],
+    "limitations": [
+      "Synthetic business fixture; not a real pilot or paid model evaluation",
+      "amd64 and Windows not verified"
+    ]
   },
   "syntheticEvidence": [
     "Node/Python same generated patch healthy/defect/fix: six disposable containers",
@@ -61,5 +78,6 @@
     "Three authorized projects and independent QA evaluation not provided",
     "GitHub App live integration and optional Jev protocol/credentials not provided"
   ],
-  "remainingCode": "See docs/delivery/v2-integrated-delivery-20260928.md; universal browser autonomy, strategy composition, investigation depth and full UX are still incomplete."
+  "remainingCode": "See docs/delivery/v2-integrated-delivery-20260928.md; universal browser autonomy, strategy composition, investigation depth and full UX are still incomplete.",
+  "implementationCommit": "39bc6d5"
 }

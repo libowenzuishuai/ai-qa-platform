@@ -86,3 +86,12 @@ MCP 依据：[官方 Streamable HTTP 规范](https://modelcontextprotocol.io/spe
 ## 核验记录
 
 机器可读记录：`docs/delivery/evidence/v2-integrated-verification.json`。测试数字有交叉，不能相加包装成业务检出率。新增浏览器截图位于 `docs/evidence/v2-ui/`，均为隔离合成项目。
+
+### 本轮最终实测
+
+- 契约 306/306；最终 API 124/124；最终 V2 worker 87/87；Web SSR 1/1。
+- Python intelligence + runner 离线回归 423 passed / 17 skipped。
+- Worker 全量 208 passed / 7 skipped（最后截图、数值验证、导航变化由最终 V2 87 项再次覆盖）。
+- 全仓 typecheck、TS/Python 生成物一致性通过。测试计数有交叉，不能相加。
+- 四个镜像由实际最终源码构建，ARM64 隔离升级验收九个步骤全部通过；六个服务健康；旧版/新版真实 Chromium 执行；旧库备份恢复与 V2 补丁/审核状态恢复均验证，清理错误为零。镜像 ID 和源码提交见 `evidence/v2-production-release.json`。
+- 未部署到日常环境，未调用付费模型；新增迁移尚需由目标环境执行。
