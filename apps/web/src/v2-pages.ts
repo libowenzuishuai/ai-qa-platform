@@ -86,6 +86,7 @@ export function registerV2Pages(app: FastifyInstance) {
     try {
       const res = await api(`/api/v2/sessions/${encodeURIComponent(id)}`, { sid: s });
       const d = res.data as {
+        reportVerdict?: string; evidenceComplete?: boolean;
         session: { result?: { verdict: string }; id: string; goal: string; status: string; terminationReason: string | null; projectId: string; buildId: string };
         attempts: Array<{ round: number; phase: string; status: string; rationale: string | null }>;
         intents: Array<{ id: string; idempotencyKey: string; createdAt: string }>;
@@ -97,9 +98,10 @@ export function registerV2Pages(app: FastifyInstance) {
       const invocations = d.invocations.map((v) => `<tr><td><code>${esc(v.intentId.slice(-8))}</code></td><td>#${v.attemptNo}</td><td>${esc(v.status)}</td><td>${esc(v.receipt?.outcome ?? "")}</td></tr>`).join("");
       const body = `
       <div class="page-heading"><div><span class="eyebrow">SESSION</span><h1>${esc(d.session.goal.slice(0, 50))}</h1>
-      <p>状态 <b>${esc(d.session.status)}</b> · 验收结论 <b>${esc(d.session.result?.verdict ?? "尚未判定")}</b> · 构建（已声明，未验证）${esc(d.session.buildId)}${d.session.terminationReason ? ` · 结束原因：${esc(d.session.terminationReason)}` : ""}</p></div>
+      <p>状态 <b>${esc(d.session.status)}</b> · 验收结论 <b>${esc(d.reportVerdict ?? d.session.result?.verdict ?? "尚未判定")}</b> · 构建（已声明，未验证）${esc(d.session.buildId)}${d.session.terminationReason ? ` · 结束原因：${esc(d.session.terminationReason)}` : ""}</p></div>
       <div>${["QUEUED","RUNNING"].includes(d.session.status) ? `<form method="post" action="/v2/sessions/${esc(id)}/pause"><button type="submit">暂停</button></form>` : d.session.status === "PAUSED" ? `<form method="post" action="/v2/sessions/${esc(id)}/resume"><button type="submit">继续（保留原标准和预算）</button></form>` : ""}${["QUEUED", "RUNNING", "WAITING_HUMAN", "PAUSED"].includes(d.session.status) ? `<form method="post" action="/v2/sessions/${esc(id)}/cancel"><button type="submit" class="danger">取消会话</button></form>` : ""}</div></div>
       ${["QUEUED","PREPARING","RUNNING"].includes(d.session.status) ? `<p class="muted">运行记录每 3 秒更新；暂停或结束后停止刷新。</p><script>setTimeout(()=>location.reload(),3000)</script>` : ""}
+      ${d.reportVerdict === "review" && !d.evidenceComplete ? `<p class="error-box">证据缺失或校验失败，当前报告需要复核。历史执行结论仍保留。</p>` : ""}
       <section class="card"><h2>循环阶段（真实事件）</h2>
       ${attempts ? `<table><thead><tr><th>轮次</th><th>阶段</th><th>状态</th><th>决策依据</th></tr></thead><tbody>${attempts}</tbody></table>` : `<div class="empty-state">尚无阶段记录。</div>`}
       </section>

@@ -1,3 +1,4 @@
+import {ArtifactStore} from "@ai-qa/artifact-store";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PrismaClient } from "@prisma/client";
 import type { Queue } from "bullmq";
@@ -17,7 +18,7 @@ export function registerV2SessionRoutes(
   app: FastifyInstance,
   prisma: PrismaClient,
   queue: Pick<Queue, "add">,
-  config: {intelligenceUrl?:string;intelligenceToken?:string} = {},
+  config: {intelligenceUrl?:string;intelligenceToken?:string;artifactDir?:string} = {},
 ) {
   const param = (req: FastifyRequest, key: string) =>
     (req.params as Record<string, string>)[key]!;
@@ -150,7 +151,17 @@ export function registerV2SessionRoutes(
       where: { intentId: { in: intents.map((i) => i.id) } },
       orderBy: { startedAt: "asc" },
     });
-    return { session, attempts, intents, invocations, observations };
+    const evidenceIds=[...new Set(observations.flatMap(o=>o.evidenceArtifactIds))];
+    const artifacts=await prisma.artifact.findMany({where:{id:{in:evidenceIds},projectId:session.projectId}});
+    const store=new ArtifactStore(config.artifactDir ?? process.env.AIQA_ARTIFACT_DIR ?? "data/artifacts");
+    const missingEvidenceIds=evidenceIds.filter(id=>{
+      const artifact=artifacts.find(a=>a.id===id);
+      return !artifact || !artifact.storageKey.startsWith(`${session.id}/`) || !store.verify(artifact.storageKey,artifact.checksum);
+    });
+    const originalVerdict=(session.result as {verdict?:string}|null)?.verdict ?? null;
+    const evidenceComplete=evidenceIds.length>0 && missingEvidenceIds.length===0;
+    const reportVerdict=originalVerdict === "pass" && !evidenceComplete ? "review" : originalVerdict;
+    return { session, attempts, intents, invocations, observations, reportVerdict, evidenceComplete, missingEvidenceIds };
   });
 
   for (const action of ["cancel", "pause", "resume"] as const) {

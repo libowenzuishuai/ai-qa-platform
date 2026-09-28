@@ -100,7 +100,7 @@ beforeAll(async () => {
   });
   app.setErrorHandler((e, q, r) => sendApiError(q, r, e));
   registerV2CapabilityRoutes(app, env.prisma);
-  registerV2SessionRoutes(app, env.prisma, queue);
+  registerV2SessionRoutes(app, env.prisma, queue,{artifactDir:env.artifactDir});
   registerBuiltinSamples();
 
   // 安装+授权合成能力。
@@ -227,4 +227,14 @@ it("SSE 真实 HTTP 断开重连按 Last-Event-ID 继续，不重复旧事件",a
  const first=await next();expect(first.text).toContain('QUEUED');
  await app.inject({method:'POST',url:`/api/v2/sessions/${id}/cancel`,headers:H,payload:{}});
  const second=await next(first.seq);expect(second.seq).toBeGreaterThan(first.seq);expect(second.text).toContain('CANCELLED');expect(second.text).not.toContain('QUEUED');
+});
+
+it("结果证据丢失后报告降为 review，历史执行结果保持不变",async()=>{
+ const session=await env.prisma.v2ExecutionSession.findFirstOrThrow({where:{projectId,status:'COMPLETED'}});
+ const get=()=>app.inject({method:'GET',url:`/api/v2/sessions/${session.id}`,headers:H});
+ expect((await get()).json().reportVerdict).toBe('pass');
+ const observation=await env.prisma.v2Observation.findFirstOrThrow({where:{sessionId:session.id}});
+ const artifact=await env.prisma.artifact.findUniqueOrThrow({where:{id:observation.evidenceArtifactIds[0]}});
+ env.store.remove(artifact.storageKey);
+ const detail=(await get()).json();expect(detail.reportVerdict).toBe('review');expect(detail.evidenceComplete).toBe(false);expect(detail.missingEvidenceIds).toContain(artifact.id);expect(detail.session.result.verdict).toBe('pass');
 });

@@ -89,7 +89,7 @@ beforeAll(async () => {
   });
   apiApp.setErrorHandler((e, q, r) => sendApiError(q, r, e));
   registerV2CapabilityRoutes(apiApp, env.prisma);
-  registerV2SessionRoutes(apiApp, env.prisma, queue);
+  registerV2SessionRoutes(apiApp, env.prisma, queue,{artifactDir:env.artifactDir});
   registerV2DefinitionRoutes(apiApp,env.prisma);
   // 页面需要环境列表（最小内联端点；真实 API 由 routes-projects 提供）。
   apiApp.get("/api/projects/:id/environments", async (req) => {

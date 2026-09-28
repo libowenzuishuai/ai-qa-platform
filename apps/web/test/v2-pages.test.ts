@@ -90,7 +90,7 @@ beforeAll(async () => {
   });
   apiApp.setErrorHandler((e, q, r) => sendApiError(q, r, e));
   registerV2CapabilityRoutes(apiApp, env.prisma);
-  registerV2SessionRoutes(apiApp, env.prisma, queue);
+  registerV2SessionRoutes(apiApp, env.prisma, queue,{artifactDir:env.artifactDir});
   const apiUrl = await apiApp.listen({ host: "127.0.0.1", port: 0 });
   process.env.API_BASE_URL = apiUrl;
 

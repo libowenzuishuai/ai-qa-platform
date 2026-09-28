@@ -50,6 +50,12 @@
       "passed": 398,
       "failed": 0,
       "warnings": 5
+    },
+    {
+      "command": "pnpm --filter @ai-qa/worker exec vitest run test/v2-session-api.test.ts test/v2-browser-journey.test.ts",
+      "passed": 8,
+      "failed": 0,
+      "note": "Final evidence-loss report gate plus browser regression after the V2 66-test run. Full typecheck and web SSR 1/1 rerun afterward also passed."
     }
   ],
   "paidModelCalls": 0,
