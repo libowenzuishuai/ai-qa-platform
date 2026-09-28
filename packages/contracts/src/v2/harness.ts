@@ -34,6 +34,7 @@ export const CapabilityPermissions = z.object({
 export const CapabilityProtocol = z.enum([
   "local-ts",       // 运行器内加载的 TS 适配器（SDK）
   "remote-http",    // Python/HTTP 远程适配器（SDK）
+  "mcp-http",       // 固定工具的 MCP Streamable HTTP 桥
 ]);
 
 /** JSON Schema 子集：封闭字段、明确类型、有限深度（W01 冻结；双端同向量）。 */

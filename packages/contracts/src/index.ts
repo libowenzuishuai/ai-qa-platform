@@ -35,3 +35,4 @@ export * from './exploration.js';
 export * from './code-coverage.js';
 
 export * from "./v2/index.js";
+export * from './v2/candidate-tests.js';

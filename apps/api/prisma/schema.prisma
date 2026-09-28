@@ -1465,6 +1465,9 @@ model V2MemoryUsage {
 
 /// 候选测试补丁（CODE-02/04/06）。
 model V2TestPatch {
+  contentArtifactId String?
+  reviewedBy String?
+  reviewedAt DateTime?
   id             String   @id @default(cuid())
   projectId      String
   origin         Json

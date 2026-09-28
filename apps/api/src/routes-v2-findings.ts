@@ -1,3 +1,4 @@
+import {requireV2Evidence} from "./v2-evidence.js";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
@@ -12,7 +13,7 @@ import { ApiError } from "./errors.js";
  * 单次定位失败只能 candidate/investigating——证据缺失不得 reproduced。
  */
 
-export function registerV2FindingRoutes(app: FastifyInstance, prisma: PrismaClient) {
+export function registerV2FindingRoutes(app: FastifyInstance, prisma: PrismaClient, artifactDir?: string) {
   const param = (req: FastifyRequest, key: string) =>
     (req.params as Record<string, string>)[key]!;
 
@@ -28,7 +29,7 @@ export function registerV2FindingRoutes(app: FastifyInstance, prisma: PrismaClie
         attemptId: z.string().nullable().default(null),
         runId: z.string().nullable().default(null),
         evidenceIds: z.array(z.string()).max(100).default([]),
-        observedAt: z.string(),
+        observedAt: z.string().datetime(),
       }).strict(),
       hypotheses: z.array(z.object({
         text: z.string().min(1).max(2000),
@@ -52,15 +53,26 @@ export function registerV2FindingRoutes(app: FastifyInstance, prisma: PrismaClie
     if (!parsed.success)
       throw new ApiError("VALIDATION_ERROR", "不符合 Finding 契约", parsed.error.issues.slice(0, 4));
     const body = parsed.data;
+    if (["reproduced","human_confirmed","fix_verified"].includes(body.status))
+      throw new ApiError("CONFLICT","新问题只能作为候选或调查中登记；复现和修复状态必须通过实际会话核验");
+    if(body.firstFailure.evidenceIds.length) await requireV2Evidence(prisma,projectId,body.firstFailure.evidenceIds,artifactDir);
+    if(body.firstFailure.sessionId && !await prisma.v2ExecutionSession.findFirst({where:{id:body.firstFailure.sessionId,projectId}}))throw new ApiError("VALIDATION_ERROR","首败会话不属于本项目");
+    if(body.ruleVersionId && !await prisma.ruleVersion.findFirst({where:{id:body.ruleVersionId,rule:{projectId}}}))throw new ApiError("VALIDATION_ERROR","规则不属于本项目");
+    for(const h of body.hypotheses){const refs=[...h.supportingEvidence,...h.contradictingEvidence].map(e=>e.ref);if(refs.length)await requireV2Evidence(prisma,projectId,refs,artifactDir);}
     // Oracle 归属（可选但须同项目）。
     if (body.oracleSpecId) {
       const oracle = await prisma.v2OracleSpec.findFirst({ where: { id: body.oracleSpecId, projectId } });
       if (!oracle) throw new ApiError("VALIDATION_ERROR", "Oracle 不属于本项目");
     }
     // 去重：同项目同 dedupeKey 已存在 → 返回既有（同根因不重复立缺陷）。
-    const existing = await prisma.v2Finding.findFirst({ where: { projectId, dedupeKey: body.dedupeKey } });
-    if (existing) return { findingId: existing.id, existed: true, status: existing.status };
-    const created = await prisma.v2Finding.create({
+    const saved = await prisma.$transaction(async tx=>{
+    await tx.$queryRaw`SELECT id FROM "Project" WHERE id=${projectId} FOR UPDATE`;
+    const existing = await tx.v2Finding.findFirst({ where: { projectId, dedupeKey: body.dedupeKey } });
+    if (existing) {
+      if(existing.expected!==body.expected||existing.actual!==body.actual||existing.buildId!==body.buildId||existing.oracleSpecId!==(body.oracleSpecId??null)||existing.ruleVersionId!==(body.ruleVersionId??null))throw new ApiError("CONFLICT","去重键已用于不同业务问题");
+      return { findingId: existing.id, existed: true, status: existing.status };
+    }
+    const created = await tx.v2Finding.create({
       data: {
         projectId,
         oracleSpecId: body.oracleSpecId ?? null,
@@ -77,14 +89,16 @@ export function registerV2FindingRoutes(app: FastifyInstance, prisma: PrismaClie
         role: body.role ?? null,
       },
     });
-    await prisma.auditEvent.create({
+    await tx.auditEvent.create({
       data: {
         actorId: requireAuth(req).userId, action: "v2.finding.create",
         entityType: "V2Finding", entityId: created.id,
         metadata: { dedupeKey: body.dedupeKey, status: body.status } as never,
       },
     });
-    return reply.code(202).send({ findingId: created.id, existed: false, status: created.status });
+    return { findingId: created.id, existed: false, status: created.status };
+    });
+    return reply.code(saved.existed?200:202).send(saved);
   });
 
   app.get("/api/v2/projects/:id/findings", async (req) => {
@@ -100,12 +114,26 @@ export function registerV2FindingRoutes(app: FastifyInstance, prisma: PrismaClie
     };
   });
 
+  app.get("/api/v2/findings/:id",async req=>{
+    const finding=await prisma.v2Finding.findUnique({where:{id:param(req,"id")}});
+    if(!finding)throw new ApiError("NOT_FOUND","缺陷不存在");await requireProjectAccess(prisma,req,finding.projectId,"VIEWER");
+    const first=finding.firstFailure as {sessionId?:string;evidenceIds:string[]};
+    const original=first.sessionId?await prisma.v2ExecutionSession.findFirst({where:{id:first.sessionId,projectId:finding.projectId}}):null;
+    const comparisons=original?await prisma.v2ExecutionSession.findMany({where:{projectId:finding.projectId,oracleHash:original.oracleHash,profileHash:original.profileHash,definitionId:original.definitionId,environmentId:original.environmentId,status:{in:["COMPLETED","FAILED"]}},select:{id:true,goal:true,buildId:true,status:true,result:true,createdAt:true},orderBy:{createdAt:"desc"},take:100}):[];
+    const audit=await prisma.auditEvent.findMany({where:{entityType:"V2Finding",entityId:finding.id},orderBy:{createdAt:"asc"},take:100});
+    let evidenceComplete=true;try{await requireV2Evidence(prisma,finding.projectId,first.evidenceIds,artifactDir);}catch{evidenceComplete=false;}
+    return {finding,comparisons,audit,evidenceComplete};
+  });
+
   app.post("/api/v2/findings/:id/status", async (req) => {
     const id = param(req, "id");
     const finding = await prisma.v2Finding.findUnique({ where: { id } });
     if (!finding) throw new ApiError("NOT_FOUND", "Finding 不存在");
     await requireProjectAccess(prisma, req, finding.projectId, "LEAD");
-    const body = z.object({ status: z.enum(["candidate", "reproduced", "human_confirmed", "investigating", "fix_verified", "rejected"]) }).strict().parse(req.body);
+    const body = z.object({ status: z.enum(["candidate", "reproduced", "human_confirmed", "investigating", "fix_verified", "rejected"]),reason:z.string().min(1).max(2000).optional() }).strict().parse(req.body);
+    if(body.status==="rejected"&&!body.reason)throw new ApiError("VALIDATION_ERROR","驳回需要记录原因");
+    if(["reproduced","fix_verified"].includes(body.status))throw new ApiError("CONFLICT","请使用执行会话核验接口，不能手动声明复现或修复");
+    if(body.status==="human_confirmed")await requireV2Evidence(prisma,finding.projectId,(finding.firstFailure as {evidenceIds:string[]}).evidenceIds,artifactDir);
     return prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "V2Finding" WHERE id=${id} FOR UPDATE`;
       const fresh = await tx.v2Finding.findUniqueOrThrow({ where: { id } });
@@ -128,7 +156,7 @@ export function registerV2FindingRoutes(app: FastifyInstance, prisma: PrismaClie
         data: {
           actorId: requireAuth(req).userId, action: "v2.finding.status",
           entityType: "V2Finding", entityId: id,
-          metadata: { from: fresh.status, to: body.status } as never,
+          metadata: { from: fresh.status, to: body.status,reason:body.reason??null } as never,
         },
       });
       return updated;
@@ -145,6 +173,8 @@ export function registerV2FindingRoutes(app: FastifyInstance, prisma: PrismaClie
       supportingEvidence: z.array(z.object({ kind: z.enum(["network", "console", "auth_log", "code_diff", "observation", "tool_output"]), ref: z.string().min(1).max(500) }).strict()).max(50).default([]),
       contradictingEvidence: z.array(z.object({ kind: z.enum(["network", "console", "auth_log", "code_diff", "observation", "tool_output"]), ref: z.string().min(1).max(500) }).strict()).max(50).default([]),
     }).strict().parse(req.body);
+    const refs=[...body.supportingEvidence,...body.contradictingEvidence].map(e=>e.ref);
+    if(refs.length)await requireV2Evidence(prisma,finding.projectId,refs,artifactDir);
     return prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "V2Finding" WHERE id=${id} FOR UPDATE`;
       const fresh = await tx.v2Finding.findUniqueOrThrow({ where: { id } });

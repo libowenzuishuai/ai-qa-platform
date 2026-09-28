@@ -201,3 +201,26 @@ def test_actual_node_coverage_freshness_and_cleanup(tmp_path):
     assert result['coverage']['linesFound']>0
     assert 'stale-invalid-report' not in result['coverage']['raw']
     assert all(x['status']=='CLEANED' for x in result['resources'])
+
+
+def test_candidate_overlay_is_additive_and_hash_pinned(tmp_path):
+    import hashlib
+    content="import test from 'node:test';\n"
+    base={'kind':'NODE_TEST','candidateTestPatchId':'p','candidateVariant':'healthy','candidateFiles':[{'path':'aiqa_generated_tests/approved.test.mjs','content':content,'contentHash':hashlib.sha256(content.encode()).hexdigest()}]}
+    paths=runner.apply_candidate_files(base,tmp_path)
+    assert paths==['aiqa_generated_tests/approved.test.mjs']
+    with pytest.raises(ValueError,match='overwrite'):runner.apply_candidate_files(base,tmp_path)
+    base['candidateFiles'][0]['path']='../subject.mjs'
+    with pytest.raises(ValueError):runner.apply_candidate_files(base,tmp_path)
+    base['candidateFiles'][0]['path']='aiqa_generated_tests/other.test.mjs'
+    base['candidateFiles'][0]['contentHash']='0'*64
+    with pytest.raises(ValueError,match='checksum'):runner.apply_candidate_files(base,tmp_path)
+
+
+def test_business_failure_does_not_accept_runtime_or_source_line_markers():
+    assertion = b'<testsuite><testcase name="boundary"><failure message="AssertionError: True != False: AIQA_ASSERTION:boundary">trace</failure></testcase></testsuite>'
+    runtime = b'<testsuite><testcase name="boundary"><failure message="RuntimeError: import failed">self.assertEqual(actual, expected, "AIQA_ASSERTION:boundary")</failure></testcase></testsuite>'
+    imported = b'<testsuite><testcase name="boundary"><error message="AssertionError: AIQA_ASSERTION:boundary">fixture failed</error></testcase></testsuite>'
+    assert runner.parse_junit(assertion)[0]['failureKind'] == 'assertion'
+    assert runner.parse_junit(runtime)[0]['failureKind'] == 'unknown'
+    assert runner.parse_junit(imported)[0]['failureKind'] == 'test_error'

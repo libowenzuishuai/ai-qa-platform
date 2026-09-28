@@ -1,3 +1,4 @@
+import {invokeMcp} from "./mcp-bridge.js";
 import type { PrismaClient } from "@prisma/client";
 import {
   CapabilityManifest,
@@ -173,6 +174,9 @@ export async function invokeCapability(args: InvokeInput): Promise<CapabilityRes
     } catch(error) {
       result={status:manifest.effectClass === "READ"?"FAILED":"UNKNOWN",output:null,resourceKeys:[],retryable:false,error:{code:"DEPENDENCY_UNAVAILABLE",message:`适配器异常：${error instanceof Error?error.message:"unknown"}`}};
     } finally {clearTimeout(timer);localSignal.removeEventListener("abort",stop);}
+  } else if (manifest.protocol === "mcp-http") {
+    if(!fresh.endpoint)return fail("CONFIG_MISSING","MCP 安装缺少地址");
+    result=await invokeMcp(fresh.endpoint,manifest,args.input,ctx,args.invocationId);
   } else if (manifest.protocol === "remote-http") {
     if (!installation.endpoint) return fail("CONFIG_MISSING", "远程能力缺少 endpoint");
     result = await invokeRemote(installation.endpoint, args, manifest, timeoutMs);
@@ -185,7 +189,7 @@ export async function invokeCapability(args: InvokeInput): Promise<CapabilityRes
     const outputCheck = validateCapabilityOutput(manifest, result.output);
     if (!outputCheck.ok) {
       return {
-        status: "FAILED", output: null, resourceKeys: result.resourceKeys, retryable: false,
+        status: manifest.effectClass === "READ" ? "FAILED" : "UNKNOWN", output: null, resourceKeys: result.resourceKeys, retryable: false,
         error: { code: "MODEL_OUTPUT_INVALID", message: `能力输出不符合 Schema：${outputCheck.problems.slice(0, 3).join("；")}` },
       };
     }
@@ -267,6 +271,6 @@ async function invokeRemote(
       return manifest.effectClass === "READ" && manifest.recovery === "read_only"
         ? { status: "FAILED", output: null, resourceKeys: [], retryable: true, error: { code: "MODEL_TIMEOUT", message: "远程适配器超时（只读，可重试）" } }
         : { status: "UNKNOWN", output: null, resourceKeys: [], retryable: false, error: { code: "MODEL_TIMEOUT", message: "远程适配器超时（写入效果未知，先对账）" } };
-    return { status: "FAILED", output: null, resourceKeys: [], retryable: false, error: { code: "DEPENDENCY_UNAVAILABLE", message: `远程适配器不可达：${name}` } };
+    return { status: manifest.effectClass === "READ" ? "FAILED" : "UNKNOWN", output: null, resourceKeys: [], retryable: false, error: { code: "DEPENDENCY_UNAVAILABLE", message: `远程适配器不可达：${name}` } };
   }
 }

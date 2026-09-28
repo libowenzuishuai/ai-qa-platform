@@ -41,9 +41,11 @@ export function registerV2CapabilityRoutes(app: FastifyInstance, prisma: PrismaC
       const self = selfCheckSchema(schema);
       if (!self.ok) throw new ApiError("VALIDATION_ERROR", `${name} 自检失败：${self.problems.slice(0, 3).join("；")}`);
     }
-    if (manifest.data.protocol === "remote-http" && !body.endpoint)
-      throw new ApiError("VALIDATION_ERROR", "remote-http 能力必须提供 endpoint");
+    if (manifest.data.protocol !== "local-ts" && !body.endpoint)
+      throw new ApiError("VALIDATION_ERROR", "远程能力必须提供 endpoint");
 
+    if(body.endpoint){const url=new URL(body.endpoint);if(!["http:","https:"].includes(url.protocol)||url.username||url.password||url.hash)throw new ApiError("VALIDATION_ERROR","远程地址不允许内嵌凭据或非 HTTP 协议");}
+    if(manifest.data.protocol==="mcp-http"&&!/^[a-zA-Z0-9_.-]{1,128}$/.test(manifest.data.entrypointRef))throw new ApiError("VALIDATION_ERROR","MCP entrypointRef 必须为固定工具名");
     const manifestHash = computeManifestHash(manifest.data);
     const saved = await prisma.$transaction(async (tx) => {
       // 清单不可变：同 id+version 内容哈希必须一致（防偷换）。
@@ -66,6 +68,7 @@ export function registerV2CapabilityRoutes(app: FastifyInstance, prisma: PrismaC
         where: { projectId, capabilityId: manifest.data.id, capabilityVersion: manifest.data.version },
         orderBy: { installedAt: "desc" },
       });
+      if(prior && !["REVOKED","DISABLED"].includes(prior.status) && prior.endpoint!==(manifest.data.protocol!=="local-ts"?body.endpoint!:null))throw new ApiError("CONFLICT","同版本安装地址不可更换；请禁用旧安装后重新审核");
       if (prior && !["REVOKED", "DISABLED"].includes(prior.status))
         return { installationId: prior.id, existed: true, status: prior.status };
       const installation = await tx.v2AdapterInstallation.create({
@@ -73,7 +76,7 @@ export function registerV2CapabilityRoutes(app: FastifyInstance, prisma: PrismaC
           projectId, capabilityId: manifest.data.id, capabilityVersion: manifest.data.version,
           manifestHash, installedBy: requireAuth(req).userId,
           status: "VALIDATED",
-          endpoint: manifest.data.protocol === "remote-http" ? body.endpoint! : null,
+          endpoint: manifest.data.protocol !== "local-ts" ? body.endpoint! : null,
         },
       });
       await tx.auditEvent.create({
@@ -184,6 +187,9 @@ export function registerV2CapabilityRoutes(app: FastifyInstance, prisma: PrismaC
       installations: installations.map((i) => ({
         id: i.id, capabilityId: i.capabilityId, capabilityVersion: i.capabilityVersion,
         status: i.status, endpoint: i.endpoint, installedAt: i.installedAt,
+        inputSchema: (byId.get(`${i.capabilityId}@${i.capabilityVersion}`)?.manifest as CapabilityManifest | undefined)?.inputSchema,
+        outputSchema: (byId.get(`${i.capabilityId}@${i.capabilityVersion}`)?.manifest as CapabilityManifest | undefined)?.outputSchema,
+        effectClass: (byId.get(`${i.capabilityId}@${i.capabilityVersion}`)?.manifest as CapabilityManifest | undefined)?.effectClass,
         humanName: byId.get(`${i.capabilityId}@${i.capabilityVersion}`)
           ? (byId.get(`${i.capabilityId}@${i.capabilityVersion}`)!.manifest as { humanName: string }).humanName
           : i.capabilityId,

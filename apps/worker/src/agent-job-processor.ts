@@ -1,3 +1,4 @@
+import { runGraphSession, type GraphSnapshot } from "./v2/graph-session.js";
 import {runExploration} from './exploration-job.js';
 import {runGoalProposal} from './goal-job.js';
 import { loadCompletedChunks } from "../../api/src/chunk-results.js";
@@ -75,7 +76,7 @@ async function failJob(prisma: PrismaClient, job: JobRow & { kind: string }, err
   });
   if (changed.count) {
     await markDocumentFailed(tx, job);
-    if(job.kind === "V2_SESSION_LOOP") {
+    if(["V2_SESSION_LOOP","V2_GRAPH_SESSION"].includes(job.kind)) {
       const sessionId=(job.request as {sessionId:string}).sessionId;
       await tx.v2ExecutionSession.updateMany({where:{id:sessionId,status:{in:["QUEUED","PREPARING"]},leaseToken:null},data:{status:"FAILED",terminationReason:`${error.code}: ${error.message}`,result:{status:"FAILED",verdict:"blocked",reason:error.message,rounds:0,finalTitle:null,draftId:null}}});
     }
@@ -187,6 +188,10 @@ export async function processAgentJob(
       await runChunkBatch(prisma,job,config);
     } else if(job.kind === "CHUNK_EXTRACT") {
       await runChunkExtract(prisma,store,job,config,commitJob);
+    } else if(job.kind === "V2_GRAPH_SESSION") {
+      const request=job.request as unknown as {sessionId:string;snapshot:GraphSnapshot};
+      const result=await runGraphSession({prisma,...request,artifactDir:config.artifactDir,signal:config.executionSignal});
+      await commitJob(prisma,job,async tx=>{await tx.job.update({where:{id:job.id},data:{status:"SUCCEEDED",result:result as never,finishedAt:new Date()}});});
     } else if(job.kind === "V2_SESSION_LOOP") {
       const request = job.request as { sessionId: string; baseUrl: string; planner: "script" | "python-real"; maxRounds?: number };
       const result = await runDraftSessionLoop({

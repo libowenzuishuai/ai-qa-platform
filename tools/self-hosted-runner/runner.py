@@ -82,7 +82,14 @@ def parse_junit(content):
         error = node.find('error')
         skipped = node.find('skipped')
         state = 'FAIL' if failure is not None or error is not None else 'SKIP' if skipped is not None else 'PASS'
-        cases.append({'name': (node.get('classname','')+' '+node.get('name','')).strip()[:500] or 'test', 'status': state})
+        case = {'name': (node.get('classname','')+' '+node.get('name','')).strip()[:500] or 'test', 'status': state}
+        if state == 'FAIL':
+            problem = error if error is not None else failure
+            detail = ' '.join(problem.itertext()) + ' ' + problem.get('message', '')
+            # Only our generated independent assertion carries this marker. Import/runtime errors do not.
+            assertion = 'AIQA_ASSERTION:' in problem.get('message', '') and ('AssertionError:' in problem.get('message', '') or 'cause: AssertionError [ERR_ASSERTION]' in detail)
+            case['failureKind'] = 'test_error' if error is not None else 'assertion' if assertion else 'unknown'
+        cases.append(case)
     if len(cases)>10000:
         raise ValueError('Too many test results')
     return cases
@@ -242,6 +249,36 @@ def deploy_node_http(spec, manifest, volume, image, containers, networks, run_ph
             'deployment':{'instanceId':name,'commitSha':spec['commitSha'],'artifactSha256':artifact_hash,'healthStatus':health_status,'postgresReady':database_ready,'ephemeral':True}}
 
 
+def apply_candidate_files(spec, source):
+    """Only additive, hash-pinned tests in a reserved folder; never overwrite product files."""
+    files = spec.get('candidateFiles')
+    if files is None:
+        if spec.get('candidateTestPatchId') or spec.get('candidateVariant'):
+            raise ValueError('Candidate patch is incomplete')
+        return []
+    if not spec.get('candidateTestPatchId') or spec.get('candidateVariant') not in {'healthy', 'defect', 'fix'} or spec['kind'] not in {'NODE_TEST', 'PYTHON_TEST'}:
+        raise ValueError('Candidate patch requires an approved identity and supported test kind')
+    if not 1 <= len(files) <= 5:
+        raise ValueError('Candidate file count limit')
+    paths = []
+    for file in files:
+        path, content = file['path'], file['content']
+        if not re.fullmatch(r'aiqa_generated_tests/[a-zA-Z0-9_.-]+', path) or '..' in Path(path).parts:
+            raise ValueError('Candidate files must stay in the reserved test directory')
+        if (spec['kind'] == 'NODE_TEST' and not path.endswith('.test.mjs')) or (spec['kind'] == 'PYTHON_TEST' and not path.endswith('.py')):
+            raise ValueError('Candidate file type does not match the runner')
+        raw = content.encode('utf8')
+        if len(raw) > 200000 or hashlib.sha256(raw).hexdigest() != file['contentHash']:
+            raise ValueError('Candidate checksum or size invalid')
+        target = source / spec.get('subdirectory', '') / path
+        if target.exists() or target.is_symlink() or target.parent.is_symlink():
+            raise ValueError('Candidate cannot overwrite repository files or follow links')
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(raw)
+        paths.append(path)
+    return paths
+
+
 def execute(spec, continue_work=lambda: True, source_directory=None, source_archive=None):
     identity = uuid.uuid4().hex
     volume = 'aiqa-work-' + identity
@@ -288,6 +325,7 @@ def execute(spec, continue_work=lambda: True, source_directory=None, source_arch
                 repo=spec['repositoryUrl'].removeprefix('https://github.com/').removesuffix('/').removesuffix('.git')
                 archive=request('https://codeload.github.com/'+repo+'/tar.gz/'+spec['commitSha'],maximum=MAX_ARCHIVE)
                 extract_archive(archive,source)
+            candidate_paths=apply_candidate_files(spec,source)
             # Existing images are operator configuration; never download an arbitrary image from a task.
             image=image_for(spec)
             docker(['image','inspect',image],timeout=10)
@@ -335,6 +373,11 @@ def execute(spec, continue_work=lambda: True, source_directory=None, source_arch
                 return result
             if command is None:
                 command=['python','-c',"import sys;sys.path.insert(0,'/work/.deps');import pytest;raise SystemExit(pytest.main(['--junitxml=/work/report.xml','-q']))"]
+            if candidate_paths:
+                if spec['kind']=='NODE_TEST':
+                    command=command+candidate_paths
+                else:
+                    command=['python','-c',"import sys;sys.path.insert(0,'/work/.deps');import pytest;raise SystemExit(pytest.main(['--junitxml=/work/report.xml','-q',*sys.argv[1:]]))",*candidate_paths]
             if spec.get('coverage'):
                 cfg=spec['coverage'];coverage_path=cfg.get('path','coverage/lcov.info')
                 if cfg.get('format')!='LCOV' or not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_./-]*',coverage_path) or '..' in coverage_path.split('/') or len(coverage_path)>300:raise ValueError('Invalid coverage configuration')

@@ -1,3 +1,5 @@
+import {memoryInvalidReason} from "./memory-service.js";
+import {ArtifactStore} from "@ai-qa/artifact-store";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
@@ -10,7 +12,7 @@ import { ApiError } from "./errors.js";
  * 过期/跨项目/矛盾记忆拒绝（服务端判定，不靠模型自律）；每次使用可追溯。
  */
 
-export function registerV2MemoryRoutes(app: FastifyInstance, prisma: PrismaClient) {
+export function registerV2MemoryRoutes(app: FastifyInstance, prisma: PrismaClient, artifactDir?: string) {
   const param = (req: FastifyRequest, key: string) =>
     (req.params as Record<string, string>)[key]!;
 
@@ -43,6 +45,13 @@ export function registerV2MemoryRoutes(app: FastifyInstance, prisma: PrismaClien
     if (record.invalidated && body.decision === "used")
       throw new ApiError("CONFLICT", "记忆已被失效标记：不能用于当前计划");
 
+    if(body.decision==="used"){
+      const context=record.context as {oracleHash?:string;environmentId?:string};
+      const reason=await memoryInvalidReason(prisma,new ArtifactStore(artifactDir??process.env.AIQA_ARTIFACT_DIR??"data/artifacts"),session.projectId,record);
+      if(reason)throw new ApiError("CONFLICT",reason);
+      if(record.environmentId&&record.environmentId!==session.environmentId||context.environmentId&&context.environmentId!==session.environmentId||context.oracleHash&&context.oracleHash!==session.oracleHash)throw new ApiError("CONFLICT","记忆环境或业务标准与当前会话不同");
+    }
+    if(body.outcome&&body.outcome!=="unknown"&&!['COMPLETED','FAILED','CANCELLED'].includes(session.status))throw new ApiError("CONFLICT","会话结束后才能人工评价记忆收益");
     const parsed = MemoryUsage.pick({
       memoryRecordId: true, sessionId: true, retrieved: true, decision: true, reason: true, outcome: true, usedAt: true,
     }).parse({
@@ -50,7 +59,7 @@ export function registerV2MemoryRoutes(app: FastifyInstance, prisma: PrismaClien
       sessionId,
       retrieved: true,
       decision: body.decision,
-      reason: body.reason,
+      reason: `人工评价（非自动测量）：${body.reason}`,
       outcome: body.outcome,
       usedAt: new Date().toISOString(),
     });

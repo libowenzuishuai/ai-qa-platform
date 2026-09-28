@@ -49,4 +49,12 @@
 - 能力安装：协议/Schema 自检失败 → 422（R0.7 已验）。
 - 规划器：python-real 无配置 → CONFIG_MISSING（已验）；python 通道断连 → DEPENDENCY_UNAVAILABLE 受控失败（已验）。
 
-本轮未重新构建发布镜像；部署面 VERIFIED 为历史 1.0 验证，不能当作本轮 V2 镜像验收。组合编辑器可保存和发布 AST，页面直接运行通用组合尚未接线。
+## 2026-09-28 集成增量
+
+- 通用确定性工具图：已从页面接入 Profile/定义发布和持久会话，支持版本固定、受限子流程、未知写入暂停、构建漂移拦截。
+- MCP：Streamable HTTP 2025-06-18，JSON/SSE 输出、固定单工具 Schema 与显式授权；无 OAuth/stdio/旧 SSE。
+- 候选代码测试：Node/Python 基础函数模板；批准规则 + 人工审核样例；真实 Docker 健康/缺陷/修复对照，下载新增补丁。
+- 通用自主浏览器写循环、模型/记忆策略自由组装、自动根因最小化仍未完成。
+- 本轮镜像/安装/升级验收按 [最新机器记录](delivery/evidence/v2-integrated-verification.json) 判定，历史 1.0 通过不自动覆盖新版本。
+
+详细入口、版本和限制：[集成交付记录](delivery/v2-integrated-delivery-20260928.md)。

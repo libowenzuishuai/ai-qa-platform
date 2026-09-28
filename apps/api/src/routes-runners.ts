@@ -42,6 +42,7 @@ export function registerRunnerRoutes(app:FastifyInstance,prisma:PrismaClient,sto
   app.post('/api/projects/:id/code-checks',async req=>{
     const projectId=id(req);await requireProjectAccess(prisma,req,projectId,'LEAD');
     const body=CodeCheckRequest.parse(req.body);
+    if(body.candidateFiles||body.candidateTestPatchId||body.candidateVariant)throw new ApiError("VALIDATION_ERROR","候选补丁只能从已审核补丁的运行入口提交");
     if(body.coverage&&body.kind==='NODE_HTTP')throw new ApiError('VALIDATION_ERROR','部署健康检查不生成代码覆盖报告');
     if(body.deployment&&body.kind!=='NODE_HTTP')throw new ApiError('VALIDATION_ERROR','部署配置仅适用于 Node HTTP 部署检查');
     const connection=await installationForRepository(prisma,projectId,body.repositoryUrl);

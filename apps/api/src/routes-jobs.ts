@@ -166,7 +166,7 @@ export function registerJobRoutes(app: FastifyInstance, prisma: PrismaClient, jo
     if (!job) throw new ApiError("NOT_FOUND", "作业不存在");
     await requireProjectAccess(prisma, req, job.projectId, "LEAD");
     if((job.request as {workflowId?:string}).workflowId)throw new ApiError('CONFLICT','工作流所属作业不能单独重放，请从工作流重新处理');
-    if(['DATA_PREPARE','DATA_CLEANUP','DATA_INSPECT','LOGIN_CHECK'].includes(job.kind))throw new ApiError('CONFLICT','请从准备中心重新检查或核对资源；禁止直接重放准备写入');
+    if(['DATA_PREPARE','DATA_CLEANUP','DATA_INSPECT','LOGIN_CHECK','V2_SESSION_LOOP','V2_GRAPH_SESSION'].includes(job.kind))throw new ApiError('CONFLICT','请从准备中心重新检查或核对资源；禁止直接重放准备写入');
     const changed = await prisma.$transaction(async tx => {
     const changed = await tx.job.updateMany({
       where: { id, status: "FAILED" },

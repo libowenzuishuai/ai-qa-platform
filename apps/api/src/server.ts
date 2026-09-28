@@ -1,3 +1,5 @@
+import {registerV2TestPatchRoutes} from "./routes-v2-test-patches.js";
+import {registerV2InvestigationRoutes} from "./routes-v2-investigation.js";
 import {registerGithubRoutes} from './routes-github.js';
 import {registerChangeReviewRoutes} from "./routes-change-review.js";
 import { registerRunnerRoutes } from "./routes-runners.js";
@@ -31,6 +33,7 @@ import { registerV2ReadinessRoutes } from "./routes-v2-readiness.js";
 import { registerV2SessionRoutes } from "./routes-v2-sessions.js";
 import { registerV2MemoryRoutes } from "./routes-v2-memory.js";
 import { registerV2FindingRoutes } from "./routes-v2-findings.js";
+import { registerV2ProfileRoutes } from "./routes-v2-profiles.js";
 import { registerV2DefinitionRoutes } from "./routes-v2-definitions.js";
 import { sendApiError } from "./errors.js";
 
@@ -106,9 +109,12 @@ export async function buildServer() {
   registerV2OracleRoutes(app,prisma);
   registerV2ReadinessRoutes(app,prisma);
   registerV2SessionRoutes(app,prisma,agentJobsQueue,{artifactDir:process.env.AIQA_ARTIFACT_DIR,intelligenceUrl:process.env.AIQA_INTELLIGENCE_URL,intelligenceToken:process.env.AIQA_INTELLIGENCE_TOKEN});
-  registerV2MemoryRoutes(app,prisma);
-  registerV2FindingRoutes(app,prisma);
+  registerV2MemoryRoutes(app,prisma,process.env.AIQA_ARTIFACT_DIR);
+  registerV2FindingRoutes(app,prisma,process.env.AIQA_ARTIFACT_DIR);
+  registerV2InvestigationRoutes(app,prisma,process.env.AIQA_ARTIFACT_DIR);
   registerV2DefinitionRoutes(app,prisma);
+  registerV2ProfileRoutes(app,prisma,agentJobsQueue);
+  registerV2TestPatchRoutes(app,prisma,{artifactDir:process.env.AIQA_ARTIFACT_DIR??"data/artifacts",intelligenceUrl:process.env.AIQA_INTELLIGENCE_URL,intelligenceToken:process.env.AIQA_INTELLIGENCE_TOKEN});
   registerV2ContextRoutes(app,prisma,{
     intelligenceUrl: process.env.AIQA_INTELLIGENCE_URL,
     intelligenceToken: process.env.AIQA_INTELLIGENCE_TOKEN,

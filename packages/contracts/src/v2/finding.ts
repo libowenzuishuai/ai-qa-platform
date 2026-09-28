@@ -85,6 +85,9 @@ export type MemoryUsage = z.infer<typeof MemoryUsage>;
 export const TestPatchStatus = z.enum(["draft", "executed", "validated", "rejected"]);
 
 export const TestPatch = z.object({
+  contentArtifactId:EntityId.nullable().default(null),
+  reviewedBy:z.string().nullable().default(null),
+  reviewedAt:IsoDateTime.nullable().default(null),
   id: EntityId,
   projectId: EntityId,
   /** 生成依据（批准规则/接口契约/批准性质——源码只是线索）。 */

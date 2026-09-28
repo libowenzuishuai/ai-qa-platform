@@ -76,7 +76,11 @@ export const NodeHttpDeployment=z.object({
   postgres:z.boolean().default(false),
   readinessSeconds:z.number().int().min(2).max(120).default(30),
 }).strict();
+export const CandidateTestFile=z.object({path:z.string().regex(/^aiqa_generated_tests\/[a-zA-Z0-9_.-]+$/),content:z.string().max(200000),contentHash:z.string().regex(/^[a-f0-9]{64}$/)}).strict();
 export const CodeCheckRequest = z.object({
+  candidateTestPatchId:z.string().optional(),
+  candidateVariant:z.enum(["healthy","defect","fix"]).optional(),
+  candidateFiles:z.array(CandidateTestFile).min(1).max(5).optional(),
   idempotencyKey:z.string().min(8).max(120).optional(),
   repositoryUrl: GitConnectionRequest.shape.url,
   commitSha: z.string().regex(/^[a-f0-9]{40}$/),
@@ -90,7 +94,7 @@ export const CodeCheckRequest = z.object({
 export const RunnerResult = z.object({
   commitSha: z.string().regex(/^[a-f0-9]{40}$/),
   exitCode: z.number().int(),
-  cases: z.array(z.object({name:z.string().min(1).max(500),status:z.enum(['PASS','FAIL','SKIP']),detail:z.string().max(2000).optional()})).max(10000),
+  cases: z.array(z.object({name:z.string().min(1).max(500),status:z.enum(['PASS','FAIL','SKIP']),detail:z.string().max(2000).optional(),failureKind:z.enum(['assertion','test_error','unknown']).optional()})).max(10000),
   output: z.string().max(200000),
   coverage:CodeCoverageResult.optional(),
   platformError: z.string().max(2000).optional(),

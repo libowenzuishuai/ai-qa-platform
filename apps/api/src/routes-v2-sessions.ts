@@ -156,11 +156,12 @@ export function registerV2SessionRoutes(
     const store=new ArtifactStore(config.artifactDir ?? process.env.AIQA_ARTIFACT_DIR ?? "data/artifacts");
     const missingEvidenceIds=evidenceIds.filter(id=>{
       const artifact=artifacts.find(a=>a.id===id);
-      return !artifact || !artifact.storageKey.startsWith(`${session.id}/`) || !store.verify(artifact.storageKey,artifact.checksum);
+      return !artifact || (artifact.expiresAt!==null&&artifact.expiresAt<=new Date()) || !artifact.storageKey.startsWith(`${session.id}/`) || !store.verify(artifact.storageKey,artifact.checksum);
     });
     const originalVerdict=(session.result as {verdict?:string}|null)?.verdict ?? null;
     const evidenceComplete=evidenceIds.length>0 && missingEvidenceIds.length===0;
-    const reportVerdict=originalVerdict === "pass" && !evidenceComplete ? "review" : originalVerdict;
+    const graphBuildUnverified=(session.checkpoint as {kind?:string}).kind==='graph'&&(session.result as {buildVerification?:{verified:boolean}}|null)?.buildVerification?.verified!==true;
+    const reportVerdict=originalVerdict === "pass" && (!evidenceComplete||graphBuildUnverified) ? "review" : originalVerdict;
     return { session, attempts, intents, invocations, observations, reportVerdict, evidenceComplete, missingEvidenceIds };
   });
 
@@ -181,7 +182,7 @@ export function registerV2SessionRoutes(
         await tx.v2SessionEvent.create({data:{sessionId:id,type:"state",payload:{status,action}}});
         await tx.auditEvent.create({data:{actorId:requireAuth(req).userId,action:`v2.session.${action}`,entityType:"V2ExecutionSession",entityId:id}});
         if (action !== "resume") return null;
-        const job = await tx.job.findFirst({where:{projectId:session.projectId,kind:"V2_SESSION_LOOP",request:{path:["sessionId"],equals:id}}});
+        const job = await tx.job.findFirst({where:{projectId:session.projectId,kind:{in:["V2_SESSION_LOOP","V2_GRAPH_SESSION"]},request:{path:["sessionId"],equals:id}}});
         if (!job) throw new ApiError("CONFLICT", "会话缺少原始作业，不能恢复");
         await tx.job.update({where:{id:job.id},data:{status:"QUEUED",startedAt:null,finishedAt:null}});
         return job.id;

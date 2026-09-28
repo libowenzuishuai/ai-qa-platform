@@ -1,3 +1,6 @@
+import {registerV2ProfileRoutes} from "../../api/src/routes-v2-profiles.js";
+import {registerV2OracleRoutes} from "../../api/src/routes-v2-oracle.js";
+import {HttpReadManifest} from "@ai-qa/adapter-sdk/samples/http-checker";
 import {registerV2DefinitionRoutes} from "../../api/src/routes-v2-definitions.js";
 import { beforeAll, afterAll, it, expect } from "vitest";
 import Fastify from "fastify";
@@ -91,6 +94,8 @@ beforeAll(async () => {
   registerV2CapabilityRoutes(apiApp, env.prisma);
   registerV2SessionRoutes(apiApp, env.prisma, queue,{artifactDir:env.artifactDir});
   registerV2DefinitionRoutes(apiApp,env.prisma);
+  registerV2ProfileRoutes(apiApp,env.prisma,queue);
+  registerV2OracleRoutes(apiApp,env.prisma);
   // 页面需要环境列表（最小内联端点；真实 API 由 routes-projects 提供）。
   apiApp.get("/api/projects/:id/environments", async (req) => {
     const { id } = req.params as { id: string };
@@ -150,6 +155,7 @@ it("1440/390 真实浏览器旅程：列表空态→表单创建→详情（真�
   expect(overflow1440).toBe(false);
 
   // 表单键盘可操作 + 提交（真实创建）。
+  await page.getByText("开发者演示：合成草稿自主闭环",{exact:true}).click();
   await page.focus("#v2-target");
   await page.fill("#v2-target", draftBaseUrl);
   await page.fill("#v2-oracle", oracleSpecId);
@@ -199,6 +205,7 @@ it("组合编辑器：画布和表单保存同一 AST，发布后重新打开，
   await page.fill("#flow-name","浏览器验收组合");
   await page.click("#add-node");
   await page.fill("#node-id","observe-draft");
+  await page.getByText("高级：参数绑定 JSON",{exact:true}).click();
   await page.fill("#bindings",JSON.stringify({op:{source:"constant",type:"string",value:"meta"},baseUrl:{source:"input",type:"string",path:"baseUrl"}}));
   await page.click("#apply-node");
   expect(await page.locator("#canvas").innerText()).toContain("observe-draft");
@@ -220,3 +227,29 @@ it("组合编辑器：画布和表单保存同一 AST，发布后重新打开，
   expect(errors).toEqual([]);
  } finally {await browser.close();}
 },45000);
+
+it("real browser: publish profile, configure form without JSON, execute graph and report",async()=>{
+ const install=(await apiApp.inject({method:'POST',url:`/api/v2/projects/${projectId}/capabilities/install`,payload:{manifest:HttpReadManifest}})).json();
+ await apiApp.inject({method:'POST',url:`/api/v2/installations/${install.installationId}/authorize`,payload:{scope:['read:http']}});
+ const saved=(await apiApp.inject({method:'POST',url:`/api/v2/projects/${projectId}/definitions`,payload:{name:'HTTP 验收',description:'UI journey',maxSubflowDepth:4,nodes:[{nodeId:'verify',capabilityId:HttpReadManifest.id,capabilityVersion:'1.0.0',dependsOn:[],onFailure:'fail',bindings:{baseUrl:{source:'input',path:'baseUrl',type:'string'},resourcePath:{source:'constant',value:'/api/_meta',type:'string'}}}]}})).json();
+ await apiApp.inject({method:'POST',url:`/api/v2/definitions/${saved.definitionId}/publish`});
+ const old=await env.prisma.v2OracleSpec.findUniqueOrThrow({where:{id:oracleSpecId}});
+ const assertions=[{...(old.assertions as Array<Record<string,unknown>>)[0],id:'a-status',fact:'元信息接口可用',observationType:'api_status',observationRef:'meta.status',expected:'200'}];
+ const content={projectId,ruleVersionIds:old.ruleVersionIds,assertions,coverageDeclarations:old.coverageDeclarations,semanticCandidates:[]};
+ const oracle=await env.prisma.v2OracleSpec.create({data:{...content,assertions:assertions as never,coverageDeclarations:old.coverageDeclarations as never,version:2,status:'APPROVED',oracleHash:computeOracleHash(content as never),createdBy:'t',approvedBy:'t',approvedAt:new Date()}});
+ const browser=await chromium.launch();try{
+  const context=await browser.newContext({viewport:{width:1440,height:1000}});await context.addCookies([{name:'web_sid',value:webSid,url:webUrl}]);const page=await context.newPage();const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(`${webUrl}/space/${projectId}/composer/run`);
+  await page.locator('input[name=key]').fill('release-checks');await page.locator(`input[type=checkbox][value="${install.installationId}"]`).check();
+  await Promise.all([page.waitForURL(/profile=/,{timeout:5000}),page.getByRole('button',{name:'保存并发布配置'}).click()]).catch(async e=>{throw Error(e.message+' PAGE '+page.url()+' '+await page.locator('body').innerText());});
+  await page.locator('select[name=definitionId]').selectOption(saved.definitionId);await page.locator('select[name=oracleSpecId]').selectOption(oracle.id);
+  await page.getByLabel('元信息接口可用 观察节点').selectOption('verify');await page.locator('input[name=goal]').fill('接口状态符合批准标准');await page.locator('input[name=buildId]').fill('browser-graph-build');
+  expect(await page.getByLabel('任务参数 baseUrl').inputValue()).toBe(draftBaseUrl);
+  await page.screenshot({path:join(shotDir,'desktop-graph-launch.png'),fullPage:true});
+  await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth+1)).toBe(false);await page.screenshot({path:join(shotDir,'mobile-graph-launch.png'),fullPage:true});
+  expect(await page.locator('#graph-launch').evaluate((f:any)=>Array.from(f.querySelectorAll(':invalid')).map((e:any)=>e.outerHTML))).toEqual([]);
+  await Promise.all([page.waitForURL(/\/v2\/sessions\//,{timeout:5000}),page.getByRole('button',{name:'开始验收 →'}).click()]).catch(async e=>{throw Error(e.message+' PAGE '+page.url()+' '+await page.locator('body').innerText());});
+  const sessionId=page.url().split('/').at(-1)!;const job=await env.prisma.job.findFirstOrThrow({where:{kind:'V2_GRAPH_SESSION',request:{path:['sessionId'],equals:sessionId}}});
+  await processAgentJob(env.prisma,config(),job.id);await page.reload();expect(await page.locator('body').innerText()).toContain('pass');expect(errors).toEqual([]);
+ }finally{await browser.close();}
+},30000);

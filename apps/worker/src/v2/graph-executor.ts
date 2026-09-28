@@ -5,7 +5,7 @@ import type {
   RestrictedCondition,
   WorkflowDefinitionContent,
 } from "@ai-qa/contracts";
-import { invokeCapability } from "./capability-invoker.js";
+import { invokeCapability, type InvokeInput } from "./capability-invoker.js";
 
 /**
  * v2 组合图执行内核（HAR-02）：按依赖序执行节点。
@@ -34,6 +34,12 @@ export interface GraphExecutionInput {
   mode?: "execute" | "dry-run" | "replay";
   /** replay 输入：逻辑键 → 记录输出。 */
   replayLog?: Record<string, unknown>;
+  /** Durable hosts journal each physical attempt; logical idempotency keys remain stable. */
+  invoke?: typeof invokeCapability;
+  environmentId?: string;
+  artifactDir?: string;
+  installations?: Record<string, {installationId:string; actionScope:string[]}>;
+  subflows?: Record<string, WorkflowDefinitionContent>;
 }
 
 export interface NodeRunRecord {
@@ -137,7 +143,11 @@ export async function executeGraph(args: GraphExecutionInput): Promise<GraphExec
       }
     }
 
-    const record = await runNode(node, args, outputs, () => (sequence += 1));
+    let record: NodeRunRecord;
+    try { record = expanded.joins?.[node.nodeId]
+      ? {nodeId:node.nodeId,status:"completed",attempts:0,output:Object.fromEntries(expanded.joins[node.nodeId]!.map(id=>[id.slice(node.nodeId.length+2),outputs.get(id)]))}
+      : await runNode(node, args, outputs, () => (sequence += 1)); }
+    catch (error) { record = {nodeId:node.nodeId,status:"failed",output:null,attempts:0,error:{code:"VALIDATION_ERROR",message:(error as Error).message}}; }
     records.set(node.nodeId, record);
     if (record.status === "completed") {
       outputs.set(node.nodeId, record.output);
@@ -266,7 +276,7 @@ async function runNode(
         if (r.status !== "completed") {
           firstError ??= r.error ?? { code: "MAP_ITEM_FAILED", message: `map 第 ${index} 项失败` };
           if (r.status === "cancelled") stopped = "cancelled";
-          else if (r.status === "require_human") stopped = "require_human";
+          else if (r.status === "require_human" || r.status === "unknown_write") stopped = "require_human";
           else stopped = "failed";
         }
       }
@@ -302,7 +312,7 @@ async function runNode(
     // 到达这里的 failed 均为声明可重试类；节点截止在循环顶检查。
   }
   const outcome: InvokeOutcome = last ?? { status: "failed", output: null, error: firstError };
-  return { nodeId: node.nodeId, status: outcome.status, output: null, attempts: attempt + 1, firstError, firstFailureAttempt, error: firstError ?? outcome.error, nodeDeadline };
+  return { nodeId: node.nodeId, status: outcome.status, output: null, attempts: Math.min(attempt + 1, maxAttempts), firstError, firstFailureAttempt, error: firstError ?? outcome.error, nodeDeadline };
 }
 
 type InvokeOutcome =
@@ -346,6 +356,9 @@ async function invokeOnce(
       continue;
     }
     input[param] = resolveBinding(binding, outputs, args.taskInput);
+    const value = input[param];
+    if (value === undefined || (binding.type !== "json" && typeof value !== binding.type))
+      return {status:"failed",output:null,error:{code:"VALIDATION_ERROR",message:`参数 ${param} 缺失或绑定类型不符`}};
   }
   const id = nextId();
   // 业务幂等键与调用身份分离（R0.4）：幂等键=执行命名空间+节点+逻辑项（不含 attempt，
@@ -355,7 +368,8 @@ async function invokeOnce(
     : ctxHint.iteration !== undefined
       ? `${args.executionKey}:${node.nodeId}:iter-${ctxHint.iteration}`
       : `${args.executionKey}:${node.nodeId}`;
-  return toOutcome(await invokeCapability({
+  const pinned = args.installations?.[`${node.capabilityId}@${node.capabilityVersion}`];
+  const request: InvokeInput = {
     prisma: args.prisma,
     projectId: args.projectId,
     capabilityId: node.capabilityId,
@@ -365,8 +379,14 @@ async function invokeOnce(
     idempotencyKey: logicalKey,
     signal: args.signal,
     allowedOrigins: args.allowedOrigins,
-    invocationId: `${args.executionKey}-inv-${id}`,
-  }));
+    invocationId: `${logicalKey}:attempt-${ctxHint.attempt ?? 0}`,
+    environmentId: args.environmentId,
+    artifactDir: args.artifactDir,
+    installationId: pinned?.installationId,
+    actionScope: pinned?.actionScope,
+  };
+  void id;
+  return toOutcome(await (args.invoke ?? invokeCapability)(request));
 }
 
 export function resolveBinding(
@@ -388,6 +408,7 @@ function resolvePath(root: unknown, path: string): unknown {
   for (const token of tokens) {
     if (current === null || current === undefined) return undefined;
     if (typeof current !== "object") return undefined;
+    if (!Object.hasOwn(current,token)) return undefined;
     current = (current as Record<string, unknown>)[token];
   }
   return current;
@@ -429,7 +450,7 @@ async function expandSubflows(
   args: GraphExecutionInput,
   depth = 0,
 ): Promise<
-  | { definition: WorkflowDefinitionContent }
+  | { definition: WorkflowDefinitionContent; joins?: Record<string,string[]> }
   | { error: true; nodeId: string; code: string; message: string }
 > {
   if (depth >= MAX_SUBFLOW_EXPANSION)
@@ -437,9 +458,13 @@ async function expandSubflows(
   const subflowNodes = args.definition.nodes.filter((n) => n.subflow);
   if (subflowNodes.length === 0) return { definition: args.definition };
   const inlined: GraphNode[] = [];
+  const joins: Record<string,string[]> = {};
   for (const node of args.definition.nodes) {
     if (!node.subflow) { inlined.push(node); continue; }
-    const row = await args.prisma.v2WorkflowDefinition.findFirst({
+    if(node.condition || node.map || node.repeat || node.retry)
+      return {error:true,nodeId:node.nodeId,code:"VALIDATION_ERROR",message:"子流程包装节点暂不支持条件、map、repeat 或 retry；请在子流程内部配置"};
+    const frozen = args.subflows?.[`${node.subflow.definitionId}@${node.subflow.version}`];
+    const row = frozen ? {status:"PUBLISHED",content:frozen} : args.subflows ? null : await args.prisma.v2WorkflowDefinition.findFirst({
       where: { id: node.subflow!.definitionId, version: node.subflow!.version, projectId: args.projectId },
     });
     if (!row || row.status !== "PUBLISHED")
@@ -449,6 +474,11 @@ async function expandSubflows(
     const nested = await expandSubflows({ ...args, definition: content }, depth + 1);
     if ("error" in nested) return nested;
     const prefix = `${node.nodeId}__`;
+    for(const [key,ids] of Object.entries(nested.joins ?? {})) joins[prefix+key]=ids.map(id=>prefix+id);
+    const rewriteBinding = (binding: Binding): Binding => binding.source === "node"
+      ? {...binding,nodeId:prefix+binding.nodeId}
+      : binding.source === "input" && node.bindings[binding.path] ? node.bindings[binding.path]! : binding;
+    const rewriteCondition = (condition: RestrictedCondition): RestrictedCondition => ({...condition,left:rewriteBinding(condition.left),...(condition.right?{right:rewriteBinding(condition.right)}:{})});
     for (const inner of nested.definition.nodes) {
       inlined.push({
         ...inner,
@@ -457,15 +487,19 @@ async function expandSubflows(
         bindings: Object.fromEntries(
           Object.entries(inner.bindings).map(([param, binding]) => [
             param,
-            binding.source === "node"
-              ? { ...binding, nodeId: binding.nodeId.startsWith("$host.") ? binding.nodeId.slice("$host.".length) : prefix + binding.nodeId }
-              : binding,
+            rewriteBinding(binding),
           ]),
         ),
+        ...(inner.condition?{condition:rewriteCondition(inner.condition)}:{}),
+        ...(inner.repeat?.exitWhen?{repeat:{...inner.repeat,exitWhen:rewriteCondition(inner.repeat.exitWhen)}}:{}),
+        ...(inner.map?{map:{...inner.map,inputSet:rewriteBinding(inner.map.inputSet)}}:{}),
       });
     }
+    const ids=nested.definition.nodes.map(inner=>prefix+inner.nodeId);
+    joins[node.nodeId]=ids;
+    inlined.push({...node,subflow:undefined,bindings:{},dependsOn:ids});
   }
-  return { definition: { ...args.definition, nodes: inlined } };
+  return { definition: { ...args.definition, nodes: inlined }, joins };
 }
 
 /** 运行前轻量校验（展开后 ID 一致性）。 */

@@ -16,7 +16,50 @@ from pydantic import (
 )
 
 
+class Rule(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str
+    reviewStatus: Literal['APPROVED']
+    expectation: str = Field(..., max_length=4000, min_length=1)
+
+
+class Args(RootModel[str]):
+    root: str = Field(..., max_length=4000)
+
+
 class File(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    path: str = Field(..., pattern='^aiqa_generated_tests\\/[a-zA-Z0-9_.-]+$')
+    content: str = Field(..., max_length=200000)
+    contentHash: str = Field(..., pattern='^[a-f0-9]{64}$')
+
+
+class CandidateTestsOutput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    generatorVersion: Literal['approved-examples-v1']
+    files: list[File] = Field(..., max_length=5, min_length=1)
+    exampleIds: list[str] = Field(..., max_length=100, min_length=1)
+    limitations: list[str] = Field(..., max_length=20)
+
+
+class CandidateTestsResponse(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str
+    mode: Literal['real', 'mock']
+    output: CandidateTestsOutput
+    invocations: list[Any] = Field(..., max_length=0)
+
+
+class File1(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -29,11 +72,11 @@ class SourceClassificationInput(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    files: list[File] = Field(..., max_length=50)
+    files: list[File1] = Field(..., max_length=50)
     promptVersion: Literal['sources-v1']
 
 
-class File1(BaseModel):
+class File2(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -52,7 +95,7 @@ class SourceClassificationOutput(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    files: list[File1] = Field(..., max_length=50)
+    files: list[File2] = Field(..., max_length=50)
 
 
 class SourceClassificationRequest(BaseModel):
@@ -435,7 +478,7 @@ class V2SessionBudget(BaseModel):
     maxModelCalls: int = Field(..., ge=0, le=10000)
     maxTokens: int = Field(..., ge=0, le=100000000)
     maxToolCalls: int = Field(..., ge=1, le=100000)
-    maxResources: int = Field(..., ge=1, le=10000)
+    maxResources: int = Field(..., ge=0, le=10000)
     maxCostMicros: MaxCostMicros | None
 
 
@@ -569,7 +612,7 @@ class Origin1(BaseModel):
     refs: list[Ref] = Field(..., max_length=100, min_length=1)
 
 
-class File2(BaseModel):
+class File3(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -880,6 +923,10 @@ class Coverage(BaseModel):
     newCovered: int = Field(..., ge=0, le=200)
 
 
+class Items1(RootModel[str]):
+    root: str = Field(..., max_length=4000)
+
+
 class Locator10(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -951,7 +998,7 @@ class Value6(BaseModel):
     varName: str = Field(..., pattern='^[a-zA-Z][a-zA-Z0-9_]*$')
 
 
-class Items(BaseModel):
+class ItemsModel(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -1006,6 +1053,40 @@ class AdditionalProperties1(BaseModel):
         ..., max_length=500, min_length=1, pattern='^[a-zA-Z0-9_.\\[\\]-]+$'
     )
     type: Literal['string', 'number', 'boolean', 'json']
+
+
+class Example(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(..., pattern='^[a-zA-Z0-9_-]{1,80}$')
+    ruleVersionId: str
+    args: list[Args | float | bool | None] = Field(..., max_length=20)
+    expected: Items1 | float | bool | None
+
+
+class CandidateTestsInput(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    language: Literal['node', 'python']
+    modulePath: str = Field(
+        ..., max_length=200, pattern='^[a-zA-Z0-9_][a-zA-Z0-9_./-]*$'
+    )
+    functionName: str = Field(..., max_length=100, pattern='^[a-zA-Z_][a-zA-Z0-9_]*$')
+    rules: list[Rule] = Field(..., max_length=100, min_length=1)
+    examples: list[Example] = Field(..., max_length=100, min_length=1)
+
+
+class CandidateTestsRequest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Literal['1.0']
+    requestId: str
+    mode: Literal['real', 'mock']
+    timeoutMs: int = Field(..., ge=1000, le=600000)
+    input: CandidateTestsInput
 
 
 class DataSpec(BaseModel):
@@ -1405,7 +1486,7 @@ class ApprovedRuleVersion(BaseModel):
     expectation: str = Field(..., min_length=1)
     forbiddenBehaviors: list[str] | None = []
     priority: Literal['P0', 'P1', 'P2'] | None = 'P1'
-    businessFields: list[Items] | None = Field([], validate_default=True)
+    businessFields: list[ItemsModel] | None = Field([], validate_default=True)
     sources: list[Source] | None = Field([], validate_default=True)
     conflictsWith: list[RequestId] | None = Field([], validate_default=True)
     reviewStatus: (
@@ -1829,7 +1910,7 @@ class V2CapabilityManifest(BaseModel):
     id: str = Field(..., pattern='^[a-z][a-z0-9_-]*(\\.[a-z][a-z0-9_-]*)+$')
     version: str = Field(..., pattern='^\\d+\\.\\d+\\.\\d+$')
     protocolVersion: Literal['aiqa.capability/2']
-    protocol: Literal['local-ts', 'remote-http']
+    protocol: Literal['local-ts', 'remote-http', 'mcp-http']
     entrypointRef: str = Field(..., max_length=500, min_length=1)
     inputSchema: InputSchemaModel
     outputSchema: InputSchema
@@ -2242,6 +2323,9 @@ class V2TestPatch(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
+    contentArtifactId: RequestId | None = None
+    reviewedBy: str | None = None
+    reviewedAt: AwareDatetime | None = None
     id: str = Field(
         ..., max_length=128, min_length=1, pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$'
     )
@@ -2251,7 +2335,7 @@ class V2TestPatch(BaseModel):
     origin: Origin1
     repositoryUrl: AnyUrl
     commitSha: str = Field(..., pattern='^[a-f0-9]{40}$')
-    files: list[File2] = Field(..., max_length=500, min_length=1)
+    files: list[File3] = Field(..., max_length=500, min_length=1)
     status: Literal['draft', 'executed', 'validated', 'rejected'] | None = 'draft'
     execution: Execution
     validity: Validity
@@ -2468,7 +2552,7 @@ class SnapshotDiffInput(BaseModel):
     bundles: dict[str, ParsedDocumentBundle]
 
 
-class ItemsModel(BaseModel):
+class ItemsModel1(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -2488,7 +2572,7 @@ class ItemsModel(BaseModel):
     expectation: str = Field(..., min_length=1)
     forbiddenBehaviors: list[str] | None = []
     priority: Literal['P0', 'P1', 'P2'] | None = 'P1'
-    businessFields: list[Items] | None = Field([], validate_default=True)
+    businessFields: list[ItemsModel] | None = Field([], validate_default=True)
     sources: list[Source] | None = Field([], validate_default=True)
     conflictsWith: list[RequestId] | None = Field([], validate_default=True)
     reviewStatus: (
@@ -2502,7 +2586,7 @@ class ItemsModel(BaseModel):
     createdAt: AwareDatetime
 
 
-class ItemsModel1(BaseModel):
+class ItemsModel2(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -2511,7 +2595,7 @@ class ItemsModel1(BaseModel):
     fileChecksum: str = Field(..., pattern='^[a-f0-9]{64}$')
 
 
-class ItemsModel2(BaseModel):
+class ItemsModel3(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -2595,7 +2679,7 @@ class TestCaseModel(BaseModel):
     createdAt: AwareDatetime
 
 
-class ItemsModel3(BaseModel):
+class ItemsModel4(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -2759,7 +2843,7 @@ class CaseDraft(BaseModel):
     preconditions: list[str] | None = []
     dataSpec: DataSpec | DataSpec1
     steps: list[Step1] = Field(..., min_length=1)
-    assertions: list[ItemsModel3] = Field(..., min_length=1)
+    assertions: list[ItemsModel4] = Field(..., min_length=1)
     cleanup: Cleanup
     priority: Literal['P0', 'P1', 'P2'] | None = 'P1'
     dimensions: list[
@@ -2830,7 +2914,7 @@ class SourceChange1(BaseModel):
     path: str = Field(..., min_length=1)
     kind: Literal['added']
     old: None
-    new: ItemsModel2
+    new: ItemsModel3
     reason: None
 
 
@@ -2840,7 +2924,7 @@ class SourceChange2(BaseModel):
     )
     path: str = Field(..., min_length=1)
     kind: Literal['removed']
-    old: ItemsModel2
+    old: ItemsModel3
     new: None
     reason: None
 
@@ -2851,8 +2935,8 @@ class SourceChange3(BaseModel):
     )
     path: str = Field(..., min_length=1)
     kind: Literal['modified']
-    old: ItemsModel2
-    new: ItemsModel2
+    old: ItemsModel3
+    new: ItemsModel3
     reason: None
 
 
@@ -2862,8 +2946,8 @@ class SourceChange4(BaseModel):
     )
     path: str = Field(..., min_length=1)
     kind: Literal['uncertain']
-    old: ItemsModel2
-    new: ItemsModel2 | None
+    old: ItemsModel3
+    new: ItemsModel3 | None
     reason: str = Field(..., min_length=1)
 
 
@@ -2889,7 +2973,7 @@ class ImpactAnalysisInput(BaseModel):
         extra='forbid',
     )
     sourceReports: list[SourceChangeReport] = Field(..., max_length=100)
-    approvedRuleVersions: list[ItemsModel]
+    approvedRuleVersions: list[ItemsModel1]
     approvedCaseVersions: list[TestCaseModel]
 
 
@@ -2898,7 +2982,7 @@ class ChangeReviewAnalysisInput(BaseModel):
         extra='forbid',
     )
     comparison: SourceComparisonInput
-    approvedRuleVersions: list[ItemsModel] = Field(..., max_length=500)
+    approvedRuleVersions: list[ItemsModel1] = Field(..., max_length=500)
     approvedCaseVersions: list[TestCaseModel] = Field(..., max_length=500)
 
 
@@ -3080,7 +3164,7 @@ class MultiFileComparisonInput(BaseModel):
         extra='forbid',
     )
     oldFiles: list[OldFile] = Field(..., max_length=200, min_length=1)
-    newFiles: list[ItemsModel1] = Field(..., max_length=200, min_length=1)
+    newFiles: list[ItemsModel2] = Field(..., max_length=200, min_length=1)
     excludedPaths: list[ExcludedPath] | None = Field(
         [], max_length=200, validate_default=True
     )
@@ -3192,6 +3276,16 @@ class SnapshotCompareResponse(BaseModel):
 class IntelligenceContracts(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
+    )
+    CandidateTestsInput_1: CandidateTestsInput = Field(..., alias='CandidateTestsInput')
+    CandidateTestsOutput_1: CandidateTestsOutput = Field(
+        ..., alias='CandidateTestsOutput'
+    )
+    CandidateTestsRequest_1: CandidateTestsRequest = Field(
+        ..., alias='CandidateTestsRequest'
+    )
+    CandidateTestsResponse_1: CandidateTestsResponse = Field(
+        ..., alias='CandidateTestsResponse'
     )
     SourceClassificationInput_1: SourceClassificationInput = Field(
         ..., alias='SourceClassificationInput'

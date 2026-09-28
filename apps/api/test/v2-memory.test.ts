@@ -44,8 +44,8 @@ beforeAll(async () => {
   const mkMemory = async (pid: string, over: Record<string, unknown> = {}) =>
     (await env.prisma.projectMemory.create({
       data: {
-        projectId: pid, content: "改名入口常在详情页", source: { kind: "observation" } as never,
-        validUntil: null, invalidated: false, ...over,
+        projectId: pid, content: "改名入口常在详情页", source: { kind: "manual" } as never,
+        validUntil: new Date(Date.now()+86400000), invalidated: false, ...over,
       } as never,
     })).id;
   freshMemoryId = await mkMemory(projectId);
@@ -82,6 +82,8 @@ it("过期/失效记忆不能 used；可 rejected 并留账", async () => {
 });
 
 it("有效记忆 used + outcome 落账；账本可查且含完整决策", async () => {
+  expect((await record(freshMemoryId,"used",{outcome:"helped"})).statusCode).toBe(409);
+  await env.prisma.v2ExecutionSession.update({where:{id:sessionId},data:{status:"COMPLETED"}});
   const used = await record(freshMemoryId, "used", { outcome: "helped" });
   expect(used.statusCode).toBe(201);
   const list = await app.inject({ method: "GET", url: `/api/v2/sessions/${sessionId}/memory-usages`, headers: H });

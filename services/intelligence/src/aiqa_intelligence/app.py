@@ -8,6 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from .agents.change_review import analyze as analyze_change_review
+from .agents.candidate_tests import propose as propose_candidate_tests
 from .agents.service import AgentPipelines
 from .agents.planner import propose_plan, classify_sources
 from .agents.goal import propose_goal
@@ -155,6 +156,7 @@ def create_app(
             "context": "ContextRetrieval",
             "loop_plan": "LoopPlanner",
             "decide": "Decision",
+            "candidate_tests": "CandidateTests",
         }
         name = names[operation]
         validate_shape(name + "Request", wire)
@@ -223,6 +225,7 @@ def create_app(
             "context": retrieve_context_agent,
             "loop_plan": plan_next,
             "decide": decide_agent,
+            "candidate_tests": propose_candidate_tests,
         }
         try:
             output = await asyncio.wait_for(
@@ -275,6 +278,10 @@ def create_app(
     @app.post("/v2/context/retrieve")
     async def context_route(request: Request):
         return await invoke(request, "context")
+
+    @app.post("/v2/tests/propose")
+    async def candidate_tests_route(request: Request):
+        return await invoke(request, "candidate_tests")
 
     @app.post("/v2/decide")
     async def decide_route(request: Request):

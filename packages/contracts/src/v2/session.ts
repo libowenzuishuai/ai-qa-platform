@@ -36,7 +36,7 @@ export const SessionBudget = z.object({
   maxModelCalls: z.number().int().min(0).max(10_000),
   maxTokens: z.number().int().min(0).max(100_000_000),
   maxToolCalls: z.number().int().min(1).max(100_000),
-  maxResources: z.number().int().min(1).max(10_000),
+  maxResources: z.number().int().min(0).max(10_000),
   /** 预算上限（微元/千次调用等单位由部署方声明）；null = 价格未知。 */
   maxCostMicros: z.number().int().min(1).nullable(),
 }).strict().superRefine((b, ctx) => {

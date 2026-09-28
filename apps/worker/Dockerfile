@@ -4,6 +4,7 @@
 # 注意：本镜像刻意不包含 tests-golden（黄金评测答案）——生产 worker
 # 不做 mock 评测；需要评测答案的环境在宿主侧运行测试。
 FROM node:22-bookworm-slim AS build
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /repo
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./

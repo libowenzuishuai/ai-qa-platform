@@ -1,6 +1,241 @@
 {
   "$ref": "#/definitions/IntelligenceContracts",
   "definitions": {
+    "CandidateTestsInput": {
+      "type": "object",
+      "properties": {
+        "language": {
+          "type": "string",
+          "enum": [
+            "node",
+            "python"
+          ]
+        },
+        "modulePath": {
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[a-zA-Z0-9_][a-zA-Z0-9_./-]*$"
+        },
+        "functionName": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "reviewStatus": {
+                "type": "string",
+                "const": "APPROVED"
+              },
+              "expectation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              }
+            },
+            "required": [
+              "id",
+              "reviewStatus",
+              "expectation"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 100
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,80}$"
+              },
+              "ruleVersionId": {
+                "type": "string"
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 4000
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "maxItems": 20
+              },
+              "expected": {
+                "$ref": "#/definitions/CandidateTestsInput/properties/examples/items/properties/args/items"
+              }
+            },
+            "required": [
+              "id",
+              "ruleVersionId",
+              "args",
+              "expected"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "language",
+        "modulePath",
+        "functionName",
+        "rules",
+        "examples"
+      ],
+      "additionalProperties": false
+    },
+    "CandidateTestsOutput": {
+      "type": "object",
+      "properties": {
+        "generatorVersion": {
+          "type": "string",
+          "const": "approved-examples-v1"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "pattern": "^aiqa_generated_tests\\/[a-zA-Z0-9_.-]+$"
+              },
+              "content": {
+                "type": "string",
+                "maxLength": 200000
+              },
+              "contentHash": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "path",
+              "content",
+              "contentHash"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 5
+        },
+        "exampleIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "maxItems": 100
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20
+        }
+      },
+      "required": [
+        "generatorVersion",
+        "files",
+        "exampleIds",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
+    "CandidateTestsRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "real",
+            "mock"
+          ]
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 600000
+        },
+        "input": {
+          "$ref": "#/definitions/CandidateTestsInput"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "timeoutMs",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "CandidateTestsResponse": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "real",
+            "mock"
+          ]
+        },
+        "output": {
+          "$ref": "#/definitions/CandidateTestsOutput"
+        },
+        "invocations": {
+          "type": "array",
+          "items": {},
+          "maxItems": 0
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "requestId",
+        "mode",
+        "output",
+        "invocations"
+      ],
+      "additionalProperties": false
+    },
     "SourceClassificationInput": {
       "type": "object",
       "properties": {
@@ -3529,7 +3764,8 @@
           "type": "string",
           "enum": [
             "local-ts",
-            "remote-http"
+            "remote-http",
+            "mcp-http"
           ]
         },
         "entrypointRef": {
@@ -4472,7 +4708,7 @@
         },
         "maxResources": {
           "type": "integer",
-          "minimum": 1,
+          "minimum": 0,
           "maximum": 10000
         },
         "maxCostMicros": {
@@ -5484,6 +5720,35 @@
     "V2TestPatch": {
       "type": "object",
       "properties": {
+        "contentArtifactId": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reviewedBy": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "reviewedAt": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PlanProposalInput/properties/testCase/properties/createdAt"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "id": {
           "$ref": "#/definitions/SourceClassificationRequest/properties/requestId"
         },
@@ -7395,6 +7660,18 @@
     "IntelligenceContracts": {
       "type": "object",
       "properties": {
+        "CandidateTestsInput": {
+          "$ref": "#/definitions/CandidateTestsInput"
+        },
+        "CandidateTestsOutput": {
+          "$ref": "#/definitions/CandidateTestsOutput"
+        },
+        "CandidateTestsRequest": {
+          "$ref": "#/definitions/CandidateTestsRequest"
+        },
+        "CandidateTestsResponse": {
+          "$ref": "#/definitions/CandidateTestsResponse"
+        },
         "SourceClassificationInput": {
           "$ref": "#/definitions/SourceClassificationInput"
         },
@@ -7652,6 +7929,10 @@
         }
       },
       "required": [
+        "CandidateTestsInput",
+        "CandidateTestsOutput",
+        "CandidateTestsRequest",
+        "CandidateTestsResponse",
         "SourceClassificationInput",
         "SourceClassificationOutput",
         "SourceClassificationRequest",

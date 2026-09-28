@@ -254,7 +254,7 @@ it("写后回执前 SIGKILL 真实子进程：重启恢复对账，资源仍 1 �
     }).catch((e) => { console.error("LOOP-ERR", e?.message, e?.code); process.exit(1); });
     console.error("LOOP-RESULT", JSON.stringify(r));
   `);
-  const child = spawn(join(root, "apps/worker/node_modules/.bin/tsx"), [childScriptFile], { cwd: root, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(process.execPath, ["--import", join(root, "apps/worker/node_modules/tsx/dist/loader.mjs"), childScriptFile], { cwd: root, stdio: ["ignore", "pipe", "pipe"] });
 
   let childLog = "";
   child.stderr?.on("data", b => {childLog += b.toString();});
@@ -497,10 +497,10 @@ it("失联会话作业重新入队，过期 worker 不能复活终态",async()=>
 });
 
 it("模型规划每轮获得最新草稿；模型请求与用量留痕，mock HTTP 不代表模型质量",async()=>{
- const server=await startDraftServer();const planner=Fastify();const seen:Array<{draft:any;tokens:number}>=[];
+ const server=await startDraftServer();const planner=Fastify();const seen:Array<{draft:any;tokens:number;context:any[]}>=[];
  planner.post('/v2/loop/plan',async req=>{
   const b=req.body as any;const draft=b.input.observation.draft;
-  seen.push({draft,tokens:Number(req.headers['x-aiqa-model-tokens'])});
+  seen.push({draft,tokens:Number(req.headers['x-aiqa-model-tokens']),context:b.input.contextExcerpt});
   const output=!draft?{action:'create_draft',params:{},rationale:'fixture create'}:draft.title!==TARGET_TITLE?{action:'rename_draft',params:{title:TARGET_TITLE,renamePath:b.input.observation.renamePath},rationale:'fixture rename'}:{action:'done',params:{},rationale:'fixture verify'};
   return {schemaVersion:'1.0',requestId:b.requestId,mode:'real',output,invocations:[{purpose:'PLAN_PROPOSAL',promptVersion:'loop-planner-v1',response:{parsedJson:output,rawText:JSON.stringify(output),repairsApplied:[],provider:'mock',model:'fixture',requestId:'fixture',usage:{inputTokens:30,outputTokens:20},latencyMs:1,outcome:'SUCCESS'}}]};
  });
@@ -508,11 +508,18 @@ it("模型规划每轮获得最新草稿；模型请求与用量留痕，mock HT
  try{
   const sessionId=await createSession();const row=await env.prisma.v2ExecutionSession.findUniqueOrThrow({where:{id:sessionId}});
   await env.prisma.v2ExecutionSession.update({where:{id:sessionId},data:{budget:{...(row.budget as object),maxModelCalls:10,maxTokens:10000}}});
+  const memory=await env.prisma.projectMemory.create({data:{projectId,environmentId:row.environmentId,content:"先读取页面最新入口，不要修改业务标准",source:{kind:"manual"},context:{oracleHash:row.oracleHash},validUntil:new Date(Date.now()+86400000)}});
+  const expired=await env.prisma.projectMemory.create({data:{projectId,content:"过期的旧按钮名称",source:{kind:"manual"},validUntil:new Date(Date.now()-1000)}});
   const r=await runDraftSessionLoop({prisma:env.prisma,artifactDir:env.artifactDir,sessionId,baseUrl:server.baseUrl,planner:'python-real',intelligence:{url,token:'fixture'}});
   expect(r.verdict).toBe('pass');expect(seen.map(x=>x.draft?.title??null)).toEqual([null,'初始草稿',TARGET_TITLE]);
   expect(seen.map(x=>x.tokens)).toEqual([10000,9950,9900]);
   const final=await env.prisma.v2ExecutionSession.findUniqueOrThrow({where:{id:sessionId}});
   expect((final.usage as any).modelCallsUsed).toBe(3);expect((final.usage as any).tokensUsed).toBe(150);
+  expect(seen.every(x=>x.context.some(c=>c.spanId===`memory:${memory.id}`))).toBe(true);
+  expect(seen.every(x=>!x.context.some(c=>c.spanId===`memory:${expired.id}`))).toBe(true);
+  const uses=await env.prisma.v2MemoryUsage.findMany({where:{sessionId}});
+  expect(uses.filter(x=>x.memoryRecordId===memory.id&&x.decision==='used')).toHaveLength(3);
+  expect(uses.every(x=>x.outcome==='unknown')).toBe(true);
  }finally{await planner.close();await server.stop();}
 });
 

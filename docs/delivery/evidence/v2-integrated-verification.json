@@ -1,0 +1,65 @@
+{
+  "date": "2026-09-28",
+  "baseline": "a10dcec",
+  "branch": "v2/autonomous-qa",
+  "releaseStatus": "DEVELOPMENT_PREVIEW_NOT_FULL_V2",
+  "countsOverlap": true,
+  "paidModelCalls": 0,
+  "checks": [
+    {
+      "suite": "contracts",
+      "passed": 306,
+      "failed": 0
+    },
+    {
+      "suite": "api final including real candidate containers and UI",
+      "passed": 124,
+      "failed": 0
+    },
+    {
+      "suite": "worker full before final verifier/screenshot changes",
+      "passed": 208,
+      "skipped": 7,
+      "failed": 0
+    },
+    {
+      "suite": "worker V2 final covering final verifier/screenshot/nav changes",
+      "passed": 87,
+      "failed": 0
+    },
+    {
+      "suite": "Python intelligence and runner final",
+      "passed": 423,
+      "skipped": 17,
+      "failed": 0
+    },
+    {
+      "suite": "web SSR",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "suite": "typecheck",
+      "result": "passed"
+    },
+    {
+      "suite": "TS/Python generated contracts",
+      "result": "passed"
+    }
+  ],
+  "productionImages": {
+    "status": "BUILDING_AND_ACCEPTANCE_PENDING"
+  },
+  "syntheticEvidence": [
+    "Node/Python same generated patch healthy/defect/fix: six disposable containers",
+    "Actual SIGKILL of the worker process and real lease expiry",
+    "Real local MCP HTTP+SSE server; not third-party MCP interoperability",
+    "Real Chromium 1440/390 UI, isolated database/HTTP/Python; screenshots committed"
+  ],
+  "externalGates": [
+    "No paid Kimi evaluation without budget response",
+    "Three authorized projects and independent QA evaluation not provided",
+    "GitHub App live integration and optional Jev protocol/credentials not provided"
+  ],
+  "remainingCode": "See docs/delivery/v2-integrated-delivery-20260928.md; universal browser autonomy, strategy composition, investigation depth and full UX are still incomplete."
+}

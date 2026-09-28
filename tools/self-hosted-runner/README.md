@@ -56,3 +56,9 @@ docker build -t aiqa-registry-proxy:1 -f tools/self-hosted-runner/Dockerfile.reg
 报告限制 256 KiB / 2,000 个源文件，拒绝目录穿越、重复文件/行、未闭合记录、矛盾计数与错误哈希。平台独立重算原文中的行数，原报告留在受限证据中；零分母显示 0 / 0，不显示 100%。当前只导入行覆盖率，不声称支持 Cobertura 或函数/分支覆盖统计；代码覆盖不等于业务需求覆盖。
 
 私有 GitHub 仓库使用已授权 GitHub App，由平台在有效任务租约内代理获取冻结源码；运行器不会取得 GitHub 安装令牌。真实 GitHub App 部署验收见 [接入说明](../../docs/delivery/github-app-integration.md)。
+
+## 2.0 候选测试补丁
+
+候选测试必须经平台人工批准，由专用提交入口冻结文件内容与哈希。运行器仅允许新增 `aiqa_generated_tests/` 下的 `.mjs` / `.py` 文件，不覆盖源码，不跟随链接。只运行这些候选文件，保留真实 JUnit 结果。三构建有效性核验区分独立断言失败、测试装载/运行异常和平台故障；后两者不算“检出业务缺陷”。
+
+当前生成器支持具名函数与 JSON 基础值，不支持 Python 异步函数、复杂类型或从任意 PRD 自动生成完整测试。详细范围见 `docs/delivery/v2-integrated-delivery-20260928.md`。

@@ -12,6 +12,8 @@ docker build -t aiqa-intelligence:v1-review services/intelligence
 python3 tools/release-acceptance/run.py
 ```
 
+新镜像可通过 `AIQA_RELEASE_NEW_API`、`AIQA_RELEASE_NEW_WORKER`、`AIQA_RELEASE_NEW_WEB`、`AIQA_RELEASE_NEW_INTELLIGENCE` 覆盖，不必重标记历史镜像。
+
 旧版本镜像通过 `AIQA_RELEASE_OLD_API`、`AIQA_RELEASE_OLD_SEED`、`AIQA_RELEASE_OLD_WORKER` 指定；本地缺旧镜像应明确失败，不能用新镜像冒充升级验证。旧 seed 镜像可与旧 API 不同，以保留历史打包行为。
 
 验收流程：旧版空库安装/管理员 → 旧 worker 真实 Chromium 业务断言和截图/trace → 数据库+证据备份 → 新版全栈健康 → 旧报告仍 PASS → 新版独立空库迁移/初始化 → 备份恢复到另一个库和证据卷 → 完整报告逐项相同 → 新 worker 实际 Chromium 新运行 PASS。

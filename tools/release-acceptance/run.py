@@ -9,7 +9,7 @@ PROJECT='aiqa-release-'+secrets.token_hex(4)
 OLD_API=os.getenv('AIQA_RELEASE_OLD_API','aiqa-prod-r04-api:latest')
 OLD_SEED=os.getenv('AIQA_RELEASE_OLD_SEED','aiqa-prod-r04-seed:latest')
 OLD_WORKER=os.getenv('AIQA_RELEASE_OLD_WORKER','aiqa-prod-r04-worker:latest')
-NEW={k:'aiqa-'+k+':v1-review' for k in ['api','worker','web','intelligence']}
+NEW={k:os.getenv('AIQA_RELEASE_NEW_'+k.upper(),'aiqa-'+k+':v1-review') for k in ['api','worker','web','intelligence']}
 RECORD={'project':PROJECT,'synthetic':True,'date':time.strftime('%Y-%m-%d'),'steps':[],'images':{},'sourceCommit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),'sourceDiffHash':hashlib.sha256(subprocess.check_output(['git','diff','HEAD'],cwd=ROOT)).hexdigest()}
 secrets_to_mask=[]
 def command(args,input=None):
@@ -50,15 +50,31 @@ with tempfile.TemporaryDirectory(prefix=PROJECT+'-') as temp:
   backup=command(['docker','exec',container('postgres'),'pg_dump','-U','release_test','-Fc','release_test']);(folder/'old.dump').write_bytes(backup)
   artifactTar=command(['docker','run','--rm','-v',PROJECT+'_artifacts-prod:/data:ro','node:22-bookworm-slim','tar','-C','/data','-cf','-','.']);done('Database and evidence backup',databaseBytes=len(backup),artifactBytes=len(artifactTar),databaseSha256=hashlib.sha256(backup).hexdigest(),artifactSha256=hashlib.sha256(artifactTar).hexdigest())
   select();compose('run','--rm','migrate');compose('up','-d','--no-build','--wait','--wait-timeout','180','api','worker','web','intelligence');done('Upgrade: six production services healthy')
-  def verify(base):
+  def verify(base,create_v2=False,expected_patch=None):
    jar=http.cookiejar.CookieJar();client=urllib.request.build_opener(urllib.request.ProxyHandler({}),urllib.request.HTTPCookieProcessor(jar))
    req=urllib.request.Request(base+'/api/auth/login',data=json.dumps({'username':'release_admin','password':admin}).encode(),headers={'Content-Type':'application/json'})
    with client.open(req,timeout=10) as r:assert r.status==200
    with client.open(base+'/api/runs/'+record['runId']+'/report',timeout=30) as r:report=json.load(r)
    report=report.get('data',report)
    assert report['run']['acceptanceStatus']=='PASS',report
+   def request(path,body=None):
+    req=urllib.request.Request(base+path,data=json.dumps(body).encode() if body is not None else None,headers={'Content-Type':'application/json'})
+    with client.open(req,timeout=30) as response:return json.load(response)
+   for suffix in ['profiles','definitions','test-patches','findings']:
+    request('/api/v2/projects/'+record['projectId']+'/'+suffix)
+   if create_v2:
+    rules=request('/api/v2/projects/'+record['projectId']+'/test-patches/rules')['rules'];assert rules
+    patch=request('/api/v2/projects/'+record['projectId']+'/test-patches',{'repositoryUrl':'https://github.com/example/synthetic-release','commitSha':'a'*40,'language':'node','modulePath':'approval.mjs','functionName':'approval','examples':[{'id':'release-boundary','ruleVersionId':rules[0]['id'],'args':[500000],'expected':False}]})
+    request('/api/v2/test-patches/'+patch['id']+'/approve',{})
+    candidate=request('/api/v2/test-patches/'+patch['id'])['candidate']
+    RECORD['v2Patch']={'id':patch['id'],'files':[{key:file[key] for key in ['path','contentHash']} for file in candidate['output']['files']]}
+   if expected_patch:
+    detail=request('/api/v2/test-patches/'+expected_patch['id']);assert detail['patch']['reviewedAt']
+    assert [{'path':file['path'],'contentHash':file['contentHash']} for file in detail['candidate']['output']['files']]==expected_patch['files']
    return report
-  upgraded=verify(endpoint('api',7300));done('Upgraded API: old run and evidence still PASS')
+  upgraded=verify(endpoint('api',7300),create_v2=True);done('Upgraded API: old report PASS and V2 candidate generation through real Python service',patchId=RECORD['v2Patch']['id'])
+  v2backup=command(['docker','exec',container('postgres'),'pg_dump','-U','release_test','-Fc','release_test'])
+  v2artifacts=command(['docker','run','--rm','-v',PROJECT+'_artifacts-prod:/data:ro','node:22-bookworm-slim','tar','-C','/data','-cf','-','.'])
   command(['docker','exec',container('postgres'),'createdb','-U','release_test','release_fresh'])
   runtime['DATABASE_URL']=runtime['DATABASE_URL'].replace('/release_test?','/release_fresh?');runtimefile.write_text('\n'.join(k+'='+v for k,v in runtime.items()))
   command(['docker','run','--rm','--network',PROJECT+'_default','--env-file',str(runtimefile),NEW['api'],'./node_modules/.bin/prisma','migrate','deploy'])
@@ -87,6 +103,21 @@ with tempfile.TemporaryDirectory(prefix=PROJECT+'-') as temp:
   command(['docker','cp',str(ROOT/'tools/release-acceptance/container-fixture.ts'),current+':/app/apps/worker/release-fixture.ts'])
   out=command(['docker','start','-a',current]).decode();assert command(['docker','inspect','--format','{{.State.ExitCode}}',current]).decode().strip()=='0',out[-4000:]
   done('Final production worker: new actual Chromium run PASS',run=json.loads(out.strip().splitlines()[-1]))
+  command(['docker','exec',container('postgres'),'createdb','-U','release_test','release_v2_restored'])
+  command(['docker','exec','-i',container('postgres'),'pg_restore','-U','release_test','--no-owner','-d','release_v2_restored'],v2backup)
+  v2volume=PROJECT+'-v2-artifacts';command(['docker','volume','create',v2volume]);leftovers.append('volume:'+v2volume)
+  command(['docker','run','--rm','-i','-v',v2volume+':/data','node:22-bookworm-slim','tar','-C','/data','-xf','-'],v2artifacts)
+  runtime['DATABASE_URL']=runtime['DATABASE_URL'].replace('/release_restored?','/release_v2_restored?');runtimefile.write_text('\n'.join(k+'='+v for k,v in runtime.items()))
+  v2api=PROJECT+'-v2-api';leftovers.append(v2api)
+  command(['docker','run','-d','--name',v2api,'--network',PROJECT+'_default','--env-file',str(runtimefile),'-v',v2volume+':/data/artifacts','-p','127.0.0.1::7300',NEW['api']])
+  v2base='http://127.0.0.1:'+json.loads(command(['docker','inspect',v2api]))[0]['NetworkSettings']['Ports']['7300/tcp'][0]['HostPort']
+  for i in range(40):
+   try:
+    with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(v2base+'/api/health',timeout=2) as r:
+     if r.status==200:break
+   except Exception:time.sleep(.5)
+  assert verify(v2base,expected_patch=RECORD['v2Patch'])==upgraded
+  done('V2 backup restored independently: review state and generated test bytes identical',databaseSha256=hashlib.sha256(v2backup).hexdigest(),artifactSha256=hashlib.sha256(v2artifacts).hexdigest())
   RECORD['passed']=True
  finally:
   for item in reversed(leftovers):
