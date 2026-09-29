@@ -1,0 +1,73 @@
+{
+  "project": "aiqa-release-0a8e4a71",
+  "synthetic": true,
+  "date": "2026-09-29",
+  "steps": [
+    {
+      "step": "Old image clean install and initial administrator"
+    },
+    {
+      "step": "Old production worker: actual Chromium PASS with stored evidence",
+      "runId": "cmumik9fu000ipj011nenqblp"
+    },
+    {
+      "step": "Database and evidence backup",
+      "databaseBytes": 134186,
+      "artifactBytes": 40960,
+      "databaseSha256": "ac116e8d1e716ed4091a1a09bf161c9dcad9c4743a33e22947e3ab296252cd20",
+      "artifactSha256": "1562119cccf5c817716557c10f88ec3701a615bc7c84725cfcd8e969f7e0007e"
+    },
+    {
+      "step": "Upgrade: six production services healthy"
+    },
+    {
+      "step": "Upgraded API: old report PASS and V2 candidate generation through real Python service",
+      "patchId": "cmumiklq90003qn01gpvrkys7"
+    },
+    {
+      "step": "Final API image: independent empty database migration and administrator initialization"
+    },
+    {
+      "step": "Restored isolated database and evidence: complete report identical"
+    },
+    {
+      "step": "Final production worker: new actual Chromium run PASS",
+      "run": {
+        "runId": "cmumikq22000imt018klimshu",
+        "projectId": "cmumikq0p0000mt01vc98k0by",
+        "acceptanceStatus": "PASS"
+      }
+    },
+    {
+      "step": "V2 backup restored independently: review state and generated test bytes identical",
+      "databaseSha256": "8f9e1f34881d0fc61c59fb0df66a9b3998b3bbd3ad9f10afad3581296c5d0b15",
+      "artifactSha256": "9d8616c566811198e024033e3f1f45c20d07fa69262e054f1e4937b30d6ed935"
+    }
+  ],
+  "images": {
+    "aiqa-prod-r04-api:latest": "sha256:73e6b66f72dd0dd8be822596321a335ccc166f36ae0019b1ec366503123fec23",
+    "aiqa-prod-r04-seed:latest": "sha256:7fc5116614dc382f756d9161b8c2948a8b194814d3a00f07b0dc97eaf3f3d6ac",
+    "aiqa-prod-r04-worker:latest": "sha256:2828f1316c37d3312d2e935977b98c34ee8064cd0599f4c77fe9c5c0f0801c92",
+    "aiqa-api:v2-completion": "sha256:d043ae3583dd68b8126ef0e2a84f7bd68cf9be73a218727580ed9c199e1af63e",
+    "aiqa-worker:v2-completion": "sha256:68243a967ffc6f3805c6bd0a77e9a9514098f1f445007c52e4f6e97512a3f77c",
+    "aiqa-web:v2-completion": "sha256:753d11e9a20cb3eb4242cab442004c2fc4f53ab00accc7ac16244a5e0765217b",
+    "aiqa-intelligence:v2-completion": "sha256:4f9a7db19bc0c770b93672445c7a6fec16be13e83c027c506b0c857bc8f8dc05"
+  },
+  "sourceCommit": "3c530bebdbce4bcde4a1217e85436bfdc5c959bd",
+  "sourceDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "run": {
+    "runId": "cmumik9fu000ipj011nenqblp",
+    "projectId": "cmumik9dq0000pj017y3ign29",
+    "acceptanceStatus": "PASS"
+  },
+  "v2Patch": {
+    "id": "cmumiklq90003qn01gpvrkys7",
+    "files": [
+      {
+        "path": "aiqa_generated_tests/approved.test.mjs",
+        "contentHash": "d60253d6ebff0588272edbf4a4d5f5be0f3bfeca79365e5f7c4c22e59c2983ce"
+      }
+    ]
+  },
+  "passed": true
+}

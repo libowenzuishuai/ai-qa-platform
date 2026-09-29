@@ -44,6 +44,11 @@
     {
       "suite": "TS/Python generated contract consistency",
       "result": "passed"
+    },
+    {
+      "suite": "final desktop/mobile browser journey after resource error display change",
+      "passed": 3,
+      "failed": 0
     }
   ],
   "failedAttempts": [
@@ -56,7 +61,7 @@
     },
     {
       "suite": "production image first attempt",
-      "result": "web passed; api/worker/intelligence dependency downloads interrupted; retry pending"
+      "result": "initial dependency downloads interrupted; API/worker/intelligence retries succeeded and final web rebuilt"
     }
   ],
   "testEvidence": {
@@ -71,7 +76,25 @@
     "modelDecisions": "explicit fixtures or intercepted HTTP; no paid provider behavior measured"
   },
   "productionImages": {
-    "status": "PENDING_FINAL_VALIDATION"
+    "status": "VERIFIED_ARM64",
+    "record": "v2-autonomy-production-release.json",
+    "sourceCommit": "3c530bebdbce4bcde4a1217e85436bfdc5c959bd",
+    "imageIds": {
+      "aiqa-prod-r04-api:latest": "sha256:73e6b66f72dd0dd8be822596321a335ccc166f36ae0019b1ec366503123fec23",
+      "aiqa-prod-r04-seed:latest": "sha256:7fc5116614dc382f756d9161b8c2948a8b194814d3a00f07b0dc97eaf3f3d6ac",
+      "aiqa-prod-r04-worker:latest": "sha256:2828f1316c37d3312d2e935977b98c34ee8064cd0599f4c77fe9c5c0f0801c92",
+      "aiqa-api:v2-completion": "sha256:d043ae3583dd68b8126ef0e2a84f7bd68cf9be73a218727580ed9c199e1af63e",
+      "aiqa-worker:v2-completion": "sha256:68243a967ffc6f3805c6bd0a77e9a9514098f1f445007c52e4f6e97512a3f77c",
+      "aiqa-web:v2-completion": "sha256:753d11e9a20cb3eb4242cab442004c2fc4f53ab00accc7ac16244a5e0765217b",
+      "aiqa-intelligence:v2-completion": "sha256:4f9a7db19bc0c770b93672445c7a6fec16be13e83c027c506b0c857bc8f8dc05"
+    },
+    "steps": 9,
+    "cleanupErrors": [],
+    "limitations": [
+      "Synthetic business fixture, no real model evaluation",
+      "amd64 and Windows not verified",
+      "No desktop MFA inside headless production containers"
+    ]
   },
   "limitations": [
     "Local visible worker supports manual auth continuation; no remote desktop or real external MFA provider evaluation",
@@ -79,5 +102,6 @@
     "Diff/log matches are hypotheses rather than proven root causes",
     "Real model quality and authorized project release gates not evaluated",
     "Full PRD includes further code expansion listed in current progress document"
-  ]
+  ],
+  "sourceCommit": "3c530bebdbce4bcde4a1217e85436bfdc5c959bd"
 }

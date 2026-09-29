@@ -93,6 +93,8 @@ Profile 可固定 decision/vision 的 provider 与 model。新增模型组合发
 
 ## 验证与发布边界
 
-具体测试计数见 [机器摘要](evidence/v2-autonomy-completion-verification.json)。测试使用隔离数据库、真实浏览器及合成业务，不访问付费模型。API/worker/web 独立构建、全仓类型检查、TS/Python 契约一致性检查均需通过后提交。
+具体测试计数见 [机器摘要](evidence/v2-autonomy-completion-verification.json)。测试使用隔离数据库、真实浏览器及合成业务，不访问付费模型。最终结果：契约 311、API 122（跳过 2）、worker 236（跳过 7）、Python 413 项通过；V2 的 112 项是 worker 子集，不重复相加。最终页面变更另复验 3 项。API/worker/web 独立构建、全仓类型检查、TS/Python 契约一致性检查均通过。
+
+四个最终 ARM64 镜像通过隔离安装/升级/恢复验收九步骤：真实 Chromium 新旧运行通过，恢复后完整旧报告、V2 审核状态和测试文件字节一致，清理无错误。记录见 [生产镜像验收](evidence/v2-autonomy-production-release.json)。amd64/Windows 未验。初次全量测试有 4 项超时；未提高时限，单独重跑后 236 项通过。初次镜像下载中断也保留在验收摘要里。
 
 完整 PRD 的未完成项继续在 [当前台账](v2-progress.md) 显示，包括跨文档语义覆盖/设计图、多观察器、广泛代码测试生成和变异分析、远程接管、多供应商真实兼容、真实项目效果及发布验收。不能把这些全部解释为“只差账号”。本轮实现的是上述明确的代码增量，不把整个产品标为完成。

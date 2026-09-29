@@ -8,7 +8,7 @@
   <p>
     <a href="deploy/README.md"><img src="https://img.shields.io/badge/Deploy-Self--hosted-172b35?style=flat-square&amp;labelColor=0d2028&amp;color=157a6e" alt="支持自托管部署" /></a>
     <a href="docs/delivery/v1-code-completion-20260922.md"><img src="https://img.shields.io/badge/Status-1.0_code_candidate-172b35?style=flat-square&amp;labelColor=0d2028&amp;color=7db59e" alt="1.0 代码候选版" /></a>
-    <a href="docs/product/v2.0/PRD.md"><img src="https://img.shields.io/badge/Roadmap-2.0_PRD-172b35?style=flat-square&amp;labelColor=0d2028&amp;color=6d77d0" alt="2.0 产品设计，尚未实现" /></a>
+    <a href="docs/product/v2.0/PRD.md"><img src="https://img.shields.io/badge/Roadmap-2.0_PRD-172b35?style=flat-square&amp;labelColor=0d2028&amp;color=6d77d0" alt="2.0 产品设计与开发预览" /></a>
     <a href="https://github.com/libowenzuishuai/ai-qa-platform/actions/workflows/intelligence.yml"><img src="https://github.com/libowenzuishuai/ai-qa-platform/actions/workflows/intelligence.yml/badge.svg" alt="共享契约和 Python CI 状态，不代表完整产品验收" /></a>
   </p>
   <p><a href="#快速开始"><strong>开始使用</strong></a> · <a href="#产品一瞥">产品一瞥</a> · <a href="docs/delivery/v1-code-completion-20260922.md">验收证据</a> · <a href="docs/product/v2.0/PRD.md">PRD 2.0</a> · <a href="CONTRIBUTING.md">参与共建</a></p>
@@ -34,7 +34,7 @@ AI QA 把验收依据和实际执行连接起来：**这条用例从哪里来、
 
 <img src="docs/brand/workflow.svg" width="100%" alt="资料 → 批准规则 → 用例 → 真实执行 → 证据 → 原标准复测" />
 
-> **当前定位：可用于有人指导的试点。** 1.0 是代码候选版，尚未证明可以通用地替代测试人员。2.0 的自主测试循环、开放 Harness 和动态操作适应属于规划。功能代码、真实组件验证、真实业务效果分开记录。
+> **当前定位：可用于有人指导的试点。** 1.0 是代码候选版，尚未证明可以通用地替代测试人员。`main` 保留 1.0 候选版；`v2/autonomous-qa` 已有自主循环、可组合 Harness 和受限网站探索的开发预览，尚未通过完整 2.0 发布门。功能代码、真实组件验证、真实业务效果分开记录。
 
 ## 产品一瞥
 
@@ -90,9 +90,11 @@ docker compose -p aiqa-prod \
 
 ## 2.0：从受控验收到自主测试
 
+开发分支已接通网站探索、多角色与文件交互、人工认证接续、版本固定的能力组合、离线调试及隔离复现工具。真实模型效果、任意站点泛化和完整 PRD 发布门尚未达成。查看 [当前实现与限制](docs/delivery/v2-autonomy-completion-20260928.md) · [验收记录](docs/delivery/evidence/v2-autonomy-completion-verification.json)。
+
 我们下一步要解决的是：**面对陌生项目，能理解依据、持续观察、调整操作、发现缺陷，并证明没有为了通过而改掉标准。**
 
-| 2.0 方向 · 尚未实现 | 可验证的交付 |
+| 2.0 方向 · 开发预览中 | 可验证的交付 |
 |---|---|
 | 开放 Harness | 安装新适配器无需修改核心调度；重复节点、子流程、有限循环可组合 |
 | 自主测试循环 | 观察 → 规划 → 行动 → 校验 → 调整；每一步有预算和可恢复状态 |
