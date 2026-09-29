@@ -1,0 +1,83 @@
+{
+  "date": "2026-09-29",
+  "baseline": "bbf45f9",
+  "branch": "v2/autonomous-qa",
+  "releaseStatus": "DEVELOPMENT_PREVIEW_NOT_FULL_V2",
+  "paidModelCalls": 0,
+  "countsOverlap": true,
+  "checks": [
+    {
+      "suite": "contracts",
+      "passed": 311,
+      "failed": 0
+    },
+    {
+      "suite": "api",
+      "passed": 122,
+      "skipped": 2,
+      "failed": 0
+    },
+    {
+      "suite": "worker final full rerun",
+      "passed": 236,
+      "skipped": 7,
+      "failed": 0
+    },
+    {
+      "suite": "worker V2 subset",
+      "passed": 112,
+      "failed": 0
+    },
+    {
+      "suite": "Python intelligence",
+      "passed": 413,
+      "failed": 0
+    },
+    {
+      "suite": "typecheck",
+      "result": "passed"
+    },
+    {
+      "suite": "API/worker/web standalone builds",
+      "result": "passed"
+    },
+    {
+      "suite": "TS/Python generated contract consistency",
+      "result": "passed"
+    }
+  ],
+  "failedAttempts": [
+    {
+      "suite": "worker initial full run",
+      "passed": 232,
+      "failed": 4,
+      "skipped": 7,
+      "failureType": "test timeouts; standalone full rerun passed all 236 without increasing limits"
+    },
+    {
+      "suite": "production image first attempt",
+      "result": "web passed; api/worker/intelligence dependency downloads interrupted; retry pending"
+    }
+  ],
+  "testEvidence": {
+    "fixtures": "synthetic",
+    "realComponents": [
+      "Chromium",
+      "PostgreSQL temporary databases",
+      "HTTP fixture servers",
+      "Python service",
+      "worker SIGKILL/recovery"
+    ],
+    "modelDecisions": "explicit fixtures or intercepted HTTP; no paid provider behavior measured"
+  },
+  "productionImages": {
+    "status": "PENDING_FINAL_VALIDATION"
+  },
+  "limitations": [
+    "Local visible worker supports manual auth continuation; no remote desktop or real external MFA provider evaluation",
+    "Reproduction needs a trusted isolated fixture service with frozen oracle; bounded 1-minimal is not global shortest",
+    "Diff/log matches are hypotheses rather than proven root causes",
+    "Real model quality and authorized project release gates not evaluated",
+    "Full PRD includes further code expansion listed in current progress document"
+  ]
+}

@@ -10,9 +10,9 @@ import { z } from "zod";
 /**
  * 【v2 已决】moonshot 对齐根 .env 已配置并实测的 Kimi（阶段 0.1 复核）；
  * mock 为确定性替身。禁止回退 glm/zhipu 假设（有测试锁定）。
- * 未来加供应商走契约单独 PR。
+ * 2026-09-28：显式新增 openai-compatible 协议通道；不自动识别品牌或静默回退。
  */
-export const ModelProvider = z.enum(["moonshot", "mock"]);
+export const ModelProvider = z.enum(["moonshot", "openai-compatible", "mock"]);
 export type ModelProvider = z.infer<typeof ModelProvider>;
 
 export const ModelCapabilities = z.object({

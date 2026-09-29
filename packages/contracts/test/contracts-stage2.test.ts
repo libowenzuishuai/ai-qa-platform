@@ -321,8 +321,8 @@ describe("用例生成联合校验（李琦双）", () => {
 });
 
 describe("枚举与错误码映射（李博闻）", () => {
-  it("ModelProvider = moonshot/mock；glm 被拒（防回退）", () => {
-    expect(ModelProvider.options).toEqual(["moonshot", "mock"]);
+  it("ModelProvider 显式增加兼容协议；未注册品牌被拒（防静默回退）", () => {
+    expect(ModelProvider.options).toEqual(["moonshot", "openai-compatible", "mock"]);
     expect(ModelProvider.safeParse("glm").success).toBe(false);
     expect(ModelProvider.safeParse("zhipu").success).toBe(false);
     expect(ModelProvider.parse("moonshot")).toBe("moonshot");

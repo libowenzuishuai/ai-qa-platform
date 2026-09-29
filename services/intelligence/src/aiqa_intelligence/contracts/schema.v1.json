@@ -4,6 +4,59 @@
     "BrowserAgentInput": {
       "type": "object",
       "properties": {
+        "modelPins": {
+          "type": "object",
+          "properties": {
+            "decision": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "enum": [
+                    "moonshot",
+                    "openai-compatible"
+                  ]
+                },
+                "model": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "provider",
+                "model"
+              ],
+              "additionalProperties": false
+            },
+            "vision": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "enum": [
+                    "moonshot",
+                    "openai-compatible"
+                  ]
+                },
+                "model": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "provider",
+                "model"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "decision"
+          ],
+          "additionalProperties": false
+        },
         "strategy": {
           "type": "string",
           "enum": [
@@ -157,6 +210,124 @@
           },
           "maxItems": 800
         },
+        "exploration": {
+          "type": "object",
+          "properties": {
+            "roles": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/BrowserAgentInput/properties/images/items/properties/role"
+              },
+              "minItems": 1,
+              "maxItems": 8
+            },
+            "kinds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "click",
+                  "fill",
+                  "select",
+                  "reload",
+                  "wait"
+                ]
+              },
+              "minItems": 1,
+              "maxItems": 5
+            },
+            "values": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/definitions/BrowserAgentInput/properties/images/items/properties/role"
+                  },
+                  "value": {
+                    "type": "string",
+                    "maxLength": 4000
+                  }
+                },
+                "required": [
+                  "id",
+                  "value"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 50
+            }
+          },
+          "required": [
+            "roles",
+            "kinds",
+            "values"
+          ],
+          "additionalProperties": false
+        },
+        "pages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "role": {
+                "$ref": "#/definitions/BrowserAgentInput/properties/images/items/properties/role"
+              },
+              "url": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 8000
+              }
+            },
+            "required": [
+              "role",
+              "url",
+              "title",
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 8
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/definitions/BrowserAgentInput/properties/images/items/properties/role"
+              },
+              "role": {
+                "$ref": "#/definitions/BrowserAgentInput/properties/images/items/properties/role"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "const": "SUCCEEDED"
+              }
+            },
+            "required": [
+              "id",
+              "role",
+              "kind",
+              "target",
+              "status"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 100
+        },
         "operations": {
           "type": "array",
           "items": {
@@ -177,7 +348,14 @@
                   "navigate",
                   "reload",
                   "switch_tab",
-                  "wait"
+                  "wait",
+                  "hover",
+                  "check",
+                  "uncheck",
+                  "press",
+                  "upload",
+                  "download",
+                  "scroll"
                 ]
               },
               "target": {
@@ -202,6 +380,26 @@
                 "minimum": 1,
                 "maximum": 5,
                 "default": 1
+              },
+              "download": {
+                "type": "object",
+                "properties": {
+                  "filename": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "maxBytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8388608
+                  }
+                },
+                "required": [
+                  "filename",
+                  "maxBytes"
+                ],
+                "additionalProperties": false
               },
               "visual": {
                 "type": "boolean",
@@ -292,6 +490,32 @@
             "string",
             "null"
           ]
+        },
+        "proposed": {
+          "type": "object",
+          "properties": {
+            "role": {
+              "$ref": "#/definitions/BrowserAgentInput/properties/images/items/properties/role"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "click",
+                "fill",
+                "select",
+                "reload",
+                "wait"
+              ]
+            },
+            "valueRef": {
+              "$ref": "#/definitions/BrowserAgentInput/properties/images/items/properties/role"
+            }
+          },
+          "required": [
+            "role",
+            "kind"
+          ],
+          "additionalProperties": false
         },
         "point": {
           "anyOf": [
@@ -2716,6 +2940,7 @@
           "type": "string",
           "enum": [
             "moonshot",
+            "openai-compatible",
             "mock"
           ]
         },
@@ -4525,6 +4750,59 @@
           "required": [
             "generator",
             "vision",
+            "decision"
+          ],
+          "additionalProperties": false
+        },
+        "modelPins": {
+          "type": "object",
+          "properties": {
+            "decision": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "enum": [
+                    "moonshot",
+                    "openai-compatible"
+                  ]
+                },
+                "model": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "provider",
+                "model"
+              ],
+              "additionalProperties": false
+            },
+            "vision": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "enum": [
+                    "moonshot",
+                    "openai-compatible"
+                  ]
+                },
+                "model": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "provider",
+                "model"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
             "decision"
           ],
           "additionalProperties": false

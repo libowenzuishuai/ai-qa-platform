@@ -16,6 +16,30 @@ from pydantic import (
 )
 
 
+class Decision(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    provider: Literal['moonshot', 'openai-compatible']
+    model: str = Field(..., max_length=200, min_length=1)
+
+
+class Vision(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    provider: Literal['moonshot', 'openai-compatible']
+    model: str = Field(..., max_length=200, min_length=1)
+
+
+class ModelPins(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    decision: Decision
+    vision: Vision | None = None
+
+
 class Image(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -42,6 +66,14 @@ class Box(BaseModel):
     y: float
     width: float
     height: float
+
+
+class Download(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    filename: str = Field(..., max_length=200, min_length=1)
+    maxBytes: int = Field(..., ge=1, le=8388608)
 
 
 class Dialog(BaseModel):
@@ -197,7 +229,7 @@ class Locator3(BaseModel):
     value: str = Field(..., min_length=1)
 
 
-class Page(BaseModel):
+class Page1(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -216,7 +248,7 @@ class OnlyIf(BaseModel):
     value: str | float | bool
 
 
-class Value(BaseModel):
+class Value1(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -224,7 +256,7 @@ class Value(BaseModel):
     value: str
 
 
-class Value2(BaseModel):
+class Value3(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -362,7 +394,7 @@ class ModelResponse(BaseModel):
     repairsApplied: (
         list[Literal['code-fence', 'trailing-comma', 'truncated-json', 'bom']] | None
     ) = []
-    provider: Literal['moonshot', 'mock']
+    provider: Literal['moonshot', 'openai-compatible', 'mock']
     model: str
     requestId: str | None
     usage: Usage
@@ -463,6 +495,14 @@ class ModelRoutes(BaseModel):
     generator: str = Field(..., max_length=200, min_length=1)
     vision: str = Field(..., max_length=200, min_length=1)
     decision: str = Field(..., max_length=200, min_length=1)
+
+
+class ModelPins1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    decision: Decision
+    vision: Vision | None = None
 
 
 class DependsOnItem(RootModel[str]):
@@ -1207,7 +1247,7 @@ class DataSpec5(BaseModel):
     note: str = Field(..., min_length=1)
 
 
-class Value4(BaseModel):
+class Value5(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -1215,7 +1255,7 @@ class Value4(BaseModel):
     value: str
 
 
-class Value5(BaseModel):
+class Value6(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -1225,7 +1265,7 @@ class Value5(BaseModel):
     )
 
 
-class Value6(BaseModel):
+class Value7(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -1233,7 +1273,7 @@ class Value6(BaseModel):
     varName: str = Field(..., pattern='^[a-zA-Z][a-zA-Z0-9_]*$')
 
 
-class Value7(BaseModel):
+class Value8(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -1309,17 +1349,73 @@ class Element(BaseModel):
     box: Box | None
 
 
+class ValueModel(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(..., pattern='^[a-zA-Z][a-zA-Z0-9_-]{0,79}$')
+    value: str = Field(..., max_length=4000)
+
+
+class Exploration(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    roles: list[Role] = Field(..., max_length=8, min_length=1)
+    kinds: list[Literal['click', 'fill', 'select', 'reload', 'wait']] = Field(
+        ..., max_length=5, min_length=1
+    )
+    values: list[ValueModel] = Field(..., max_length=50)
+
+
+class Page(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    role: str = Field(..., pattern='^[a-zA-Z][a-zA-Z0-9_-]{0,79}$')
+    url: str
+    title: str = Field(..., max_length=500)
+    text: str = Field(..., max_length=8000)
+
+
+class HistoryItem(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: str = Field(..., pattern='^[a-zA-Z][a-zA-Z0-9_-]{0,79}$')
+    role: str = Field(..., pattern='^[a-zA-Z][a-zA-Z0-9_-]{0,79}$')
+    kind: str
+    target: str
+    status: Literal['SUCCEEDED']
+
+
 class Operation(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
     id: str = Field(..., pattern='^[a-zA-Z][a-zA-Z0-9_-]{0,79}$')
     role: str = Field(..., pattern='^[a-zA-Z][a-zA-Z0-9_-]{0,79}$')
-    kind: Literal['click', 'fill', 'select', 'navigate', 'reload', 'switch_tab', 'wait']
+    kind: Literal[
+        'click',
+        'fill',
+        'select',
+        'navigate',
+        'reload',
+        'switch_tab',
+        'wait',
+        'hover',
+        'check',
+        'uncheck',
+        'press',
+        'upload',
+        'download',
+        'scroll',
+    ]
     target: str = Field(..., max_length=200, min_length=1)
     value: str | None = Field(None, max_length=4000)
     after: list[Role] | None = Field([], max_length=50, validate_default=True)
     maxUses: int | None = Field(1, ge=1, le=5)
+    download: Download | None = None
     visual: bool | None = False
     dialog: Dialog | None = None
 
@@ -1328,6 +1424,7 @@ class BrowserAgentInput(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
+    modelPins: ModelPins | None = None
     strategy: Literal['semantic-v1', 'model-v1'] | None = 'semantic-v1'
     promptVersion: Literal['browser-agent-v1']
     goal: str = Field(..., max_length=4000)
@@ -1335,8 +1432,20 @@ class BrowserAgentInput(BaseModel):
     hints: list[Hint] | None = Field([], max_length=3, validate_default=True)
     observationId: str
     elements: list[Element] = Field(..., max_length=800)
+    exploration: Exploration | None = None
+    pages: list[Page] | None = Field(None, max_length=8)
+    history: list[HistoryItem] | None = Field(None, max_length=100)
     operations: list[Operation] = Field(..., max_length=100)
     completed: list[Role] = Field(..., max_length=100)
+
+
+class Proposed(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    role: str = Field(..., pattern='^[a-zA-Z][a-zA-Z0-9_-]{0,79}$')
+    kind: Literal['click', 'fill', 'select', 'reload', 'wait']
+    valueRef: str | None = Field(None, pattern='^[a-zA-Z][a-zA-Z0-9_-]{0,79}$')
 
 
 class BrowserAgentOutput(BaseModel):
@@ -1346,6 +1455,7 @@ class BrowserAgentOutput(BaseModel):
     observationId: str
     actionId: Role | None
     elementRef: str | None
+    proposed: Proposed | None = None
     point: Point | None = None
     status: Literal['act', 'done', 'blocked']
     rationale: str = Field(..., max_length=1000, min_length=1)
@@ -1476,7 +1586,7 @@ class Observation(BaseModel):
     environmentId: str
     environmentRevision: int
     bindings: list[Binding] = Field(..., max_length=1200)
-    pages: list[Page] = Field(..., max_length=12)
+    pages: list[Page1] = Field(..., max_length=12)
 
 
 class PlanProposalInput(BaseModel):
@@ -1502,7 +1612,7 @@ class Actions(BaseModel):
     pathTemplate: str | None = None
 
 
-class Value1(BaseModel):
+class Value2(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -1512,7 +1622,7 @@ class Value1(BaseModel):
     )
 
 
-class Value3(BaseModel):
+class Value4(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
@@ -1543,7 +1653,7 @@ class Actions1(BaseModel):
         min_length=1,
         pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$',
     )
-    value: Value | Value1 | Value2 | Value3
+    value: Value1 | Value2 | Value3 | Value4
 
 
 class Actions2(BaseModel):
@@ -1582,7 +1692,7 @@ class Actions3(BaseModel):
         min_length=1,
         pattern='^[a-zA-Z0-9][a-zA-Z0-9._:-]*$',
     )
-    value: Value4 | Value5 | Value6 | Value7
+    value: Value5 | Value6 | Value7 | Value8
 
 
 class Actions4(BaseModel):
@@ -2368,6 +2478,7 @@ class V2HarnessProfileVersion(BaseModel):
     )
     capabilities: list[Capability] = Field(..., max_length=200, min_length=1)
     modelRoutes: ModelRoutes
+    modelPins: ModelPins1 | None = None
     verifierPolicy: str = Field(..., max_length=200, min_length=1)
     memoryPolicy: str = Field(..., max_length=200, min_length=1)
     id: str = Field(

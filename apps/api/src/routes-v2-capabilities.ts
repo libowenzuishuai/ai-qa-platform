@@ -1,3 +1,4 @@
+import {ReproductionManifest} from '@ai-qa/adapter-sdk/samples/reproduction';
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { PrismaClient } from "@prisma/client";
 import { z } from "zod";
@@ -21,6 +22,7 @@ export function registerV2CapabilityRoutes(app: FastifyInstance, prisma: PrismaC
   const param = (req: FastifyRequest, key: string) =>
     (req.params as Record<string, string>)[key]!;
 
+  app.get('/api/v2/projects/:id/capabilities/builtins',async req=>{await requireProjectAccess(prisma,req,param(req,'id'),'VIEWER');return {manifests:[ReproductionManifest]};});
   app.post("/api/v2/projects/:id/capabilities/install", async (req, reply) => {
     const projectId = param(req, "id");
     await requireProjectAccess(prisma, req, projectId, "ADMIN");

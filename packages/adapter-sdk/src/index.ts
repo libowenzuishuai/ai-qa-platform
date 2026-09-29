@@ -11,6 +11,8 @@ export type { SchemaValidation };
  */
 
 export interface CapabilityContext {
+  afterEffect?:(effect:{action:string;resourceKey:string;response:unknown})=>Promise<void>;
+  beforeEffect?:(effect:{action:string;resourceKey:string;creates:boolean})=>Promise<void>;
   /** Host-owned per-execution browser; adapters cannot create/cross another session. */
   browser?: import('./browser-harness.js').BrowserHarness;
   /** Trusted host-owned evidence directory, never model/task supplied. */

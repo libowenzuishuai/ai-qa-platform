@@ -22,6 +22,8 @@ import type { SecretRefs } from "../credentials.js";
  */
 
 export interface InvokeInput {
+  beforeEffect?:CapabilityContext['beforeEffect'];
+  afterEffect?:CapabilityContext['afterEffect'];
   browser?: import('@ai-qa/adapter-sdk/browser-harness').BrowserHarness;
   prisma: PrismaClient;
   projectId: string;
@@ -81,6 +83,7 @@ export async function invokeCapability(args: InvokeInput): Promise<CapabilityRes
   // R0.1：动作范围交集——任务批准范围 ∩ 安装授予权限；空交集拒绝。
   const grantedScope = (((fresh.authorization ?? {}) as { scope?: string[] }).scope ?? []);
   if (grantedScope.length === 0) return fail("FORBIDDEN", "安装缺少授权范围记录，拒绝调用");
+  if(args.capabilityId === "platform.reproduction-minimize" && !grantedScope.includes("fixture:isolated-reproduction")) return fail("FORBIDDEN", "未授权隔离复现写操作");
   if (args.actionScope && args.actionScope.length > 0) {
     const overlap = args.actionScope.filter((a) => grantedScope.includes(a));
     if (overlap.length !== args.actionScope.length)
@@ -130,7 +133,7 @@ export async function invokeCapability(args: InvokeInput): Promise<CapabilityRes
   if(manifest.permissions.network === "declared-origins-only") allowedOrigins=allowedOrigins.filter(x=>manifest.permissions.declaredOrigins.includes(x));
   const timeoutMs = Math.max(1, Math.min(args.deadline - Date.now(), manifest.timeoutMsMax));
   const ctx: CapabilityContext = {
-    browser:args.browser,
+    browser:args.browser,beforeEffect:args.beforeEffect,afterEffect:args.afterEffect,
     artifactDir: args.artifactDir,
     signal: args.signal,
     deadline: Date.now() + timeoutMs,

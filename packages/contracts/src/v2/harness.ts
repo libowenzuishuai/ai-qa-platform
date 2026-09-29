@@ -153,6 +153,7 @@ export const HarnessProfileContent = z.object({
     vision: z.string().min(1).max(200),
     decision: z.string().min(1).max(200),
   }).strict(),
+  modelPins:z.object({decision:z.object({provider:z.enum(['moonshot','openai-compatible']),model:z.string().min(1).max(200)}).strict(),vision:z.object({provider:z.enum(['moonshot','openai-compatible']),model:z.string().min(1).max(200)}).strict().optional()}).strict().optional(),
   /** 判定与记忆策略引用（策略本身版本化）。 */
   verifierPolicy: z.string().min(1).max(200),
   memoryPolicy: z.string().min(1).max(200),

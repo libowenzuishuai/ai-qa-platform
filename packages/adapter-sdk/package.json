@@ -12,7 +12,8 @@
     "./samples/web-observe": "./src/samples/web-observe.ts",
     "./browser-harness": "./src/browser-harness.ts",
     "./samples/browser-agent": "./src/samples/browser-agent.ts",
-    "./graph-kernel": "./src/graph-kernel.ts"
+    "./graph-kernel": "./src/graph-kernel.ts",
+    "./samples/reproduction": "./src/samples/reproduction.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -16,18 +16,24 @@ export function registerV2InvestigationRoutes(app:FastifyInstance,prisma:PrismaC
   const finding=await prisma.v2Finding.findUnique({where:{id:id(req)}});if(!finding)throw new ApiError('NOT_FOUND','问题不存在');
   await requireProjectAccess(prisma,req,finding.projectId,'LEAD');
   if(!artifactDir)throw new ApiError('DEPENDENCY_UNAVAILABLE','证据目录未配置');
+  const supplemental=z.object({evidenceIds:z.array(z.string()).max(30).default([])}).strict().parse(req.body??{});
   const first=finding.firstFailure as {sessionId?:string;evidenceIds:string[]};
   if(!first.sessionId)throw new ApiError('CONFLICT','缺少原始运行，不能自动调查');
   const session=await prisma.v2ExecutionSession.findFirst({where:{id:first.sessionId,projectId:finding.projectId,status:{in:['COMPLETED','FAILED']}}});
   if(!session)throw new ApiError('CONFLICT','原始运行不存在或尚未结束');
   const observations=await prisma.v2Observation.findMany({where:{sessionId:session.id},orderBy:{observedAt:'asc'},take:500});
-  const ids=[...new Set([...first.evidenceIds,...observations.flatMap(o=>o.evidenceArtifactIds)])];
+  const ids=[...new Set([...supplemental.evidenceIds,...first.evidenceIds,...observations.flatMap(o=>o.evidenceArtifactIds)])];
   await requireV2Evidence(prisma,finding.projectId,ids,artifactDir);
   const store=new ArtifactStore(artifactDir),records=[];
   for(const observation of observations)for(const id of observation.evidenceArtifactIds){
     const artifact=await prisma.artifact.findUniqueOrThrow({where:{id}});if(artifact.type==='SCREENSHOT')continue;
     const bytes=store.read(artifact.storageKey);if(bytes.length>4*1024*1024)continue;
     try{records.push({id,source:observation.source,body:JSON.parse(bytes.toString())});}catch{/* Non-JSON evidence is retained but cannot support structured diagnosis. */}
+  }
+  for(const artifactId of supplemental.evidenceIds){
+    const artifact=await prisma.artifact.findUniqueOrThrow({where:{id:artifactId}});const bytes=store.read(artifact.storageKey);if(bytes.length>4*1024*1024)throw new ApiError('VALIDATION_ERROR','调查材料超过上限');
+    const value=z.object({kind:z.enum(['code_diff','service_log','auth_log']),buildId:z.string(),requestId:z.string().optional(),changedSymbols:z.array(z.string().max(200)).max(100).optional(),stack:z.array(z.string().max(1000)).max(100).optional(),message:z.string().max(8000).optional()}).strict().parse(JSON.parse(bytes.toString()));
+    if(value.buildId!==session.buildId)throw new ApiError('CONFLICT','调查材料不属于失败构建');records.push({id:artifactId,source:value.kind,body:value});
   }
   const report=investigateEvidence(records);
   await prisma.$transaction(async tx=>{

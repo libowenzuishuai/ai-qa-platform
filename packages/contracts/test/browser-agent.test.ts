@@ -25,3 +25,13 @@ it('native dialog policy is exact and limited to its approved click',()=>{
  expect(BrowserAgentTask.safeParse({...task,operations:[{...task.operations[0],kind:'reload',dialog}]}).success).toBe(false);
  expect(BrowserAgentTask.safeParse({...task,operations:[{...task.operations[0],dialog:{...dialog,promptText:'x'}}]}).success).toBe(false);
 });
+
+it('exploration needs bounded declared roles, approved values and a model strategy',()=>{
+ const exploration={roles:['author'],kinds:['fill'],values:[{id:'sample',value:'approved'}]};
+ expect(BrowserAgentTask.safeParse({...task,operations:[],strategy:'model-v1',exploration}).success).toBe(true);
+ expect(BrowserAgentTask.safeParse({...task,operations:[],exploration}).success).toBe(false);
+ expect(BrowserAgentTask.safeParse({...task,strategy:'model-v1',exploration:{...exploration,roles:['outsider']}}).success).toBe(false);
+ expect(BrowserAgentTask.safeParse({...task,operations:[]}).success).toBe(false);
+ expect(BrowserAgentTask.safeParse({...task,operations:[{...task.operations[0],kind:'press',value:'Control+L'}]}).success).toBe(false);
+ expect(BrowserAgentTask.safeParse({...task,operations:[{...task.operations[0],kind:'download'}]}).success).toBe(false);
+});

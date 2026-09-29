@@ -17,6 +17,7 @@ export function registerV2ProfileRoutes(app:FastifyInstance, prisma:PrismaClient
 
   function supported(content:HarnessProfileContent){
     if(content.verifierPolicy!=="oracle-graph-v1"||!["none","approved-memory-v1"].includes(content.memoryPolicy)||content.modelRoutes.generator!=="disabled"||!["disabled","browser-vision-v1"].includes(content.modelRoutes.vision)||!["deterministic-v1","browser-model-v1"].includes(content.modelRoutes.decision))throw new ApiError('VALIDATION_ERROR','配置包含未接入的规划、视觉、判定或记忆策略');
+    if(content.modelRoutes.decision==='browser-model-v1'&&(!content.modelPins?.decision||content.modelRoutes.vision==='browser-vision-v1'&&!content.modelPins.vision))throw new ApiError('VALIDATION_ERROR','模型规划必须固定提供商和模型名称；视觉通道单独固定');
     if(content.modelRoutes.decision==='deterministic-v1'&&(content.memoryPolicy!=='none'||content.modelRoutes.vision!=='disabled'))throw new ApiError('VALIDATION_ERROR','视觉和项目经验只在模型规划中消费，确定性配置不能声明启用');
   }
   async function pins(projectId:string,content:HarnessProfileContent){
@@ -39,15 +40,15 @@ export function registerV2ProfileRoutes(app:FastifyInstance, prisma:PrismaClient
   });
   app.post('/api/v2/projects/:id/browser-blueprints',async(req,reply)=>{
     const projectId=param(req);await requireProjectAccess(prisma,req,projectId,'LEAD');
-    const body=z.object({name:z.string().min(1).max(200),task:BrowserAgentTask,checks:z.array(z.object({nodeId:z.string().regex(/^[a-z][a-z0-9_-]{0,60}$/),role:z.string(),target:z.string().min(1).max(200),locatorKind:z.enum(['testId','label','text','role']).default('testId'),elementRole:z.enum(['heading','status','alert','textbox','button','link','cell','row']).default('status')}).strict()).min(1).max(30),memoryPolicy:z.enum(['none','approved-memory-v1']).default('none')}).strict().parse(req.body);
+    const body=z.object({name:z.string().min(1).max(200),task:BrowserAgentTask,modelPins:HarnessProfileContent.shape.modelPins,checks:z.array(z.object({nodeId:z.string().regex(/^[a-z][a-z0-9_-]{0,60}$/),role:z.string(),target:z.string().min(1).max(200),locatorKind:z.enum(['testId','label','text','role','download']).default('testId'),elementRole:z.enum(['heading','status','alert','textbox','button','link','cell','row']).default('status')}).strict()).min(1).max(30),memoryPolicy:z.enum(['none','approved-memory-v1']).default('none')}).strict().parse(req.body);
     if(body.checks.some(c=>!body.task.roles.some(r=>r.id===c.role))||new Set(body.checks.map(x=>x.nodeId)).size!==body.checks.length||body.checks.some(c=>c.nodeId==='agent'))throw new ApiError('VALIDATION_ERROR','复核节点标识或角色无效');
     const installations=[];for(const manifest of [BrowserAgentManifest,BrowserReadManifest]){
       const row=await prisma.v2AdapterInstallation.findFirst({where:{projectId,capabilityId:manifest.id,capabilityVersion:manifest.version,status:'AUTHORIZED'},orderBy:{installedAt:'desc'}});if(!row)throw new ApiError('CONFLICT','请管理员先启用并授权网站测试能力');installations.push({capabilityId:manifest.id,version:manifest.version,installationId:row.id});
     }
     const content=WorkflowDefinitionContent.parse({name:body.name,description:body.task.goal,maxSubflowDepth:4,nodes:[{nodeId:'agent',capabilityId:BrowserAgentManifest.id,capabilityVersion:BrowserAgentManifest.version,dependsOn:[],onFailure:'fail',bindings:{taskJson:{source:'constant',type:'string',value:JSON.stringify(body.task)}}},...body.checks.map(c=>({nodeId:c.nodeId,capabilityId:BrowserReadManifest.id,capabilityVersion:BrowserReadManifest.version,dependsOn:['agent'],onFailure:'fail',bindings:{locatorKind:{source:'constant',type:'string',value:c.locatorKind},elementRole:{source:'constant',type:'string',value:c.elementRole},browserRef:{source:'node',nodeId:'agent',path:'browserRef',type:'string'},role:{source:'constant',type:'string',value:c.role},target:{source:'constant',type:'string',value:c.target}}}))]});
     if(body.task.strategy==='semantic-v1'&&body.memoryPolicy!=='none')throw new ApiError('VALIDATION_ERROR','确定性规划不消费项目经验');
-    const profile=HarnessProfileContent.parse({capabilities:installations,modelRoutes:{generator:'disabled',vision:body.task.strategy==='model-v1'&&body.task.operations.some(o=>o.visual)?'browser-vision-v1':'disabled',decision:body.task.strategy==='model-v1'?'browser-model-v1':'deterministic-v1'},memoryPolicy:body.memoryPolicy,verifierPolicy:'oracle-graph-v1'});
-    await pins(projectId,profile);
+    const profile=HarnessProfileContent.parse({capabilities:installations,...(body.modelPins?{modelPins:body.modelPins}:{}),modelRoutes:{generator:'disabled',vision:body.task.strategy==='model-v1'&&body.task.operations.some(o=>o.visual)?'browser-vision-v1':'disabled',decision:body.task.strategy==='model-v1'?'browser-model-v1':'deterministic-v1'},memoryPolicy:body.memoryPolicy,verifierPolicy:'oracle-graph-v1'});
+    supported(profile);await pins(projectId,profile);
     const definitionHash=computeAstHash(content),profileHash=computeProfileHash(profile);
     const saved=await prisma.$transaction(async tx=>{
       await tx.$queryRaw`SELECT id FROM "Project" WHERE id=${projectId} FOR UPDATE`;

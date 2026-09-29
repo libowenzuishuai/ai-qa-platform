@@ -83,6 +83,8 @@ it('published browser blueprint → durable graph host → real role login → P
    const result=await runGraphSession({prisma:env.prisma,...request,artifactDir:env.artifactDir,intelligence:{url:pythonUrl,token:'browser-test'}});expect(result.verdict,JSON.stringify(result)).toBe(broken?'fail':'pass');
    expect(await env.prisma.v2Observation.count({where:{sessionId:request.sessionId,source:'browser-intent'}})).toBe(3);
    const before=posts;const replay=await app.inject({method:'POST',url:`/api/v2/sessions/${request.sessionId}/replay`});expect(replay.statusCode,replay.body).toBe(200);expect(replay.json().graph.status).toBe('completed');expect(posts).toBe(before);expect(replay.json().externalCalls).toBe(0);
+   const injected=await app.inject({method:'POST',url:`/api/v2/sessions/${request.sessionId}/replay`,payload:{faults:[{nodeId:'agent',code:'TIMEOUT'}]}});expect(injected.statusCode,injected.body).toBe(200);expect(injected.json().mode).toBe('fault-injection-replay');expect(injected.json().graph.status).toBe('failed');expect(posts).toBe(before);
+   const single=await app.inject({method:'POST',url:`/api/v2/sessions/${request.sessionId}/replay`,payload:{onlyNode:'verify'}});expect(single.json().graph.nodes).toHaveLength(1);
    await env.prisma.projectMembership.updateMany({where:{projectId:project.id,userId:user.id},data:{role:'VIEWER'}});
    try{expect((await app.inject({method:'POST',url:`/api/v2/sessions/${request.sessionId}/replay`})).statusCode).toBe(403);}finally{await env.prisma.projectMembership.updateMany({where:{projectId:project.id,userId:user.id},data:{role:'ADMIN'}});}
   }

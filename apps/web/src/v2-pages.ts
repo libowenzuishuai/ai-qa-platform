@@ -99,23 +99,27 @@ export function registerV2Pages(app: FastifyInstance) {
       const res = await api(`/api/v2/sessions/${encodeURIComponent(id)}`, { sid: s });
       const d = res.data as {
         reportVerdict?: string; evidenceComplete?: boolean;
-        session: { result?: { verdict: string; buildVerification?:{verified:boolean;reason:string};checks?:Array<{assertionId:string;verdict:string;actual:unknown;reason?:string}> }; id: string; goal: string; status: string; terminationReason: string | null; projectId: string; buildId: string };
+        session: { checkpoint?:{auth?:{nonce:string;role:string}};result?: { verdict: string; buildVerification?:{verified:boolean;reason:string};checks?:Array<{assertionId:string;verdict:string;actual:unknown;reason?:string}> }; id: string; goal: string; status: string; terminationReason: string | null; projectId: string; buildId: string };
         attempts: Array<{ round: number; phase: string; status: string; rationale: string | null }>;
         intents: Array<{ id: string; idempotencyKey: string; createdAt: string }>;
         invocations: Array<{ intentId: string; attemptNo: number; status: string; receipt: { outcome: string } | null }>;
         observations: Array<{ round: number; source: string; summary: unknown }>;
       };
+      let resourceError='';
+      const owned=(await api<{resources:Array<{key:string;status:string}>}>(`/api/v2/sessions/${encodeURIComponent(id)}/resources`,{sid:s}).catch(()=>{resourceError='暂时无法读取资源台账，不能据此确认无残留。请检查权限或稍后重试。';return {data:{resources:[]}};})).data.resources;
       const phaseLabel: Record<string, string> = { observe: "观察", plan: "规划", act: "行动", verify: "验证", adapt: "调整" };
       const attempts = d.attempts.map((a) => `<tr><td>${a.round}</td><td>${phaseLabel[a.phase] ?? a.phase}</td><td><span class="badge ${a.status === "SUCCEEDED" ? "PASS" : "REVIEW"}">${esc(a.status)}</span></td><td>${esc(a.rationale ?? "")}</td></tr>`).join("");
       const invocations = d.invocations.map((v) => `<tr><td><code>${esc(v.intentId.slice(-8))}</code></td><td>#${v.attemptNo}</td><td>${esc(v.status)}</td><td>${esc(v.receipt?.outcome ?? "")}</td></tr>`).join("");
       const body = `
       <div class="page-heading"><div><span class="eyebrow">SESSION</span><h1>${esc(d.session.goal.slice(0, 50))}</h1>
       <p>状态 <b>${esc(d.session.status)}</b> · 验收结论 <b>${esc(d.reportVerdict ?? d.session.result?.verdict ?? "尚未判定")}</b> · 构建（${d.session.result?.buildVerification?.verified?"已核验":"已声明，未验证"}）${esc(d.session.buildId)}${d.session.terminationReason ? ` · 结束原因：${esc(d.session.terminationReason)}` : ""}</p></div>
-      <div>${["QUEUED","RUNNING"].includes(d.session.status) ? `<form method="post" action="/v2/sessions/${esc(id)}/pause"><button type="submit">暂停</button></form>` : d.session.status === "PAUSED" ? `<form method="post" action="/v2/sessions/${esc(id)}/resume"><button type="submit">继续（保留原标准和预算）</button></form>` : ""}${["QUEUED", "RUNNING", "WAITING_HUMAN", "PAUSED"].includes(d.session.status) ? `<form method="post" action="/v2/sessions/${esc(id)}/cancel"><button type="submit" class="danger">取消会话</button></form>` : ""}</div></div>
+      <div>${["QUEUED","RUNNING"].includes(d.session.status) ? `<form method="post" action="/v2/sessions/${esc(id)}/pause"><button type="submit">暂停</button></form>` : d.session.status === "PAUSED" ? `<form method="post" action="/v2/sessions/${esc(id)}/resume"><button type="submit">继续（保留原标准和预算）</button></form>` : ""}${["QUEUED", "RUNNING", "WAITING_HUMAN", "WAITING_AUTH", "PAUSED"].includes(d.session.status) ? `<form method="post" action="/v2/sessions/${esc(id)}/cancel"><button type="submit" class="danger">取消会话</button></form>` : ""}</div></div>
       ${["QUEUED","PREPARING","RUNNING"].includes(d.session.status) ? `<p class="muted">运行记录每 3 秒更新；暂停或结束后停止刷新。</p><script>setTimeout(()=>location.reload(),3000)</script>` : ""}
       ${d.reportVerdict === "review" && !d.evidenceComplete ? `<p class="error-box">证据缺失或校验失败，当前报告需要复核。历史执行结论仍保留。</p>` : ""}
       ${d.session.result?.checks?`<section class="card"><h2>业务断言</h2><p>业务预期固定在批准版本；操作完成不会直接变成验收通过。</p><ul>${d.session.result.checks.map(c=>`<li><b>${esc(c.verdict)}</b> · ${esc(c.assertionId)} · ${esc(JSON.stringify(c.actual))} ${esc(c.reason??'')}</li>`).join('')}</ul><p><a href="/space/${esc(d.session.projectId)}/findings">查看缺陷与复测 →</a></p></section>`:''}
-      <section class="card"><h2>证据回放</h2><form method="post" action="/v2/sessions/${esc(id)}/replay"><button>回放已记录的组合（不访问目标）</button></form></section>
+      ${d.session.status==='WAITING_AUTH'&&d.session.checkpoint?.auth?`<section class="card"><h2>请完成角色认证</h2><p>请在运行器打开的浏览器窗口中完成 ${esc(d.session.checkpoint.auth.role)} 的验证码或 MFA。不要在平台填写验证码或密码。</p><form method="post" action="/v2/sessions/${esc(id)}/auth-complete"><input type="hidden" name="nonce" value="${esc(d.session.checkpoint.auth.nonce)}"><button>我已完成，核验后继续</button></form></section>`:''}
+      <section class="card"><h2>证据回放</h2><form method="post" action="/v2/sessions/${esc(id)}/replay"><label>单节点调试（可选）<input name="onlyNode" placeholder="节点名称"></label><label>注入故障的节点（可选）<input name="faultNode"></label><select name="faultCode"><option value="TIMEOUT">超时</option><option value="DEPENDENCY_UNAVAILABLE">依赖不可用</option><option value="MODEL_OUTPUT_INVALID">输出格式错误</option></select><button>离线回放与调试（不访问目标）</button></form></section>
+      <section class="card"><h2>隔离资源台账</h2>${resourceError?`<p class="error-box">${esc(resourceError)}</p>`:owned.map(r=>`<p>${esc(r.key)} · ${esc(r.status)}</p>${r.status!=='cleaned'?`<form method="post" action="/v2/sessions/${esc(id)}/resource-cleanup"><input type="hidden" name="key" value="${esc(r.key)}"><button>按原始归属重试清理（管理员）</button></form>`:''}`).join('')||'<p>当前没有可展示的隔离夹具资源。</p>'}</section>
       <section class="card"><h2>循环阶段（真实事件）</h2>
       ${attempts ? `<table><thead><tr><th>轮次</th><th>阶段</th><th>状态</th><th>决策依据</th></tr></thead><tbody>${attempts}</tbody></table>` : `<div class="empty-state">尚无阶段记录。</div>`}
       </section>
@@ -129,9 +133,11 @@ export function registerV2Pages(app: FastifyInstance) {
     }
   });
 
+  app.post('/v2/sessions/:id/resource-cleanup',async(req,reply)=>{const s=sid(req);if(!s)return reply.redirect('/login');const {id}=req.params as {id:string},f=req.body as {key:string};try{await api(`/api/v2/sessions/${encodeURIComponent(id)}/resources/${encodeURIComponent(f.key)}/cleanup`,{sid:s,method:'POST',body:{}});return reply.redirect(`/v2/sessions/${encodeURIComponent(id)}`);}catch(e){return reply.code(409).send(layout('清理未确认',`<p>${esc((e as Error).message)}</p>`));}});
+  app.post('/v2/sessions/:id/auth-complete',async(req,reply)=>{const s=sid(req);if(!s)return reply.redirect('/login');const {id}=req.params as {id:string};try{await api(`/api/v2/sessions/${encodeURIComponent(id)}/auth-complete`,{sid:s,method:'POST',body:req.body});return reply.redirect(`/v2/sessions/${encodeURIComponent(id)}`);}catch(e){return reply.code(409).send(layout('认证未恢复',`<p>${esc((e as Error).message)}</p>`));}});
   app.post('/v2/sessions/:id/replay',async(req,reply)=>{
     const s=sid(req);if(!s)return reply.redirect('/login');const {id}=req.params as {id:string};
-    try{const r=await api(`/api/v2/sessions/${encodeURIComponent(id)}/replay`,{sid:s,method:'POST',body:{}});return reply.type('text/html').send(layout('证据回放',`<section class="card"><h1>历史记录回放</h1><p>本次不调用目标或模型，不能代替当前版本重新验收。</p><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(JSON.stringify(r.data,null,2))}</pre></section>`));}catch(e){return reply.code(422).send(layout('回放未完成',`<p class="error-box">${esc((e as Error).message)}</p>`));}
+    const f=req.body as Record<string,string>;try{const r=await api(`/api/v2/sessions/${encodeURIComponent(id)}/replay`,{sid:s,method:'POST',body:{...(f.onlyNode?{onlyNode:f.onlyNode}:{}),...(f.faultNode?{faults:[{nodeId:f.faultNode,code:f.faultCode,retryable:false}]}:{})}});return reply.type('text/html').send(layout('证据回放',`<section class="card"><h1>历史记录回放</h1><p>本次不调用目标或模型，不能代替当前版本重新验收。</p><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(JSON.stringify(r.data,null,2))}</pre></section>`));}catch(e){return reply.code(422).send(layout('回放未完成',`<p class="error-box">${esc((e as Error).message)}</p>`));}
   });
   for (const action of ["cancel", "pause", "resume"]) app.post(`/v2/sessions/:id/${action}`, async (req, reply) => {
     const s = sid(req);

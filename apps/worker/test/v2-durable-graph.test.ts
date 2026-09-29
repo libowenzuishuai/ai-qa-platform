@@ -1,3 +1,5 @@
+import {registerV2ResourceRoutes} from '../../api/src/routes-v2-resources.js';
+import {registerV2AuthHandoffRoutes} from '../../api/src/routes-v2-auth-handoff.js';
 import {registerJobRoutes} from '../../api/src/routes-jobs.js';
 import {registerV2InvestigationRoutes} from "../../api/src/routes-v2-investigation.js";
 import {beforeAll,afterAll,it,expect} from 'vitest';
@@ -20,6 +22,7 @@ import {computeOracleHash} from '@ai-qa/contracts';
 import {runGraphSession,type GraphSnapshot} from '../src/v2/graph-session.js';
 let env:TestEnv,app:ReturnType<typeof Fastify>,server:ReturnType<typeof createServer>;
 let projectId:string,environmentId:string,oracleSpecId:string,profileId:string,definitionId:string,installationId:string,baseUrl:string;
+let fixtureCleanupFails=false;const fixtureNamespaces=new Set<string>();
 let hits=0,status=200,probeBuildId='declared-test';
 let holdAfter=Infinity,holdReached=false;
 const queue={add:async()=>({}) as never};
@@ -29,8 +32,8 @@ beforeAll(async()=>{
  const user=await env.prisma.user.create({data:{username:randomUUID(),displayName:'lead',passwordHash:'unused',platformRole:'LEAD'}});
  projectId=(await env.prisma.project.create({data:{name:'durable',memberships:{create:{userId:user.id,role:'ADMIN'}}}})).id;
  app.addHook('onRequest',async req=>{req.auth={userId:user.id,username:user.username,displayName:user.displayName,platformRole:'LEAD'};});
- registerJobRoutes(app,env.prisma,queue);registerV2InvestigationRoutes(app,env.prisma,env.artifactDir);registerV2CapabilityRoutes(app,env.prisma);registerV2DefinitionRoutes(app,env.prisma);registerV2ProfileRoutes(app,env.prisma,queue,env.artifactDir);registerV2SessionRoutes(app,env.prisma,queue,{artifactDir:env.artifactDir});registerBuiltinSamples();
- server=createServer((_req,res)=>{if(_req.url==='/build'){res.setHeader('content-type','application/json');res.end(JSON.stringify({buildId:probeBuildId}));return;}hits++;if(hits===holdAfter){holdReached=true;return;}res.writeHead(status).end('actual business response');});await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));baseUrl=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
+ registerV2ResourceRoutes(app,env.prisma,env.artifactDir);registerV2AuthHandoffRoutes(app,env.prisma);registerJobRoutes(app,env.prisma,queue);registerV2InvestigationRoutes(app,env.prisma,env.artifactDir);registerV2CapabilityRoutes(app,env.prisma);registerV2DefinitionRoutes(app,env.prisma);registerV2ProfileRoutes(app,env.prisma,queue,env.artifactDir);registerV2SessionRoutes(app,env.prisma,queue,{artifactDir:env.artifactDir});registerBuiltinSamples();
+ server=createServer(async(_req,res)=>{if(_req.url?.startsWith('/aiqa/reproduction/')){let raw='';for await(const part of _req)raw+=part;const value=JSON.parse(raw),action=_req.url.split('/').at(-1);const response:Record<string,unknown>={namespace:value.namespace,buildId:value.buildId,oracleHash:value.oracleHash};if(action==='reset'){fixtureNamespaces.add(value.namespace);response.clean=true;}if(action==='trial'){response.verdict=value.steps.includes('save')?'fail':'pass';response.failureKey='fixture-bug';response.evidence=['actual-fixture-result'];}if(action==='cleanup'){if(!fixtureCleanupFails)fixtureNamespaces.delete(value.namespace);response.clean=!fixtureCleanupFails;}res.setHeader('content-type','application/json');res.end(JSON.stringify(response));return;}if(_req.url==='/build'){res.setHeader('content-type','application/json');res.end(JSON.stringify({buildId:probeBuildId}));return;}hits++;if(hits===holdAfter){holdReached=true;return;}res.writeHead(status).end('actual business response');});await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));baseUrl=`http://127.0.0.1:${(server.address() as {port:number}).port}`;
  environmentId=(await env.prisma.environment.create({data:{projectId,name:'test',baseUrl,allowedOrigins:[baseUrl],runtime:{buildProbe:{path:'/build',field:'buildId'}}}})).id;
  installationId=(await app.inject({method:'POST',url:`/api/v2/projects/${projectId}/capabilities/install`,payload:{manifest:HttpReadManifest}})).json().installationId;
  expect((await app.inject({method:'POST',url:`/api/v2/installations/${installationId}/authorize`,payload:{scope:['read:http']}})).statusCode).toBe(200);
@@ -151,6 +154,8 @@ it('automatic evidence investigation keeps support and counterevidence; tampered
   await run(request);const finding=await env.prisma.v2Finding.findFirstOrThrow({where:{projectId,buildId:'automatic-investigation'}});
   expect((finding.hypotheses as Array<{status:string}>).some(h=>h.status==='supported')).toBe(true);
   const response=await app.inject({method:'POST',url:`/api/v2/findings/${finding.id}/investigate`});expect(response.statusCode,response.body).toBe(200);expect(response.json().hypotheses[0].supportingEvidence.length).toBeGreaterThan(0);
+  const extra=[];for(const value of [{kind:'code_diff',buildId:'automatic-investigation',changedSymbols:['saveOrder']},{kind:'service_log',buildId:'automatic-investigation',stack:['at saveOrder (orders.ts:7)']}]){const file=env.store.put({runId:'root-cause',attemptId:'evidence',filename:randomUUID()+'.json',data:Buffer.from(JSON.stringify(value))});extra.push((await env.prisma.artifact.create({data:{projectId,type:'OBSERVATION',sensitivity:'RESTRICTED_RAW',storageKey:file.storageKey,checksum:file.checksum}})).id);}
+  const detailed=await app.inject({method:'POST',url:`/api/v2/findings/${finding.id}/investigate`,payload:{evidenceIds:extra}});expect(detailed.statusCode,detailed.body).toBe(200);expect(detailed.json().hypotheses.some((h:{supportingEvidence:Array<{kind:string}>})=>h.supportingEvidence.some(e=>e.kind==='code_diff'))).toBe(true);
   const original=finding.firstFailure as {evidenceIds:string[]};const artifact=await env.prisma.artifact.findUniqueOrThrow({where:{id:original.evidenceIds[0]}});rmSync(join(env.artifactDir,artifact.storageKey));
   expect((await app.inject({method:'POST',url:`/api/v2/findings/${finding.id}/investigate`})).statusCode).toBe(409);
  }finally{status=200;}
@@ -196,4 +201,32 @@ it('graph preflight checks frozen profile with zero target calls and no extra se
  const result=await app.inject({method:'POST',url:`/api/v2/projects/${projectId}/graph-preflight`,payload:body});
  expect(result.statusCode,result.body).toBe(200);expect(result.json()).toMatchObject({mode:'dry-run',externalCalls:0,createsSession:false,graph:{status:'completed'}});
  expect(hits).toBe(before);expect(await env.prisma.v2ExecutionSession.count()).toBe(sessions);expect(await env.prisma.job.count()).toBe(jobs);
+});
+
+it('human auth confirmation is lease/nonce bound; lost browser cannot resume or replay writes',async()=>{
+ const {request}=await create(),nonce=randomUUID();const session=await env.prisma.v2ExecutionSession.findUniqueOrThrow({where:{id:request.sessionId}});
+ await env.prisma.v2ExecutionSession.update({where:{id:session.id},data:{status:'WAITING_AUTH',leaseToken:'owner',leaseExpiresAt:new Date(Date.now()+60000),checkpoint:{...(session.checkpoint as object),auth:{nonce,role:'user',state:'waiting',deadline:new Date(Date.now()+60000).toISOString()}}}});
+ const good=await app.inject({method:'POST',url:`/api/v2/sessions/${session.id}/auth-complete`,payload:{nonce}});expect(good.statusCode,good.body).toBe(200);expect(good.json().verified).toBe(false);
+ expect((await app.inject({method:'POST',url:`/api/v2/sessions/${session.id}/auth-complete`,payload:{nonce:randomUUID()}})).statusCode).toBe(409);
+ await env.prisma.v2ExecutionSession.update({where:{id:session.id},data:{leaseExpiresAt:new Date(0)}});
+ expect((await app.inject({method:'POST',url:`/api/v2/sessions/${session.id}/auth-complete`,payload:{nonce}})).statusCode).toBe(409);
+ const before=hits;expect(await run(request)).toMatchObject({verdict:'blocked',reason:'AUTH_BROWSER_LOST'});expect(hits).toBe(before);expect((await env.prisma.v2ExecutionSession.findUniqueOrThrow({where:{id:session.id}})).status).toBe('FAILED');
+});
+
+it('installed reproduction capability journals each effect; failed cleanup stays owned and admin can reconcile exactly that namespace',async()=>{
+ const {ReproductionManifest}=await import('@ai-qa/adapter-sdk/samples/reproduction');
+ const install=(await app.inject({method:'POST',url:`/api/v2/projects/${projectId}/capabilities/install`,payload:{manifest:ReproductionManifest}})).json();
+ expect((await app.inject({method:'POST',url:`/api/v2/installations/${install.installationId}/authorize`,payload:{scope:['fixture:isolated-reproduction']}})).statusCode).toBe(200);
+ const profile=(await app.inject({method:'POST',url:`/api/v2/projects/${projectId}/profiles`,payload:{key:'repro-fixture',content:{capabilities:[{capabilityId:ReproductionManifest.id,version:ReproductionManifest.version,installationId:install.installationId},{capabilityId:HttpReadManifest.id,version:HttpReadManifest.version,installationId}],modelRoutes:{generator:'disabled',vision:'disabled',decision:'deterministic-v1'},memoryPolicy:'none',verifierPolicy:'oracle-graph-v1'}}})).json();await app.inject({method:'POST',url:`/api/v2/profiles/${profile.id}/publish`});
+ const oracle=await env.prisma.v2OracleSpec.findUniqueOrThrow({where:{id:oracleSpecId}});
+ const bindings=Object.fromEntries(Object.entries({baseUrl,buildId:'declared-test',oracleHash:oracle.oracleHash,failureKey:'fixture-bug',maxTrials:3}).map(([k,v])=>[k,{source:'constant',type:Array.isArray(v)?'json':typeof v,value:v}]));
+ bindings.steps={source:'input',path:'steps',type:'json'} as never;
+ const definitionResponse=await app.inject({method:'POST',url:`/api/v2/projects/${projectId}/definitions`,payload:{name:'repro-fixture',nodes:[{nodeId:'reduce',capabilityId:ReproductionManifest.id,capabilityVersion:ReproductionManifest.version,dependsOn:[],onFailure:'fail',bindings},{nodeId:'verify',capabilityId:HttpReadManifest.id,capabilityVersion:HttpReadManifest.version,dependsOn:['reduce'],onFailure:'fail',bindings:{baseUrl:{source:'constant',type:'string',value:baseUrl},resourcePath:{source:'constant',type:'string',value:'/'}}}]}});expect(definitionResponse.statusCode,definitionResponse.body).toBe(202);const definition=definitionResponse.json();expect((await app.inject({method:'POST',url:`/api/v2/definitions/${definition.definitionId}/publish`})).statusCode).toBe(200);
+ const drift=await create({profileId:profile.id,definitionId:definition.definitionId,buildId:'other-build',taskInput:{steps:['noise','setup','save']},budget:{...budget,maxResources:10,maxToolCalls:100}});expect((await run(drift.request)).verdict).toBe('blocked');expect(fixtureNamespaces.size).toBe(0);
+ const first=await create({profileId:profile.id,definitionId:definition.definitionId,taskInput:{steps:['noise','setup','save']},budget:{...budget,maxResources:10,maxToolCalls:100}});expect((await run(first.request)).verdict).toBe('pass');expect(fixtureNamespaces.size).toBe(0);
+ const all=(await app.inject({url:`/api/v2/sessions/${first.request.sessionId}/resources`})).json();expect(all.resources.length).toBeGreaterThan(0);expect(all.resources.every((r:{status:string})=>r.status==='cleaned')).toBe(true);
+ fixtureCleanupFails=true;const other=await create({profileId:profile.id,definitionId:definition.definitionId,taskInput:{steps:['noise','setup','save']},budget:{...budget,maxResources:10,maxToolCalls:100}});await run(other.request);fixtureCleanupFails=false;
+ const residual=(await app.inject({url:`/api/v2/sessions/${other.request.sessionId}/resources`})).json().resources[0];expect(residual.status).toBe('cleanup_failed');
+ expect((await app.inject({method:'POST',url:`/api/v2/sessions/${other.request.sessionId}/resources/unowned/cleanup`})).statusCode).toBe(403);
+ const cleaned=await app.inject({method:'POST',url:`/api/v2/sessions/${other.request.sessionId}/resources/${residual.key}/cleanup`});expect(cleaned.statusCode,cleaned.body).toBe(200);expect(fixtureNamespaces.size).toBe(0);expect((await app.inject({url:`/api/v2/sessions/${other.request.sessionId}/resources`})).json().resources[0].status).toBe('cleaned');
 });

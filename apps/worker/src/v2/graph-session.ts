@@ -4,7 +4,7 @@ import {BrowserHarness} from '@ai-qa/adapter-sdk/browser-harness';
 import {BrowserAgentResponse} from '@ai-qa/contracts';
 import {prepareBrowserRole} from './browser-preparation.js';
 import {readFileSync,realpathSync,statSync} from 'node:fs';
-import {sep} from 'node:path';
+import {sep,join} from 'node:path';
 import {inspectBuild,type FrozenBuildProbe} from './build-probe.js';
 import {randomUUID,createHash} from 'node:crypto';
 import type {PrismaClient,Prisma} from '@prisma/client';
@@ -29,17 +29,22 @@ export async function runGraphSession(args:{prisma:PrismaClient;sessionId:string
   const {prisma,sessionId,snapshot}=args;
   let session=await prisma.v2ExecutionSession.findUniqueOrThrow({where:{id:sessionId}});
   if(['COMPLETED','FAILED','CANCELLED','PAUSED','WAITING_HUMAN'].includes(session.status))return session.result??{status:session.status};
+  if(session.status==='WAITING_AUTH'){
+    if(session.leaseExpiresAt&&session.leaseExpiresAt>new Date())throw fault('LEASE_BUSY','认证浏览器仍由原执行者持有');
+    await prisma.v2ExecutionSession.updateMany({where:{id:sessionId,status:'WAITING_AUTH',OR:[{leaseExpiresAt:null},{leaseExpiresAt:{lte:new Date()}}]},data:{status:'FAILED',terminationReason:'AUTH_BROWSER_LOST',result:{verdict:'blocked',reason:'人工认证浏览器已丢失，禁止自动重做写操作'},leaseToken:null,leaseExpiresAt:null}});
+    return {verdict:'blocked',reason:'AUTH_BROWSER_LOST'};
+  }
   const budget=SessionBudget.parse(session.budget);
   const token=randomUUID(),now=new Date();
   const claimed=await prisma.v2ExecutionSession.updateMany({where:{id:sessionId,status:{in:['QUEUED','RUNNING','PREPARING']},OR:[{leaseToken:null},{leaseExpiresAt:{lte:now}}]},data:{status:'RUNNING',leaseToken:token,leaseExpiresAt:new Date(+now+LEASE_MS),startedAt:session.startedAt??now}});
   if(!claimed.count)throw fault('LEASE_BUSY','已有执行者');
   session=await prisma.v2ExecutionSession.findUniqueOrThrow({where:{id:sessionId}});
-  const cp=session.checkpoint as {snapshotHash:string;activeMs?:number;toolCalls?:number;resources?:number;modelCalls?:number;tokens?:number;activeSince?:number};
+  const cp=session.checkpoint as {snapshotHash:string;activeMs?:number;toolCalls?:number;resources?:number;modelCalls?:number;tokens?:number;activeSince?:number;auth?:{nonce:string;role:string;deadline:string;state:string}};
   // Charge the previous uncheckpointed interval conservatively on recovery; budgets never reset.
   const activeBaseline=(cp.activeMs??0)+(cp.activeSince?Math.max(0,Date.now()-cp.activeSince):0);
   const started=Date.now(),deadline=Math.min(+session.startedAt!+budget.maxWallClockMs,started+budget.maxActiveMs-activeBaseline);
   const controller=new AbortController(),signal=AbortSignal.any([controller.signal,...(args.signal?[args.signal]:[])]);
-  const own=()=>({id:sessionId,status:'RUNNING',leaseToken:token,leaseExpiresAt:{gt:new Date()}});
+  const own=()=>({id:sessionId,status:{in:['RUNNING','WAITING_AUTH']},leaseToken:token,leaseExpiresAt:{gt:new Date()}});
   const store=new ArtifactStore(args.artifactDir);
   const commit=<T>(fn:(tx:Prisma.TransactionClient)=>Promise<T>)=>prisma.$transaction(async tx=>{
     if(!(await tx.v2ExecutionSession.updateMany({where:own(),data:{updatedAt:new Date()}})).count)throw fault('LEASE_LOST','过期执行拒绝提交');
@@ -75,6 +80,7 @@ export async function runGraphSession(args:{prisma:PrismaClient;sessionId:string
     await guard();
     await checkBuild();
     const manifest=manifests.get(`${request.capabilityId}@${request.capabilityVersion}`)!;
+    if(request.capabilityId==='platform.reproduction-minimize'){const value=request.input as {buildId?:string;oracleHash?:string};if(value.buildId!==session.buildId||value.oracleHash!==session.oracleHash)throw fault('CONFLICT','复现必须使用当前运行冻结的构建与业务标准');}
     const write=manifest.effectClass!=='READ';
     // One intent per physical retry; idempotencyKey remains stable across retries.
     const attemptKey=request.invocationId;
@@ -120,13 +126,25 @@ export async function runGraphSession(args:{prisma:PrismaClient;sessionId:string
         if(browsers.has(request.idempotencyKey))throw fault('CONFLICT','重复浏览器实例');
         const browserRequest=request;
         const browserImages=new Map<string,{role:string;tab:number;imageStorageKey:string;checksum:string;size:number}>();
-        browser=new BrowserHarness({artifactDir:args.artifactDir,allowedOrigins:(await prisma.environment.findFirstOrThrow({where:{id:session.environmentId!,projectId:session.projectId,isProduction:false}})).allowedOrigins.filter(origin=>snapshot.allowedOrigins.includes(origin)),deadline,signal,
+        browser=new BrowserHarness({headless:process.env.AIQA_BROWSER_HEADFUL!=='true',artifactDir:args.artifactDir,allowedOrigins:(await prisma.environment.findFirstOrThrow({where:{id:session.environmentId!,projectId:session.projectId,isProduction:false}})).allowedOrigins.filter(origin=>snapshot.allowedOrigins.includes(origin)),deadline,signal,
+          upload:async artifactId=>{
+            const row=await prisma.artifact.findFirst({where:{id:artifactId,projectId:session.projectId}});
+            if(!row||row.expiresAt&&row.expiresAt<=new Date()||!store.verify(row.storageKey,row.checksum))throw fault('EVIDENCE_INVALID','上传来源不存在、失效或不属于项目');
+            if(statSync(join(args.artifactDir,row.storageKey)).size>8388608)throw fault('BUDGET_EXCEEDED','上传文件超限');const buffer=store.read(row.storageKey);if(buffer.length>8388608)throw fault('BUDGET_EXCEEDED','上传文件超限');
+            return {name:row.storageKey.split('/').at(-1)!,mimeType:'application/octet-stream',buffer};
+          },
           prepareRole:async(role,page)=>{
             const pin=snapshot.browserPreparations?.[role];if(!pin)throw fault('AUTH_REQUIRED','角色未配置登录');
             const env=await prisma.environment.findFirstOrThrow({where:{id:session.environmentId!,projectId:session.projectId,isProduction:false}});
             const config=await prisma.loginPreparation.findFirst({where:{id:pin.id,projectId:session.projectId,environmentId:env.id,role,configHash:pin.configHash}});
             if(!config||env.revision!==snapshot.environmentRevision||digest(config.configuration)!==digest(pin.configuration))throw fault('AUTH_CHANGED','角色配置发生变化');
-            await prepareBrowserRole(page,pin.configuration,env.runtime,env.baseUrl,snapshot.allowedOrigins,deadline,async()=>{await guard();await checkBuild();await commit(async tx=>{if((cp.toolCalls??0)>=budget.maxToolCalls)throw fault('BUDGET_EXCEEDED','登录工具预算耗尽');cp.toolCalls=(cp.toolCalls??0)+1;const ref=await put({role,configurationHash:pin.configHash},'browser-auth-intent',tx);await tx.v2Observation.create({data:{sessionId,round:cp.toolCalls,source:'browser-auth-intent',evidenceArtifactIds:[ref.id],summary:{role}}});await saveUsage(tx);});});
+            await prepareBrowserRole(page,pin.configuration,env.runtime,env.baseUrl,snapshot.allowedOrigins,deadline,async()=>{await guard();await checkBuild();await commit(async tx=>{if((cp.toolCalls??0)>=budget.maxToolCalls)throw fault('BUDGET_EXCEEDED','登录工具预算耗尽');cp.toolCalls=(cp.toolCalls??0)+1;const ref=await put({role,configurationHash:pin.configHash},'browser-auth-intent',tx);await tx.v2Observation.create({data:{sessionId,round:cp.toolCalls,source:'browser-auth-intent',evidenceArtifactIds:[ref.id],summary:{role}}});await saveUsage(tx);});},async()=>{
+              if(process.env.AIQA_BROWSER_HEADFUL!=='true')throw fault('INTERACTIVE_AUTH_REQUIRED','请在有可视桌面的运行器启用人工认证交接');
+              const nonce=randomUUID();cp.auth={nonce,role,deadline:new Date(deadline).toISOString(),state:'waiting'};
+              await commit(async tx=>{await saveUsage(tx);await tx.v2ExecutionSession.update({where:{id:sessionId},data:{status:'WAITING_AUTH'}});await tx.v2SessionEvent.create({data:{sessionId,type:'state',payload:{status:'WAITING_AUTH',role,nonce,reason:'请在运行器浏览器中完成认证，然后确认继续'}}});});
+              while(true){await guard();const answer=await prisma.auditEvent.findFirst({where:{entityType:'V2ExecutionSession',entityId:sessionId,action:'v2.auth.complete',metadata:{path:['nonce'],equals:nonce}}});if(answer)break;await new Promise(r=>setTimeout(r,250));}
+              cp.auth={...cp.auth,state:'verifying'};await commit(async tx=>{await saveUsage(tx);await tx.v2ExecutionSession.update({where:{id:sessionId},data:{status:'RUNNING'}});});
+            });
           },
           event:async event=>{
             await guard();
@@ -141,13 +159,14 @@ export async function runGraphSession(args:{prisma:PrismaClient;sessionId:string
               if(event.kind==='intent'){if((cp.resources??0)>=budget.maxResources)throw fault('BUDGET_EXCEEDED','浏览器写入预算耗尽');cp.resources=(cp.resources??0)+1;}
               const evidence=await put(event.data,'browser-'+event.kind,tx);const ids=[evidence.id];
               if(event.screenshotPath){const bytes=readFileSync(event.screenshotPath);if(createHash('sha256').update(bytes).digest('hex')!==event.screenshotSha256)throw fault('EVIDENCE_INVALID','截图哈希不符');const shot=store.put({runId:sessionId,attemptId:'browser',filename:randomUUID()+'.png',data:bytes});const data=event.data as {role:string;tab:number};browserImages.set(data.role,{role:data.role,tab:data.tab,imageStorageKey:shot.storageKey,checksum:shot.checksum,size:bytes.length});ids.push((await tx.artifact.create({data:{projectId:session.projectId,storageKey:shot.storageKey,checksum:shot.checksum,type:'SCREENSHOT',sensitivity:'RESTRICTED_RAW'}})).id);}
+              if(event.filePath){const file=realpathSync(event.filePath);if(!file.startsWith(realpathSync(args.artifactDir)+sep)||statSync(file).size>8388608)throw fault('EVIDENCE_INVALID','下载路径或大小非法');const bytes=readFileSync(file);if(createHash('sha256').update(bytes).digest('hex')!==event.fileSha256)throw fault('EVIDENCE_INVALID','下载内容校验失败');const saved=store.put({runId:sessionId,attemptId:'browser',filename:randomUUID()+'.bin',data:bytes});ids.push((await tx.artifact.create({data:{projectId:session.projectId,storageKey:saved.storageKey,checksum:saved.checksum,type:'OBSERVATION',sensitivity:'RESTRICTED_RAW'}})).id);}
               await tx.v2Observation.create({data:{sessionId,round:cp.toolCalls??0,source:'browser-'+event.kind,evidenceArtifactIds:ids,summary:{kind:event.kind}}});await saveUsage(tx);
             });
           },
           plan:async(input,strategy)=>{
             await guard();if(!args.intelligence)throw fault('CONFIG_MISSING','未配置 Python 规划服务');
             const memories=strategy==='model-v1'&&profileContent.memoryPolicy==='approved-memory-v1'?await selectSessionMemories(prisma,store,{projectId:session.projectId,environmentId:session.environmentId!,oracleHash:session.oracleHash},3):[];
-            input={...input,images:[...browserImages.values()].map(({size,...image})=>image),hints:memories.filter(m=>m.decision==='used').map(m=>({memoryId:m.memoryRecordId,text:m.text!}))};
+            input={...input,...(profileContent.modelPins?{modelPins:profileContent.modelPins}:{}),images:[...browserImages.values()].map(({size,...image})=>image),hints:memories.filter(m=>m.decision==='used').map(m=>({memoryId:m.memoryRecordId,text:m.text!}))};
             const real=strategy==='model-v1';
             const vision=input.operations.some(x=>x.visual);
             if(vision&&real&&profileContent.modelRoutes.vision!=='browser-vision-v1')throw fault('FORBIDDEN','配置未授权视觉模型');
@@ -160,7 +179,7 @@ export async function runGraphSession(args:{prisma:PrismaClient;sessionId:string
             const ref=await commit(async tx=>{const artifact=await put(input,'browser-plan-input',tx);for(const memory of memories)await tx.v2MemoryUsage.create({data:{projectId:session.projectId,sessionId,memoryRecordId:memory.memoryRecordId,retrieved:true,decision:memory.decision,reason:memory.reason+'；请求证据 '+artifact.id,outcome:'unknown'}});return artifact;});
             const response=await fetch(new URL('/v2/browser/plan',args.intelligence.url),{method:'POST',headers:{authorization:'Bearer '+args.intelligence.token,'content-type':'application/json','x-aiqa-model-calls':real?'1':'0','x-aiqa-model-tokens':real?String(reserve):'0'},body:JSON.stringify({schemaVersion:'1.0',requestId,mode:real?'real':'mock',timeoutMs,input}),signal:AbortSignal.any([signal,AbortSignal.timeout(timeoutMs)])});
             if(!response.ok){const error=await response.json().catch(()=>null) as {code?:string}|null;const code=error?.code&&['MODEL_NOT_CONFIGURED','MODEL_TIMEOUT','BUDGET_EXCEEDED','MODEL_OUTPUT_INVALID','DEPENDENCY_UNAVAILABLE','VALIDATION_ERROR'].includes(error.code)?error.code:'PLANNER_ERROR';throw fault(code,'规划服务拒绝请求：'+code);}
-            const parsed=BrowserAgentResponse.parse(await response.json());if(parsed.requestId!==requestId||parsed.mode!==(real?'real':'mock')||real&&(parsed.invocations.length!==1||parsed.invocations[0]?.response.provider!=='moonshot')||!real&&parsed.invocations.length!==0)throw fault('MODEL_OUTPUT_INVALID','规划响应身份不符');
+            const parsed=BrowserAgentResponse.parse(await response.json());if(parsed.requestId!==requestId||parsed.mode!==(real?'real':'mock')||real&&(parsed.invocations.length!==1||!['moonshot','openai-compatible'].includes(parsed.invocations[0]?.response.provider??''))||!real&&parsed.invocations.length!==0)throw fault('MODEL_OUTPUT_INVALID','规划响应身份不符');
             await commit(async tx=>{const out=await put(parsed,'browser-plan-output',tx);await tx.v2Observation.create({data:{sessionId,round:cp.toolCalls??0,source:'browser-plan',evidenceArtifactIds:[ref.id,out.id],summary:{strategy,modelCalls:parsed.invocations.length}}});});
             return parsed.output;
           },
@@ -170,7 +189,12 @@ export async function runGraphSession(args:{prisma:PrismaClient;sessionId:string
         browser=browsers.get((request.input as {browserRef:string}).browserRef);
         if(!browser)throw fault('BROWSER_RECOVERY_REQUIRED','浏览器实例不存在或已过期，不能复用其他会话');
       }
-      result=await invokeCapability({...request,browser,deadline:Math.min(request.deadline,+intent!.deadline),invocationId:invocation.id});}
+      result=await invokeCapability({...request,browser,afterEffect:async effect=>{await commit(async tx=>{const ref=await put(effect,'fixture-receipt',tx);await tx.v2Observation.create({data:{sessionId,round:cp.toolCalls??0,source:'fixture-receipt',evidenceArtifactIds:[ref.id],summary:{action:effect.action,resourceKey:effect.resourceKey}}});});},beforeEffect:async effect=>{await guard();await checkBuild();await commit(async tx=>{
+        const env=await tx.environment.findUnique({where:{id:session.environmentId!}});if(!env||env.isProduction||request.allowedOrigins.some(o=>!env.allowedOrigins.includes(o)))throw fault('FORBIDDEN','环境权限已收窄');
+        const row=await tx.v2AdapterInstallation.findUnique({where:{id:request.installationId!}});if(row?.status!=='AUTHORIZED'||request.actionScope?.some(s=>!((row.authorization as {scope?:string[]})?.scope??[]).includes(s)))throw fault('FORBIDDEN','能力已撤销');
+        if((cp.toolCalls??0)>=budget.maxToolCalls||effect.creates&&(cp.resources??0)>=budget.maxResources)throw fault('BUDGET_EXCEEDED','复现预算耗尽');cp.toolCalls=(cp.toolCalls??0)+1;if(effect.creates)cp.resources=(cp.resources??0)+1;
+        const ref=await put(effect,'fixture-intent',tx);await tx.v2Observation.create({data:{sessionId,round:cp.toolCalls,source:'fixture-intent',evidenceArtifactIds:[ref.id],summary:effect}});await saveUsage(tx);
+      });},deadline:Math.min(request.deadline,+intent!.deadline),invocationId:invocation.id});}
     catch(error){const code=(error as {code?:string}).code??'DEPENDENCY_UNAVAILABLE';result={status:write||code==='BROWSER_RECOVERY_REQUIRED'?'UNKNOWN':'FAILED',output:null,resourceKeys:[],retryable:false,error:{code,message:'能力执行中断：'+code}};}
     if(write&&result.status==='CANCELLED')result={...result,status:'UNKNOWN',retryable:false};
     await commit(async tx=>{
@@ -249,7 +273,7 @@ export async function runGraphSession(args:{prisma:PrismaClient;sessionId:string
     return await finish(result);
   }catch(error){
     const current=await prisma.v2ExecutionSession.findUniqueOrThrow({where:{id:sessionId}});
-    if(current.leaseToken!==token||current.status!=='RUNNING')return {status:current.status,verdict:'review',reason:'会话控制已变更'};
+    if(current.leaseToken!==token||!['RUNNING','WAITING_AUTH'].includes(current.status))return {status:current.status,verdict:'review',reason:'会话控制已变更'};
     return await finish({status:(error as {code?:string}).code==='BROWSER_RECOVERY_REQUIRED'?'WAITING_HUMAN':'FAILED',verdict:(error as {code?:string}).code==='BROWSER_RECOVERY_REQUIRED'?'review':'blocked',reason:(error as Error).message,code:(error as {code?:string}).code??'INTERNAL'});
   }finally{await Promise.allSettled([...browsers.values()].map(browser=>browser.close()));clearInterval(heartbeat);clearTimeout(timer);controller.abort();await prisma.v2ExecutionSession.updateMany({where:{id:sessionId,leaseToken:token},data:{leaseToken:null,leaseExpiresAt:null}});}
 }

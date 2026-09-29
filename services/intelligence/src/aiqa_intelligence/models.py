@@ -41,6 +41,11 @@ class Gateway:
             mock_entries if mock_entries is not None else {}
         )
 
+    def set_route(self,role:str,pin:dict|None=None)->None:
+        if role not in {'generator','vision','decision'}:
+            raise ServiceError('VALIDATION_ERROR','模型角色未注册')
+        self.route_role,self.route_pin=role,pin
+
     def set_budget(self, calls: int, tokens: int) -> None:
         self.remaining_calls, self.remaining_tokens = calls, tokens
 
@@ -144,15 +149,20 @@ class Gateway:
                 {"inputTokens": 0, "outputTokens": 0},
             )
         else:
-            prefix = f"AIQA_{channel}_"
+            role=getattr(self,'route_role',None)
+            routed_channel='DECISION' if role=='decision' and os.getenv('AIQA_DECISION_PROVIDER') else channel
+            prefix = f"AIQA_{routed_channel}_"
             provider = os.getenv(prefix + "PROVIDER")
             base, model, key = (
                 os.getenv(prefix + name) for name in ("BASE_URL", "MODEL", "API_KEY")
             )
-            if provider != "moonshot" or not all([base, model, key]):
+            if provider not in {"moonshot","openai-compatible"} or not all([base, model, key]):
                 raise ServiceError(
-                    "MODEL_NOT_CONFIGURED", f"{channel} Moonshot 通道未配置", 503
+                    "MODEL_NOT_CONFIGURED", f"{routed_channel} 模型通道未配置", 503
                 )
+            pin=getattr(self,'route_pin',None)
+            if pin and (pin['provider']!=provider or pin['model']!=model):
+                raise ServiceError('MODEL_NOT_CONFIGURED','模型配置与冻结版本不同，拒绝静默切换',503)
             body = {
                 "model": model,
                 "messages": messages,
@@ -163,7 +173,7 @@ class Gateway:
                 body["max_tokens"] = 4096
             # Structured extraction is bounded by the request's wall time and output
             # budget. Kimi thinking consumes that budget before emitting JSON.
-            if model == "kimi-k2.6":
+            if provider == "moonshot" and model == "kimi-k2.6":
                 body["thinking"] = {"type": "disabled"}
             for source, target in [
                 ("temperature", "temperature"),
